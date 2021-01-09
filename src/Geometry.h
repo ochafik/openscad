@@ -6,13 +6,14 @@
 
 #include "linalg.h"
 #include "memory.h"
+#include "lazy_ptr.h"
 
 class GeometryVisitor;
 
 class Geometry
 {
 public:
-	typedef std::pair<const class AbstractNode *, shared_ptr<const Geometry>> GeometryItem;
+	typedef std::pair<const class AbstractNode *, lazy_ptr<const Geometry>> GeometryItem;
 	typedef std::list<GeometryItem> Geometries;
 
 	Geometry() : convexity(1) {}

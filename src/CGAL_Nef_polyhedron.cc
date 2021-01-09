@@ -5,6 +5,9 @@
 #include "polyset.h"
 #include "svg.h"
 
+// #define PARALLELIZE 1
+#define PARALLELIZE 0
+
 CGAL_Nef_polyhedron::CGAL_Nef_polyhedron(const CGAL_Nef_polyhedron3 *p)
 {
 	if (p) p3.reset(p);
@@ -15,29 +18,58 @@ CGAL_Nef_polyhedron::CGAL_Nef_polyhedron(const CGAL_Nef_polyhedron3 *p)
 // This is also partly enforced by p3 pointing to a const object.
 CGAL_Nef_polyhedron::CGAL_Nef_polyhedron(const CGAL_Nef_polyhedron &src)
 {
-	if (src.p3) this->p3 = src.p3;
+  #if PARALLELIZE
+    this->p3 = src.p3;
+  #else
+	  if (src.p3) this->p3 = src.p3;
+  #endif
 }
 
 CGAL_Nef_polyhedron CGAL_Nef_polyhedron::operator+(const CGAL_Nef_polyhedron &other) const
 {
-	return CGAL_Nef_polyhedron(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
+  auto self = this;
+  #if PARALLELIZE
+    return CGAL_Nef_polyhedron(lazy_ptr_op<CGAL_Nef_polyhedron3>([self, &other]() {
+      return new CGAL_Nef_polyhedron3((*self->p3) + (*other.p3)); }));
+  #else
+    return CGAL_Nef_polyhedron(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
+  #endif
 }
 
 CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator+=(const CGAL_Nef_polyhedron &other)
 {
-	this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
-	return *this;
+	auto self = this;
+  #if PARALLELIZE
+    this->p3.reset(lazy_ptr_op<CGAL_Nef_polyhedron3>([self, &other]() {
+      return new CGAL_Nef_polyhedron3((*self->p3) + (*other.p3));
+    }));
+  #else
+    this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
+  #endif
+  return *this;
 }
 
 CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator*=(const CGAL_Nef_polyhedron &other)
 {
-	this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) * (*other.p3)));
+	auto self = this;
+  #if PARALLELIZE
+    this->p3.reset(
+        lazy_ptr_op<CGAL_Nef_polyhedron3>([self, &other]() { return new CGAL_Nef_polyhedron3((*self->p3) * (*other.p3)); }));
+  #else
+	  this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) * (*other.p3)));
+  #endif
 	return *this;
 }
 
 CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator-=(const CGAL_Nef_polyhedron &other)
 {
-	this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) - (*other.p3)));
+	auto self = this;
+  #if PARALLELIZE
+    this->p3.reset(
+        lazy_ptr_op<CGAL_Nef_polyhedron3>([self, &other]() { return new CGAL_Nef_polyhedron3((*self->p3) - (*other.p3)); }));
+	#else
+	  this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) - (*other.p3)));
+	#endif
 	return *this;
 }
 
@@ -48,9 +80,19 @@ CGAL_Nef_polyhedron &CGAL_Nef_polyhedron::minkowski(const CGAL_Nef_polyhedron &o
 	// "Postcondition: If either of the input polyhedra is non-convex, it is modified during the computation,
 	//  i.e., it is decomposed into convex pieces."
 	// from https://doc.cgal.org/latest/Minkowski_sum_3/group__PkgMinkowskiSum3Ref.html
-	CGAL_Nef_polyhedron3 op1(*this->p3);
-	CGAL_Nef_polyhedron3 op2(*other.p3);
-	this->p3.reset(new CGAL_Nef_polyhedron3(CGAL::minkowski_sum_3(op1, op2)));
+	auto self = this;
+  #if PARALLELIZE
+    this->p3.reset(
+        lazy_ptr_op<CGAL_Nef_polyhedron3>([self, &other]() {
+          CGAL_Nef_polyhedron3 op1(*self->p3);
+          CGAL_Nef_polyhedron3 op2(*other.p3);
+          return new CGAL_Nef_polyhedron3(CGAL::minkowski_sum_3(op1, op2));
+          }));
+  #else
+    CGAL_Nef_polyhedron3 op1(*this->p3);
+    CGAL_Nef_polyhedron3 op2(*other.p3);
+    this->p3.reset(new CGAL_Nef_polyhedron3(CGAL::minkowski_sum_3(op1, op2)));
+  #endif
 	return *this;
 }
 

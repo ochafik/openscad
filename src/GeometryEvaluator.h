@@ -9,6 +9,7 @@
 #include <list>
 #include <vector>
 #include <map>
+#include "lazy_ptr.h"
 
 class GeometryEvaluator : public NodeVisitor
 {
@@ -44,18 +45,24 @@ private:
 		// for example union() with no children, etc.
 		ResultObject() : is_const(true) {}
 		ResultObject(const Geometry *g) : is_const(true), const_pointer(g) {}
-		ResultObject(shared_ptr<const Geometry> &g) : is_const(true), const_pointer(g) {}
+		ResultObject(lazy_ptr<const Geometry> &g) : is_const(true), const_pointer(g) {}
 		ResultObject(Geometry *g) : is_const(false), pointer(g) {}
-		ResultObject(shared_ptr<Geometry> &g) : is_const(false), pointer(g) {}
+		ResultObject(lazy_ptr<Geometry> &g) : is_const(false), pointer(g) {}
 		bool isConst() const { return is_const; }
-		shared_ptr<Geometry> ptr() { assert(!is_const); return pointer; }
-		shared_ptr<const Geometry> constptr() const { 
+		lazy_ptr<Geometry> ptr()
+		{
+			assert(!is_const);
+			return pointer;
+		}
+		lazy_ptr<const Geometry> constptr() const
+		{
 			return is_const ? const_pointer : static_pointer_cast<const Geometry>(pointer);
 		}
+
 	private:
 		bool is_const;
-		shared_ptr<Geometry> pointer;
-		shared_ptr<const Geometry> const_pointer;
+		lazy_ptr<Geometry> pointer;
+		lazy_ptr<const Geometry> const_pointer;
 	};
 
 	void smartCacheInsert(const AbstractNode &node, const shared_ptr<const Geometry> &geom);

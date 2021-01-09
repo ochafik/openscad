@@ -19,8 +19,8 @@
 #include <CGAL/normal_vector_newell_3.h>
 #include <CGAL/Handle_hash_function.h>
 
-#include <CGAL/config.h> 
-#include <CGAL/version.h> 
+#include <CGAL/config.h>
+#include <CGAL/version.h>
 
 #include <CGAL/convex_hull_3.h>
 #pragma pop_macro("NDEBUG")
@@ -87,7 +87,7 @@ namespace CGALUtils {
 		try {
 			for(const auto &item : children) {
 				const shared_ptr<const Geometry> &chgeom = item.second;
-				shared_ptr<const CGAL_Nef_polyhedron> chN = 
+				shared_ptr<const CGAL_Nef_polyhedron> chN =
 					dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
 				if (!chN) {
 					const PolySet *chps = dynamic_cast<const PolySet*>(chgeom.get());
@@ -103,16 +103,16 @@ namespace CGALUtils {
 					foundFirst = true;
 					continue;
 				}
-				
+
 				// Intersecting something with nothing results in nothing
 				if (!chN || chN->isEmpty()) {
 					if (op == OpenSCADOperator::INTERSECTION) N = nullptr;
 					continue;
 				}
-				
+
 				// empty op <something> => empty
 				if (!N || N->isEmpty()) continue;
-				
+
 				switch (op) {
 				case OpenSCADOperator::INTERSECTION:
 					*N *= *chN;
@@ -139,8 +139,8 @@ namespace CGALUtils {
 		return N;
 	}
 
-
-	CGAL_Nef_polyhedron *applyUnion3D(Geometry::Geometries::iterator chbegin, Geometry::Geometries::iterator chend)
+	CGAL_Nef_polyhedron *applyUnion3D(Geometry::Geometries::const_iterator chbegin,
+																		Geometry::Geometries::const_iterator chend)
 	{
 		typedef std::pair<shared_ptr<const CGAL_Nef_polyhedron>, int> QueueConstItem;
 		struct QueueItemGreater {
