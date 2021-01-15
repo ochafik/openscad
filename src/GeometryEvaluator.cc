@@ -45,8 +45,8 @@ GeometryEvaluator::GeometryEvaluator(const class Tree &tree):
 /*!
 	Set allownef to false to force the result to _not_ be a Nef polyhedron
 */
-shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNode &node,
-																															 bool allownef)
+lazy_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNode &node,
+																														 bool allownef)
 {
 	const std::string &key = this->tree.getIdString(node);
 	if (!GeometryCache::instance()->contains(key)) {
@@ -301,7 +301,7 @@ std::vector<const class Polygon2d *> GeometryEvaluator::collectChildren2D(const 
 	std::vector<const Polygon2d *> children;
 	for(const auto &item : this->visitedchildren[node.index()]) {
 		const AbstractNode *chnode = item.first;
-		const shared_ptr<const Geometry> &chgeom = item.second;
+		const lazy_ptr<const Geometry> &chgeom = item.second;
 		if (chnode->modinst->isBackground()) continue;
 
 		// NB! We insert into the cache here to ensure that all children of
@@ -336,10 +336,12 @@ std::vector<const class Polygon2d *> GeometryEvaluator::collectChildren2D(const 
 	This method inserts the geometry into the appropriate cache if it's not already cached.
 */
 void GeometryEvaluator::smartCacheInsert(const AbstractNode &node,
-																				 const shared_ptr<const Geometry> &geom)
+																				 const lazy_ptr<const Geometry> &geom)
 {
 	const std::string &key = this->tree.getIdString(node);
 
+	// TODO(ochafik): This forces a wait on the future. Let's try and infer the subtype before
+	// execution?
 	shared_ptr<const CGAL_Nef_polyhedron> N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom);
 	if (N) {
 		if (!CGALCache::instance()->contains(key)) CGALCache::instance()->insert(key, N);
@@ -360,10 +362,10 @@ bool GeometryEvaluator::isSmartCached(const AbstractNode &node)
 					CGALCache::instance()->contains(key));
 }
 
-shared_ptr<const Geometry> GeometryEvaluator::smartCacheGet(const AbstractNode &node, bool preferNef)
+lazy_ptr<const Geometry> GeometryEvaluator::smartCacheGet(const AbstractNode &node, bool preferNef)
 {
 	const std::string &key = this->tree.getIdString(node);
-	shared_ptr<const Geometry> geom;
+	lazy_ptr<const Geometry> geom;
 	bool hasgeom = GeometryCache::instance()->contains(key);
 	bool hascgal = CGALCache::instance()->contains(key);
 	if (hascgal && (preferNef || !hasgeom)) geom = CGALCache::instance()->get(key);
@@ -380,7 +382,7 @@ Geometry::Geometries GeometryEvaluator::collectChildren3D(const AbstractNode &no
 	Geometry::Geometries children;
 	for(const auto &item : this->visitedchildren[node.index()]) {
 		const AbstractNode *chnode = item.first;
-		const shared_ptr<const Geometry> &chgeom = item.second;
+		const lazy_ptr<const Geometry> &chgeom = item.second;
 		if (chnode->modinst->isBackground()) continue;
 
 		// NB! We insert into the cache here to ensure that all children of
@@ -455,9 +457,8 @@ Polygon2d *GeometryEvaluator::applyToChildren2D(const AbstractNode &node, OpenSC
 
 	The added geometry can be nullptr if it wasn't possible to evaluate it.
 */
-void GeometryEvaluator::addToParent(const State &state,
-																		const AbstractNode &node,
-																		const shared_ptr<const Geometry> &geom)
+void GeometryEvaluator::addToParent(const State &state, const AbstractNode &node,
+																		const lazy_ptr<const Geometry> &geom)
 {
 	this->visitedchildren.erase(node.index());
 	if (state.parent()) {
@@ -508,7 +509,7 @@ Response GeometryEvaluator::visit(State &state, const ListNode &node)
 				for(const auto &item : this->visitedchildren[node.index()]) {
 					if (!isValidDim(item, dim)) break;
 					const AbstractNode *chnode = item.first;
-					const shared_ptr<const Geometry> &chgeom = item.second;
+					const lazy_ptr<const Geometry> &chgeom = item.second;
 					addToParent(state, *chnode, chgeom);
 				}
 				this->visitedchildren.erase(node.index());
@@ -545,7 +546,7 @@ Response GeometryEvaluator::lazyEvaluateRootNode(State &state, const AbstractNod
 		for(const auto &item : this->visitedchildren[node.index()]) {
 			if (!isValidDim(item, dim)) break;
 			const AbstractNode *chnode = item.first;
-			const shared_ptr<const Geometry> &chgeom = item.second;
+			const lazy_ptr<const Geometry> &chgeom = item.second;
 			if (chnode->modinst->isBackground()) continue;
 			// NB! We insert into the cache here to ensure that all children of
 			// a node is a valid object. If we inserted as we created them, the
@@ -583,7 +584,7 @@ Response GeometryEvaluator::visit(State &state, const OffsetNode &node)
 {
 	if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
 	if (state.isPostfix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
 			if (geometry) {
@@ -657,7 +658,7 @@ Response GeometryEvaluator::visit(State &state, const RenderNode &node)
 Response GeometryEvaluator::visit(State &state, const LeafNode &node)
 {
 	if (state.isPrefix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			const Geometry *geometry = node.createGeometry();
 			assert(geometry);
@@ -680,7 +681,7 @@ Response GeometryEvaluator::visit(State &state, const LeafNode &node)
 Response GeometryEvaluator::visit(State &state, const TextNode &node)
 {
 	if (state.isPrefix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			std::vector<const Geometry *> geometrylist = node.createGeometryList();
 			std::vector<const Polygon2d *> polygonlist;
@@ -712,7 +713,7 @@ Response GeometryEvaluator::visit(State &state, const CsgOpNode &node)
 		state.setPreferNef(true); // Improve quality of CSG by avoiding conversion loss
 	}
 	if (state.isPostfix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			geom = applyToChildren(node, node.type).constptr();
 		}
@@ -1029,7 +1030,7 @@ Response GeometryEvaluator::visit(State &state, const LinearExtrudeNode &node)
 {
 	if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
 	if (state.isPostfix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			const Geometry *geometry = nullptr;
 			if (!node.filename.empty()) {
@@ -1187,7 +1188,7 @@ Response GeometryEvaluator::visit(State &state, const RotateExtrudeNode &node)
 {
 	if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
 	if (state.isPostfix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			const Geometry *geometry = nullptr;
 			if (!node.filename.empty()) {
@@ -1242,7 +1243,7 @@ Response GeometryEvaluator::visit(State &state, const ProjectionNode &node)
 				ClipperLib::Clipper sumclipper;
 				for(const auto &item : this->visitedchildren[node.index()]) {
 					const AbstractNode *chnode = item.first;
-					const shared_ptr<const Geometry> &chgeom = item.second;
+					const lazy_ptr<const Geometry> &chgeom = item.second;
 					if (chnode->modinst->isBackground()) continue;
 
 					const Polygon2d *poly = nullptr;
@@ -1310,7 +1311,8 @@ Response GeometryEvaluator::visit(State &state, const ProjectionNode &node)
 				if (sumresult.Total() > 0) geom.reset(ClipperUtils::toPolygon2d(sumresult));
 			}
 			else {
-				shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
+				lazy_ptr<const Geometry> newgeom =
+						applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
 				if (newgeom) {
 					shared_ptr<const CGAL_Nef_polyhedron> Nptr = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(newgeom);
 					if (!Nptr) {
@@ -1345,7 +1347,7 @@ Response GeometryEvaluator::visit(State &state, const CgaladvNode &node)
 {
 	if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
 	if (state.isPostfix()) {
-		shared_ptr<const Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			switch (node.type) {
 			case CgaladvType::MINKOWSKI: {
