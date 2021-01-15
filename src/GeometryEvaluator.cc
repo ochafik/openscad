@@ -37,9 +37,6 @@
 #include <CGAL/Point_2.h>
 #pragma pop_macro("NDEBUG")
 
-// #define PARALLELIZE 1
-#define PARALLELIZE 0
-
 GeometryEvaluator::GeometryEvaluator(const class Tree &tree):
 	tree(tree)
 {
@@ -134,14 +131,29 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 	if (children.size() == 0) return ResultObject();
 
 	if (op == OpenSCADOperator::HULL) {
-		PolySet *ps = new PolySet(3, true);
+    if (Feature::MultithreadedRender.is_enabled()) {
+      return ResultObject(lazy_ptr_op<const Geometry>(
+          [children]() -> const Geometry * {
+            PolySet *ps = new PolySet(3, true);
 
-		if (CGALUtils::applyHull(children, *ps)) {
-			return ps;
-		}
+            if (CGALUtils::applyHull(children, *ps)) {
+              return ps;
+            }
 
-		delete ps;
-		return ResultObject();
+            delete ps;
+            return nullptr;
+          },
+          "CGALUtils::applyHull(applyToChildren3D)"));
+    } else {
+      PolySet *ps = new PolySet(3, true);
+
+      if (CGALUtils::applyHull(children, *ps)) {
+        return ps;
+      }
+
+      delete ps;
+      return ResultObject();
+    }
 	}
 
 	// Only one child -> this is a noop
@@ -156,40 +168,46 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 			}
 			if (actualchildren.empty()) return ResultObject();
 			if (actualchildren.size() == 1) return ResultObject(actualchildren.front().second);
-      #if PARALLELIZE
-        return ResultObject(lazy_ptr_op<const Geometry>([actualchildren]() -> const Geometry * {
-          return CGALUtils::applyMinkowski(actualchildren);
-        }));
-      #else
+
+      if (Feature::MultithreadedRender.is_enabled()) {
+        return ResultObject(lazy_ptr_op<const Geometry>(
+            [actualchildren]() -> const Geometry * {
+              return CGALUtils::applyMinkowski(actualchildren);
+            },
+            "CGALUtils::applyMinkowski"));
+      } else {
 			  return ResultObject(CGALUtils::applyMinkowski(actualchildren));
-      #endif
+      }
 			break;
 		}
 		case OpenSCADOperator::UNION:
 		{
 			Geometry::Geometries actualchildren;
-			for(const auto &item : children) {
-				if (item.second && !item.second->isEmpty()) actualchildren.push_back(item);
+      for(const auto &item : children) {
+			  if (item.second && !item.second->isEmpty()) actualchildren.push_back(item);
 			}
 			if (actualchildren.empty()) return ResultObject();
 			if (actualchildren.size() == 1) return ResultObject(actualchildren.front().second);
-			#if PARALLELIZE
-        return ResultObject(lazy_ptr_op<Geometry>([actualchildren]() -> Geometry * {
-          return CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end());
-        }));
-      #else
+      if (Feature::MultithreadedRender.is_enabled()) {
+        return ResultObject(lazy_ptr_op<Geometry>(
+            [actualchildren]() -> Geometry * {
+              return CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end());
+            },
+            "CGALUtils::applyUnion3D"));
+      } else {
 			  return ResultObject(CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end()));
-      #endif
+      }
 			break;
 		}
 		default:
 		{
-      #if PARALLELIZE
+      if (Feature::MultithreadedRender.is_enabled()) {
         return ResultObject(lazy_ptr_op<Geometry>(
-            [children, op]() -> Geometry * { return CGALUtils::applyOperator3D(children, op); }));
-			#else
+            [children, op]() -> Geometry * { return CGALUtils::applyOperator3D(children, op); },
+            "CGALUtils::applyOperator3D"));
+      } else {
         return ResultObject(CGALUtils::applyOperator3D(children, op));
-      #endif
+      }
 			break;
 		}
 	}
@@ -244,12 +262,25 @@ Geometry *GeometryEvaluator::applyHull3D(const AbstractNode &node)
 {
 	Geometry::Geometries children = collectChildren3D(node);
 
+	// #if PARALLELIZE
+	// 	return lazy_op<Geometry *>(
+	// 			[children]() -> Geometry * {
+	// 				PolySet *P = new PolySet(3);
+	// 				if (CGALUtils::applyHull(children, *P)) {
+	// 					return P;
+	// 				}
+	// 				delete P;
+	// 				return nullptr;
+	// 			},
+	// 			"CGALUtils::applyHull(applyHull3D)"));
+	// #else
 	PolySet *P = new PolySet(3);
 	if (CGALUtils::applyHull(children, *P)) {
 		return P;
 	}
 	delete P;
 	return nullptr;
+	// #endif
 }
 
 Polygon2d *GeometryEvaluator::applyMinkowski2D(const AbstractNode &node)

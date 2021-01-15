@@ -12,7 +12,7 @@ class CGAL_Nef_polyhedron : public Geometry
 public:
 	VISITABLE_GEOMETRY();
 	CGAL_Nef_polyhedron(const CGAL_Nef_polyhedron3 *p = nullptr);
-	CGAL_Nef_polyhedron(lazy_ptr<const CGAL_Nef_polyhedron3> p) : p3(p) {}
+	CGAL_Nef_polyhedron(const lazy_ptr<const CGAL_Nef_polyhedron3> &p) : p3(p) {}
 	CGAL_Nef_polyhedron(const CGAL_Nef_polyhedron &src);
 	~CGAL_Nef_polyhedron() {}
 

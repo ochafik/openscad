@@ -45,9 +45,9 @@ private:
 		// for example union() with no children, etc.
 		ResultObject() : is_const(true) {}
 		ResultObject(const Geometry *g) : is_const(true), const_pointer(g) {}
-		ResultObject(lazy_ptr<const Geometry> &g) : is_const(true), const_pointer(g) {}
+		ResultObject(const lazy_ptr<const Geometry> &g) : is_const(true), const_pointer(g) {}
 		ResultObject(Geometry *g) : is_const(false), pointer(g) {}
-		ResultObject(lazy_ptr<Geometry> &g) : is_const(false), pointer(g) {}
+		ResultObject(const lazy_ptr<Geometry> &g) : is_const(false), pointer(g) {}
 		bool isConst() const { return is_const; }
 		lazy_ptr<Geometry> ptr()
 		{
