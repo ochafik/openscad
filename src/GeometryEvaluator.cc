@@ -97,6 +97,7 @@ lazy_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNode 
 }
 
 bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem &item, unsigned int &dim) const {
+  // TODO(ochafik): Find a way not to wait on the future geometry's lazy_ptr here!
 	if (!item.first->modinst->isBackground() && item.second) {
 		if (!dim) dim = item.second->getDimension();
 		else if (dim != item.second->getDimension() && !item.second->isEmpty()) {
@@ -202,10 +203,15 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 		default:
 		{
       if (Feature::MultithreadedRender.is_enabled()) {
-        return ResultObject(lazy_ptr_op<Geometry>(
-            [children, op]() -> Geometry * { return CGALUtils::applyOperator3D(children, op); },
-            "CGALUtils::applyOperator3D"));
-      } else {
+				return ResultObject(lazy_ptr_op<Geometry>(
+						[children, op]() -> Geometry * { return CGALUtils::applyOperator3D(children, op); },
+						std::string("CGALUtils::applyOperator3D ") +
+								(op == OpenSCADOperator::UNION
+										 ? "union"
+										 : op == OpenSCADOperator::DIFFERENCE
+													 ? "difference"
+													 : op == OpenSCADOperator::INTERSECTION ? "intersection" : "?")));
+			} else {
         return ResultObject(CGALUtils::applyOperator3D(children, op));
       }
 			break;
@@ -481,7 +487,7 @@ Response GeometryEvaluator::visit(State &state, const AbstractNode &node)
 		state.setPreferNef(true); // Improve quality of CSG by avoiding conversion loss
 	}
 	if (state.isPostfix()) {
-		shared_ptr<const class Geometry> geom;
+		lazy_ptr<const class Geometry> geom;
 		if (!isSmartCached(node)) {
 			geom = applyToChildren(node, OpenSCADOperator::UNION).constptr();
 		}
@@ -539,7 +545,7 @@ Response GeometryEvaluator::lazyEvaluateRootNode(State &state, const AbstractNod
 		 }
 	}
 	if (state.isPostfix()) {
-		shared_ptr<const class Geometry> geom;
+		lazy_ptr<const class Geometry> geom;
 
 		unsigned int dim = 0;
 		GeometryList::Geometries geometries;
@@ -618,7 +624,7 @@ Response GeometryEvaluator::visit(State &state, const RenderNode &node)
 		state.setPreferNef(true); // Improve quality of CSG by avoiding conversion loss
 	}
 	if (state.isPostfix()) {
-		shared_ptr<const class Geometry> geom;
+		lazy_ptr<const class Geometry> geom;
 		if (!isSmartCached(node)) {
 			ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
 
@@ -737,60 +743,66 @@ Response GeometryEvaluator::visit(State &state, const TransformNode &node)
 {
 	if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
 	if (state.isPostfix()) {
-		shared_ptr<const class Geometry> geom;
+		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
 			if (matrix_contains_infinity(node.matrix) || matrix_contains_nan(node.matrix)) {
 				// due to the way parse/eval works we can't currently distinguish between NaN and Inf
 				LOG(message_group::Warning,node.modinst->location(),this->tree.getDocumentPath(),"Transformation matrix contains Not-a-Number and/or Infinity - removing object.");
 			}
 			else {
-				// First union all children
-				ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
-				if ((geom = res.constptr())) {
-					if (geom->getDimension() == 2) {
-						shared_ptr<const Polygon2d> polygons = dynamic_pointer_cast<const Polygon2d>(geom);
-						assert(polygons);
+        // First union all children
+        ResultObject res_ = applyToChildren(node, OpenSCADOperator::UNION);
+        geom = std::shared_future<shared_ptr<const Geometry>>(std::async(std::launch::async, [&node, res_] {
+          ResultObject res = res_;
+          shared_ptr<const Geometry> geom;
+          if ((geom = res.constptr().get_shared_ptr())) {
+            if (geom->getDimension() == 2) {
+              shared_ptr<const Polygon2d> polygons = dynamic_pointer_cast<const Polygon2d>(geom);
+              assert(polygons);
 
-						// If we got a const object, make a copy
-						shared_ptr<Polygon2d> newpoly;
-						if (res.isConst()) newpoly.reset(new Polygon2d(*polygons));
-						else newpoly = dynamic_pointer_cast<Polygon2d>(res.ptr());
+              // If we got a const object, make a copy
+              shared_ptr<Polygon2d> newpoly;
+              if (res.isConst()) newpoly.reset(new Polygon2d(*polygons));
+              else newpoly = dynamic_pointer_cast<Polygon2d>(res.ptr());
 
-						Transform2d mat2;
-						mat2.matrix() <<
-							node.matrix(0,0), node.matrix(0,1), node.matrix(0,3),
-							node.matrix(1,0), node.matrix(1,1), node.matrix(1,3),
-							node.matrix(3,0), node.matrix(3,1), node.matrix(3,3);
-						newpoly->transform(mat2);
-						// A 2D transformation may flip the winding order of a polygon.
-						// If that happens with a sanitized polygon, we need to reverse
-						// the winding order for it to be correct.
-						if (newpoly->isSanitized() && mat2.matrix().determinant() <= 0) {
-							geom.reset(ClipperUtils::sanitize(*newpoly));
-						}
-					}
-					else if (geom->getDimension() == 3) {
-						shared_ptr<const PolySet> ps = dynamic_pointer_cast<const PolySet>(geom);
-						if (ps) {
-							// If we got a const object, make a copy
-							shared_ptr<PolySet> newps;
-							if (res.isConst()) newps.reset(new PolySet(*ps));
-							else newps = dynamic_pointer_cast<PolySet>(res.ptr());
-							newps->transform(node.matrix);
-							geom = newps;
-						}
-						else {
-							shared_ptr<const CGAL_Nef_polyhedron> N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom);
-							assert(N);
-							// If we got a const object, make a copy
-							shared_ptr<CGAL_Nef_polyhedron> newN;
-							if (res.isConst()) newN.reset((CGAL_Nef_polyhedron*)N->copy());
-							else newN = dynamic_pointer_cast<CGAL_Nef_polyhedron>(res.ptr());
-							newN->transform(node.matrix);
-							geom = newN;
-						}
-					}
-				}
+              Transform2d mat2;
+              mat2.matrix() <<
+                node.matrix(0,0), node.matrix(0,1), node.matrix(0,3),
+                node.matrix(1,0), node.matrix(1,1), node.matrix(1,3),
+                node.matrix(3,0), node.matrix(3,1), node.matrix(3,3);
+              newpoly->transform(mat2);
+              // A 2D transformation may flip the winding order of a polygon.
+              // If that happens with a sanitized polygon, we need to reverse
+              // the winding order for it to be correct.
+              if (newpoly->isSanitized() && mat2.matrix().determinant() <= 0) {
+                geom.reset(ClipperUtils::sanitize(*newpoly));
+              }
+            }
+            else if (geom->getDimension() == 3) {
+              shared_ptr<const PolySet> ps = dynamic_pointer_cast<const PolySet>(geom);
+              if (ps) {
+                // If we got a const object, make a copy
+                shared_ptr<PolySet> newps;
+                if (res.isConst()) newps.reset(new PolySet(*ps));
+                else newps = dynamic_pointer_cast<PolySet>(res.ptr());
+                newps->transform(node.matrix);
+                geom = newps;
+              }
+              else {
+                shared_ptr<const CGAL_Nef_polyhedron> N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom);
+                assert(N);
+                // If we got a const object, make a copy
+                shared_ptr<CGAL_Nef_polyhedron> newN;
+                if (res.isConst()) newN.reset((CGAL_Nef_polyhedron*)N->copy());
+                else newN = dynamic_pointer_cast<CGAL_Nef_polyhedron>(res.ptr());
+                newN->transform(node.matrix);
+                geom = newN;
+              }
+            }
+          }
+
+          return geom;
+        }));
 			}
 		}
 		else {
@@ -1236,7 +1248,7 @@ Response GeometryEvaluator::visit(State &state, const ProjectionNode &node)
 {
 	if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
 	if (state.isPostfix()) {
-		shared_ptr<const class Geometry> geom;
+		lazy_ptr<const class Geometry> geom;
 		if (!isSmartCached(node)) {
 
 			if (!node.cut_mode) {
@@ -1424,7 +1436,7 @@ Response GeometryEvaluator::visit(State &state, const AbstractIntersectionNode &
 		state.setPreferNef(true); // Improve quality of CSG by avoiding conversion loss
 	}
 	if (state.isPostfix()) {
-		shared_ptr<const class Geometry> geom;
+		lazy_ptr<const class Geometry> geom;
 		if (!isSmartCached(node)) {
 			geom = applyToChildren(node, OpenSCADOperator::INTERSECTION).constptr();
 		}

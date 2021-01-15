@@ -86,6 +86,7 @@ namespace CGALUtils {
 
 		try {
 			for(const auto &item : children) {
+				// TODO(ochafik): parallelize this loop!!!
 				const shared_ptr<const Geometry> &chgeom = item.second;
 				shared_ptr<const CGAL_Nef_polyhedron> chN =
 					dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
@@ -115,9 +116,12 @@ namespace CGALUtils {
 
 				switch (op) {
 				case OpenSCADOperator::INTERSECTION:
+					// TODO(ochafik): Parallelize using first future children that complete? Or just spawn
+					// parallel threads blindly to divide and conquer.
 					*N *= *chN;
 					break;
 				case OpenSCADOperator::DIFFERENCE:
+					// TODO(ochafik): Could union the other nodes in parallel, *then* do a single difference?
 					*N -= *chN;
 					break;
 				case OpenSCADOperator::MINKOWSKI:
