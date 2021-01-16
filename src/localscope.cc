@@ -2,6 +2,7 @@
 #include "modcontext.h"
 #include "module.h"
 #include "ModuleInstantiation.h"
+#include "node.h"
 #include "UserModule.h"
 #include "expression.h"
 #include "function.h"
@@ -79,11 +80,39 @@ void LocalScope::print(std::ostream &stream, const std::string &indent, const bo
 	}
 }
 
+// TODO(ochafik): Come up with a safer way to transform node trees.
+void flatten_and_delete(ListNode *list, std::vector<AbstractNode *> &out)
+{
+	if (list->modinst->hasSpecialTags()) {
+		out.push_back(list);
+		return;
+	}
+	for (auto child : list->children) {
+		if (child) {
+			if (auto sublist = dynamic_cast<ListNode *>(child)) {
+				flatten_and_delete(sublist, out);
+			}
+			else {
+				out.push_back(child);
+			}
+		}
+	}
+	list->children.clear();
+	delete list;
+}
+
 std::vector<AbstractNode*> LocalScope::instantiateChildren(const std::shared_ptr<Context> &evalctx) const
 {
 	std::vector<AbstractNode*> childnodes;
 	for(const auto &modinst : this->children_inst) {
 		AbstractNode *node = modinst->evaluate(evalctx);
+
+		if (Feature::ExperimentalFlattenChildren.is_enabled()) {
+			if (auto list = dynamic_cast<ListNode *>(node)) {
+				flatten_and_delete(list, childnodes);
+				continue;
+			}
+		}
 		if (node) childnodes.push_back(node);
 	}
 
