@@ -2,6 +2,7 @@
 #include "printutils.h"
 #include "Geometry.h"
 #include "boost-utils.h"
+#include "feature.h"
 
 #ifdef DEBUG
   #ifndef ENABLE_CGAL
@@ -23,6 +24,10 @@ lazy_ptr<const Geometry> GeometryCache::get(const std::string &id) const
 
 bool GeometryCache::insert(const std::string &id, const lazy_ptr<const Geometry> &geom)
 {
+	if (Feature::MultithreadedRender.is_enabled()) {
+		return this->cache.insert(id, new cache_entry(geom),
+															1 /* We don't know how big this will be: surprise! */);
+	}
 	auto inserted = this->cache.insert(id, new cache_entry(geom), geom ? geom->memsize() : 0);
 #ifdef DEBUG
 	assert(!dynamic_cast<const CGAL_Nef_polyhedron*>(geom.get()));

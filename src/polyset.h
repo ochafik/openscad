@@ -25,6 +25,7 @@ public:
 	BoundingBox getBoundingBox() const override;
 	std::string dump() const override;
 	unsigned int getDimension() const override { return this->dim; }
+	GeometryType getType() const override { return GeometryType::Type_PolySet; }
 	bool isEmpty() const override { return polygons.size() == 0; }
 	Geometry *copy() const override { return new PolySet(*this); }
 

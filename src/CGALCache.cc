@@ -1,5 +1,6 @@
 #include "CGALCache.h"
 #include "printutils.h"
+#include "feature.h"
 #include "CGAL_Nef_polyhedron.h"
 
 CGALCache *CGALCache::inst = nullptr;
@@ -8,7 +9,7 @@ CGALCache::CGALCache(size_t limit) : cache(limit)
 {
 }
 
-shared_ptr<const CGAL_Nef_polyhedron> CGALCache::get(const std::string &id) const
+lazy_ptr<const CGAL_Nef_polyhedron> CGALCache::get(const std::string &id) const
 {
 	const auto &N = this->cache[id]->N;
 #ifdef DEBUG
@@ -17,8 +18,11 @@ shared_ptr<const CGAL_Nef_polyhedron> CGALCache::get(const std::string &id) cons
 	return N;
 }
 
-bool CGALCache::insert(const std::string &id, const shared_ptr<const CGAL_Nef_polyhedron> &N)
+bool CGALCache::insert(const std::string &id, const lazy_ptr<const CGAL_Nef_polyhedron> &N)
 {
+	if (Feature::MultithreadedRender.is_enabled()) {
+		return this->cache.insert(id, new cache_entry(N), 1 /* HACK */);
+	}
 	auto inserted = this->cache.insert(id, new cache_entry(N), N ? N->memsize() : 0);
 #ifdef DEBUG
 	if (inserted) LOG(message_group::None,Location::NONE,"","CGAL Cache insert: %1$s (%2$d bytes)",id.substr(0, 40), (N ? N->memsize() : 0));
@@ -48,8 +52,7 @@ void CGALCache::print()
 	LOG(message_group::None,Location::NONE,"","CGAL cache size in bytes: %1$d",this->cache.totalCost());
 }
 
-CGALCache::cache_entry::cache_entry(const shared_ptr<const CGAL_Nef_polyhedron> &N)
-	: N(N)
+CGALCache::cache_entry::cache_entry(const lazy_ptr<const CGAL_Nef_polyhedron> &N) : N(N)
 {
 	if (print_messages_stack.size() > 0) this->msg = print_messages_stack.back();
 }
