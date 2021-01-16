@@ -7,6 +7,7 @@
 #ifdef DEBUG
 #include <iostream>
 #include "printutils.h"
+#include "stack_trace.h"
 #endif
 
 template <typename T>
@@ -26,6 +27,7 @@ public:
 
 	lazy_ptr() { reset(shared_ptr_t()); }
 	lazy_ptr(const shared_future_t &x) { reset(x); }
+	lazy_ptr(const lazy_ptr& x) { reset(x.sf_); }
 	lazy_ptr(const shared_ptr_t &x) { reset(x); }
 	lazy_ptr(T *x) { reset(x); }
 
@@ -40,7 +42,16 @@ public:
 		reset(shared_ptr_t(x));
 	}
 
-	shared_ptr_t get_shared_ptr() const { return sf_.get(); }
+	shared_ptr_t get_shared_ptr() const
+	{
+		// #ifdef DEBUG
+		// 		if (!got_shared_ptr_) {
+		// 			printStackTrace("Blocking call on get_shared_ptr");
+		// 			got_shared_ptr_ = true;
+		// 		}
+		// #endif
+		return sf_.get();
+	}
 	T *get() const { return get_shared_ptr().get(); }
 
 	template <class O>
@@ -75,6 +86,9 @@ public:
 
 private:
 	shared_future_t sf_;
+#ifdef DEBUG
+	mutable bool got_shared_ptr_;
+#endif
 };
 
 // TODO(ochafik): Find a better approach than this horribly inefficient code (spawns a thread that
