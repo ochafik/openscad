@@ -12,6 +12,14 @@ public:
 	std::string toString() const override;
 	std::string name() const override;
 	std::string verbose_name() const override;
+	AbstractNode *clone_template(const ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx) const override
+	{
+		assert(children.size() == 0);
+		auto clone = new TransformNode(mi, ctx, verbose_name());
+		clone->matrix = matrix;
+		return clone;
+	}
+
 	Transform3d matrix;
 
 private:

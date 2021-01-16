@@ -23,6 +23,10 @@ Feature::list_t Feature::feature_list;
  */
 const Feature Feature::ExperimentalFlattenChildren(
 		"flatten-children", "Enable flattening of children. Boosts lazy-union.");
+const Feature Feature::ExperimentalPushTransformsDown(
+		"push-transforms-down",
+		"Enable transforms and coloring of children independently rather than on of their "
+		"union / list. Boosts flatten-children and lazy-union but could make some models slower.");
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");
 
