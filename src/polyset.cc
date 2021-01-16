@@ -31,9 +31,6 @@
 #include "grid.h"
 #include <Eigen/LU>
 
-// #include "Polygon2d.h"
-// #include "CGAL_Nef_polyhedron.h"
-
 /*! /class PolySet
 
 	The PolySet class fulfils multiple tasks, partially for historical reasons.
