@@ -2,6 +2,7 @@
 #include "printutils.h"
 #include "Geometry.h"
 #include "boost-utils.h"
+#include "feature.h"
 
 #ifdef DEBUG
   #ifndef ENABLE_CGAL
@@ -12,7 +13,7 @@
 
 GeometryCache *GeometryCache::inst = nullptr;
 
-shared_ptr<const Geometry> GeometryCache::get(const std::string &id) const
+lazy_ptr<const Geometry> GeometryCache::get(const std::string &id) const
 {
 	const auto &geom = this->cache[id]->geom;
 #ifdef DEBUG
@@ -21,8 +22,12 @@ shared_ptr<const Geometry> GeometryCache::get(const std::string &id) const
 	return geom;
 }
 
-bool GeometryCache::insert(const std::string &id, const shared_ptr<const Geometry> &geom)
+bool GeometryCache::insert(const std::string &id, const lazy_ptr<const Geometry> &geom)
 {
+	if (Feature::MultithreadedRender.is_enabled()) {
+		return this->cache.insert(id, new cache_entry(geom),
+															1 /* We don't know how big this will be: surprise! */);
+	}
 	auto inserted = this->cache.insert(id, new cache_entry(geom), geom ? geom->memsize() : 0);
 #ifdef DEBUG
 	assert(!dynamic_cast<const CGAL_Nef_polyhedron*>(geom.get()));
@@ -50,8 +55,7 @@ void GeometryCache::print()
 	LOG(message_group::None,Location::NONE,"","Geometry cache size in bytes: %1$d",this->cache.totalCost());
 }
 
-GeometryCache::cache_entry::cache_entry(const shared_ptr<const Geometry> &geom)
-	: geom(geom)
+GeometryCache::cache_entry::cache_entry(const lazy_ptr<const Geometry> &geom) : geom(geom)
 {
 	if (print_messages_stack.size() > 0) this->msg = print_messages_stack.back();
 }

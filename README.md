@@ -268,3 +268,35 @@ If you had problems compiling from source, raise a new issue in the
 
 This site and it's subpages can also be helpful:
 https://en.wikibooks.org/wiki/OpenSCAD_User_Manual/Building_OpenSCAD_from_Sources
+
+### Parallelization notes
+
+Naive Rendering parallelization attempt.
+Replaces all shared_ptr<Geometry> with a lazy_ptr<Geometry> which uses std::shared_future to encapsulate future results from std::async deferred executions.
+
+As many places need to know the actual (not future) geometry, lazy_ptr can be implicitly converted to shared_ptr (block / wait on async thread), losing the benefits of laziness.
+
+Advantages:
+- Super easy to revert changes: just replace lazy_ptr w/ shared_ptr!
+- Immediate speed up for most models. Paves way for more speed ups (need to remove blocking calls).
+- Seems fairly stable
+
+Tests:
+- Failing before(?):
+  - cgalstlsanitytest_normal-nan
+- Failing with --enable=parallelize
+  - cgalpngtest_module-recursion
+
+TODO:
+- log(N) pyramidal operations for unions, intersections and differences (union of all but first)
+- Make lazy unions lazier: maybe transform shouldn't force the union of its children?
+
+Building / testing in parallel:
+
+```
+qmake openscad.pro CONFIG+=debug CONFIG+=experimental CONFIG+=info && make clean && make -j15
+( cd tests && cmake . && make clean && make -j15 && ctest -j15 -E 'edges_view-options-tests' )
+
+time ./OpenSCAD.app/Contents/MacOS/OpenSCAD -o BenchyDebug.stl --enable=parallelize --enable=lazy-union Benchy.scad ; printf "\a"
+```
+

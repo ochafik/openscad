@@ -37,7 +37,8 @@ namespace CGALUtils {
 
 	bool applyHull(const Geometry::Geometries &children, PolySet &P);
 	CGAL_Nef_polyhedron *applyOperator3D(const Geometry::Geometries &children, OpenSCADOperator op);
-	CGAL_Nef_polyhedron *applyUnion3D(Geometry::Geometries::iterator chbegin, Geometry::Geometries::iterator chend);
+	CGAL_Nef_polyhedron *applyUnion3D(Geometry::Geometries::const_iterator chbegin,
+																		Geometry::Geometries::const_iterator chend);
 	//FIXME: Old, can be removed:
 	//void applyBinaryOperator(CGAL_Nef_polyhedron &target, const CGAL_Nef_polyhedron &src, OpenSCADOperator op);
 	Polygon2d *project(const CGAL_Nef_polyhedron &N, bool cut);
@@ -48,7 +49,7 @@ namespace CGALUtils {
 	template <typename Polyhedron> std::string printPolyhedron(const Polyhedron &p);
 	template <typename Polyhedron> bool createPolySetFromPolyhedron(const Polyhedron &p, PolySet &ps);
 	template <typename Polyhedron> bool createPolyhedronFromPolySet(const PolySet &ps, Polyhedron &p);
-	template <class Polyhedron_A, class Polyhedron_B> 
+	template <class Polyhedron_A, class Polyhedron_B>
 	void copyPolyhedron(const Polyhedron_A &poly_a, Polyhedron_B &poly_b);
 
 	CGAL_Nef_polyhedron *createNefPolyhedronFromGeometry(const class Geometry &geom);
@@ -60,7 +61,7 @@ namespace CGALUtils {
 	bool tessellatePolygonWithHoles(const PolyholeK &polygons,
 																	Polygons &triangles,
 																	const K::Vector_3 *normal = nullptr);
-	bool tessellate3DFaceWithHoles(std::vector<CGAL_Polygon_3> &polygons, 
+	bool tessellate3DFaceWithHoles(std::vector<CGAL_Polygon_3> &polygons,
 																 std::vector<CGAL_Polygon_3> &triangles,
 																 CGAL::Plane_3<CGAL_Kernel3> &plane);
 };
