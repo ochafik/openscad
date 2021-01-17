@@ -13,4 +13,7 @@ public:
 
 	int convexity;
 	bool cut_mode;
+
+protected:
+  int getDimensionImpl() const override { return 2; }
 };

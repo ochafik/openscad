@@ -41,6 +41,7 @@ AbstractNode::AbstractNode(const ModuleInstantiation *mi, const std::shared_ptr<
     modinst(mi),
     progress_mark(0),
     idx(idx_counter++),
+    cached_dimension(-1),
     location((ctx)?ctx->loc:Location(0, 0, 0, 0, nullptr))
 {
 }

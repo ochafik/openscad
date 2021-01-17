@@ -37,6 +37,18 @@
 #include <CGAL/Point_2.h>
 #pragma pop_macro("NDEBUG")
 
+// #define GET_DIMENSION_FROM_NODE
+// #define PARALLELIZE_STORE_NEF_POLYHEDRON_IN_GEOMETRY_CACHE
+
+int getDimension(const Geometry::GeometryItem &item) {
+  auto node_dim = item.first->getDimension();
+  if (!node_dim) {
+    LOG(message_group::Warning, item.first->modinst->location(),"","Blocking on Geometry::getDimension");
+    node_dim = item.second->getDimension();
+  }
+  return node_dim;
+}
+
 GeometryEvaluator::GeometryEvaluator(const class Tree &tree):
 	tree(tree)
 {
@@ -98,6 +110,7 @@ lazy_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNode 
 
 bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem &item, unsigned int &dim) const {
   // TODO(ochafik): Find a way not to wait on the future geometry's lazy_ptr here!
+#ifdef GET_DIMENSION_FROM_NODE
 	if (!item.first->modinst->isBackground() && item.second) {
 		if (!dim) dim = item.second->getDimension();
 		else if (dim != item.second->getDimension() && !item.second->isEmpty()) {
@@ -105,6 +118,17 @@ bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem &item, unsigned 
 			return false;
 		}
 	}
+#else
+	if (!item.first->modinst->isBackground()) {
+    auto node_dim = getDimension(item);
+
+    if (!dim) dim = node_dim;
+    else if (dim != node_dim && !item.second->isEmpty()) {
+      LOG(message_group::Warning,item.first->modinst->location(),this->tree.getDocumentPath(),"Mixing 2D and 3D objects is not supported");
+      return false;
+    }
+  }
+#endif
 	return true;
 }
 
@@ -113,9 +137,14 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const Abstrac
 	CGALUtils::CGALErrorBehaviour behaviour{CGAL::THROW_EXCEPTION};
 
 	unsigned int dim = 0;
-	for(const auto &item : this->visitedchildren[node.index()]) {
-		if (!isValidDim(item, dim)) break;
-	}
+#ifdef GET_DIMENSION_FROM_NODE
+  dim = node.getDimension();
+#endif
+  if (!dim) {
+    for(const auto &item : this->visitedchildren[node.index()]) {
+      if (!isValidDim(item, dim)) break;
+    }
+  }
 	if (dim == 2) return ResultObject(applyToChildren2D(node, op));
 	else if (dim == 3) return applyToChildren3D(node, op);
 	return ResultObject();
@@ -318,6 +347,17 @@ std::vector<const class Polygon2d *> GeometryEvaluator::collectChildren2D(const 
 		// sibling object.
 		smartCacheInsert(*chnode, chgeom);
 
+#ifdef GET_DIMENSION_FROM_NODE
+    // TODO(ochafik): Avoid returning empty geoms?
+    if (getDimension(item) == 3) {
+      LOG(message_group::Warning, item.first->modinst->location(), this->tree.getDocumentPath(), "Ignoring 3D child object for 2D operation");
+      children.push_back(nullptr); // replace 3D geometry with empty geometry
+    }	else {
+      const Polygon2d *polygons = dynamic_cast<const Polygon2d *>(chgeom.get());
+      assert(polygons);
+      children.push_back(polygons);
+    }
+#else
 		if (chgeom) {
 			if (chgeom->getDimension() == 3) {
 				LOG(message_group::Warning, item.first->modinst->location(), this->tree.getDocumentPath(), "Ignoring 3D child object for 2D operation");
@@ -334,6 +374,7 @@ std::vector<const class Polygon2d *> GeometryEvaluator::collectChildren2D(const 
 		} else {
 			children.push_back(nullptr);
 		}
+#endif
 	}
 	return children;
 }
@@ -348,10 +389,13 @@ void GeometryEvaluator::smartCacheInsert(const AbstractNode &node,
 {
 	const std::string &key = this->tree.getIdString(node);
 
-	// TODO(ochafik): This forces a wait on the future. Let's try and infer the subtype before
-	// execution?
+#ifdef PARALLELIZE_STORE_NEF_POLYHEDRON_IN_GEOMETRY_CACHE
+  shared_ptr<const CGAL_Nef_polyhedron> N;
+	if (!Feature::MultithreadedRender.is_enabled() && (N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom))) {
+#else
 	shared_ptr<const CGAL_Nef_polyhedron> N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom);
 	if (N) {
+#endif
 		if (!CGALCache::instance()->contains(key)) CGALCache::instance()->insert(key, N);
 	}
 	else {
@@ -399,7 +443,11 @@ Geometry::Geometries GeometryEvaluator::collectChildren3D(const AbstractNode &no
 		// sibling object.
 		smartCacheInsert(*chnode, chgeom);
 
+#ifdef GET_DIMENSION_FROM_NODE
+    if (getDimension(item) == 2) {
+#else
 		if (chgeom && chgeom->getDimension() == 2) {
+#endif
 			LOG(message_group::Warning, item.first->modinst->location(), this->tree.getDocumentPath(), "Ignoring 2D child object for 3D operation");
 			children.push_back(std::make_pair(item.first, nullptr)); // replace 2D geometry with empty geometry
 		} else {

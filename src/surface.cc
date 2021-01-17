@@ -74,6 +74,10 @@ public:
 	int convexity;
 
 	const Geometry *createGeometry() const override;
+
+protected:
+  int getDimensionImpl() const override { return 3; }
+
 private:
 	void convert_image(img_data_t &data, std::vector<uint8_t> &img, unsigned int width, unsigned int height) const;
 	bool is_png(std::vector<uint8_t> &img) const;

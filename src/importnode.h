@@ -34,4 +34,22 @@ public:
 	double origin_x, origin_y, scale;
 	double width, height;
 	const class Geometry *createGeometry() const override;
+
+protected:
+  int getDimensionImpl() const override {
+    switch (this->type) {
+      case ImportType::STL:
+      case ImportType::AMF:
+      case ImportType::_3MF:
+      case ImportType::OFF:
+      case ImportType::NEF3:
+        return 3;
+      case ImportType::SVG:
+      case ImportType::DXF:
+        return 2;
+      default:
+        assert(false);
+        return 0;
+    }
+  }
 };

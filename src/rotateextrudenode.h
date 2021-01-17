@@ -21,4 +21,7 @@ public:
 	double origin_x, origin_y, scale, angle;
 	Filename filename;
 	std::string layername;
+
+protected:
+  int getDimensionImpl() const override { return 3; }
 };

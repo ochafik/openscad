@@ -46,6 +46,14 @@ public:
 		are inserted into the cache*/
 	virtual class Geometry *evaluate_geometry(class PolySetEvaluator *) const { return nullptr; }
 
+  /*! So that we don't have to rely on lazy geometry! */
+  int getDimension() const {
+    if (cached_dimension < 0) {
+      cached_dimension = getDimensionImpl();
+    }
+    return cached_dimension;
+  }
+
 	/*! Should return a copy of this node when using it as a template. This should not be called on a
 	 * node with children as the ownership semantics will need to be clarified (e.g. deep cloning?).
 	 */
@@ -83,6 +91,19 @@ public:
 	const Location location;
 
 	const AbstractNode *getNodeByID(int idx, std::deque<const AbstractNode *> &path) const;
+
+protected:
+  /*! By default, pick the dimension of the first child. */
+  virtual int getDimensionImpl() const {
+    for (const auto& child : children) {
+      int d = child->getDimension();
+      if (d) return d;
+    }
+    return 0;
+  }
+
+private:
+  mutable int cached_dimension;
 };
 
 class AbstractIntersectionNode : public AbstractNode

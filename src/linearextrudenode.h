@@ -23,4 +23,7 @@ public:
 	bool center, has_twist, has_slices;
 	Filename filename;
 	std::string layername;
+
+protected:
+  int getDimensionImpl() const override { return 3; }
 };

@@ -60,6 +60,7 @@ public:
 	primitive_type_e type;
 	PrimitiveModule(primitive_type_e type) : type(type) { }
 	AbstractNode *instantiate(const std::shared_ptr<Context>& ctx, const ModuleInstantiation *inst, const std::shared_ptr<EvalContext>& evalctx) const override;
+
 private:
 	Value lookup_radius(const std::shared_ptr<Context> ctx, const Location &loc, const std::string &radius_var, const std::string &diameter_var) const;
 };
@@ -93,6 +94,24 @@ public:
 	int convexity;
 	Value points, paths, faces;
 	const Geometry *createGeometry() const override;
+
+protected:
+  int getDimensionImpl() const override {
+    switch(type) {
+      case primitive_type_e::CUBE:
+      case primitive_type_e::SPHERE:
+      case primitive_type_e::CYLINDER:
+      case primitive_type_e::POLYHEDRON:
+        return 3;
+      case primitive_type_e::SQUARE:
+      case primitive_type_e::CIRCLE:
+      case primitive_type_e::POLYGON:
+        return 2;
+      default:
+        assert(false);
+        return 0;
+    }
+  }
 };
 
 /**
