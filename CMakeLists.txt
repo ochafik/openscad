@@ -465,6 +465,7 @@ set(CORE_SOURCES
   src/render.cc
   src/rendersettings.cc
   src/rotateextrude.cc
+  src/simplify_tree.cc
   src/stackcheck.h
   src/surface.cc
   src/svg.cc
