@@ -8,7 +8,6 @@
 #include "function.h"
 #include "annotation.h"
 #include "UserModule.h"
-#include "simplify_tree.h"
 
 LocalScope::LocalScope()
 {
@@ -109,10 +108,6 @@ std::vector<AbstractNode*> LocalScope::instantiateChildren(const std::shared_ptr
 		AbstractNode *node = modinst->evaluate(evalctx);
 		if (node) list->children.push_back(node);
 	}
-
-  if (Feature::ExperimentalFlattenChildren.is_enabled()) {
-    list = simplify_tree(list);
-  }
 
   auto childnodes = list->children;
   list->children.clear();
