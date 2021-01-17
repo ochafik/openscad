@@ -21,7 +21,7 @@ lazy_ptr<const CGAL_Nef_polyhedron> CGALCache::get(const std::string &id) const
 bool CGALCache::insert(const std::string &id, const lazy_ptr<const CGAL_Nef_polyhedron> &N)
 {
 	if (Feature::MultithreadedRender.is_enabled()) {
-		return this->cache.insert(id, new cache_entry(N), 1 /* HACK */);
+		return this->cache.insert(id, new cache_entry(N), 1 /* HACK to avoid blocking on the future to call memsize */);
 	}
 	auto inserted = this->cache.insert(id, new cache_entry(N), N ? N->memsize() : 0);
 #ifdef DEBUG

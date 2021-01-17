@@ -26,7 +26,7 @@ bool GeometryCache::insert(const std::string &id, const lazy_ptr<const Geometry>
 {
 	if (Feature::MultithreadedRender.is_enabled()) {
 		return this->cache.insert(id, new cache_entry(geom),
-															1 /* We don't know how big this will be: surprise! */);
+															1 /* HACK to avoid blocking on the future to call memsize. */);
 	}
 	auto inserted = this->cache.insert(id, new cache_entry(geom), geom ? geom->memsize() : 0);
 #ifdef DEBUG
