@@ -237,12 +237,12 @@ function(add_cmdline_test TESTCMD_BASENAME)
         set(EXPERIMENTAL_OPTION "")
       else()
         # add global experimental options here
-        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} \
-          "--enable=lazy-union" \
-          "--enable=lazy-module" \
-          "--enable=flatten-children" \
-          "--enable=difference-union" \
-          "--enable=parallelize" \
+        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION}
+          "--enable=lazy-union"
+          "--enable=lazy-module"
+          "--enable=flatten-children"
+          "--enable=difference-union"
+          "--enable=parallelize"
         )
       endif()
 
