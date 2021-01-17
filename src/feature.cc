@@ -21,15 +21,11 @@ Feature::list_t Feature::feature_list;
  * argument to enable the option and for saving the option value in GUI
  * context.
  */
-const Feature Feature::ExperimentalFlattenChildren(
-		"flatten-children", "Enable flattening of children. Boosts lazy-union.");
-const Feature Feature::ExperimentalPushTransformsDown(
-		"push-transforms-down",
-		"Enable transforms and coloring of children independently rather than on of their "
-		"union / list. Boosts flatten-children and lazy-union but could make some models slower.");
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");
-const Feature Feature::ExperimentalLazyModule("lazy-module", "Enable lazy modules.");
+const Feature Feature::ExperimentalLazyModule("lazy-module", "Enable lazy modules (enhances lazy-union).");
+const Feature Feature::ExperimentalFlattenChildren(
+		"flatten-children", "Enable flattening of children + pushdown of transforms. Enhances lazy-union.");
 const Feature Feature::ExperimentalDifferenceUnion("difference-union", "Enable grouping of subtracted terms into union. Makes differences with large amount of subtracted terms easier to parallelize.");
 const Feature Feature::MultithreadedRender("parallelize", "Enable multithreaded rendering.");
 

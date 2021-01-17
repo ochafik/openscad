@@ -54,21 +54,6 @@ public:
     return cached_dimension;
   }
 
-	/*! Should return a copy of this node when using it as a template. This should not be called on a
-	 * node with children as the ownership semantics will need to be clarified (e.g. deep cloning?).
-	 */
-	virtual AbstractNode *clone_template(const ModuleInstantiation *mi,
-																			 const std::shared_ptr<EvalContext> &ctx) const
-	{
-		return nullptr;
-	}
-
-	/*! Will attach the children to the node and return it. When possible, the node might be used as a
-	 * template and a clone of it will be "pushed down" over each child. */
-	static AbstractNode *attach_children_to_pushdownable_node(
-			const ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx, AbstractNode *node,
-			const std::vector<AbstractNode *> &children);
-
 	const std::vector<AbstractNode*> &getChildren() const {
 		return this->children;
 	}

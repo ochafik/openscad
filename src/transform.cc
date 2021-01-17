@@ -232,7 +232,6 @@ AbstractNode *TransformModule::instantiate(const std::shared_ptr<Context>& ctx, 
 	}
 
 	auto instantiatednodes = inst->instantiateChildren(evalctx);
-	// return AbstractNode::attach_children_to_pushdownable_node(inst, evalctx, node, instantiatednodes);
 	node->children.insert(node->children.end(), instantiatednodes.begin(), instantiatednodes.end());
   return node;
 }

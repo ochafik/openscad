@@ -15,7 +15,6 @@ public:
 	typedef list_t::iterator iterator;
 
 	static const Feature ExperimentalFlattenChildren;
-	static const Feature ExperimentalPushTransformsDown;
 	static const Feature ExperimentalInputDriverDBus;
 	static const Feature ExperimentalLazyUnion;
   static const Feature ExperimentalLazyModule;
