@@ -152,52 +152,55 @@ AbstractNode *find_root_tag(AbstractNode *node, const Location **nextLocation)
 
 	return rootTag;
 }
-
 AbstractNode *AbstractNode::attach_children_to_pushdownable_node(
 		const ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx, AbstractNode *parent,
 		const std::vector<AbstractNode *> &children)
 {
-	if (children.size() > 1 && Feature::ExperimentalPushTransformsDown.is_enabled() &&
+	if (Feature::ExperimentalPushTransformsDown.is_enabled() &&
 			!parent->modinst->hasSpecialTags()) {
 
-		auto parent_transform = dynamic_cast<TransformNode *>(parent);
+    auto parent_transform = dynamic_cast<TransformNode *>(parent);
 
-		std::vector<AbstractNode *> pushed_down_children;
-		for (auto child : children) {
-			// Special case if parent and child are both TransformNodes: concatenate
-			// transforms into child directly.
-			TransformNode *child_transform;
-			if (parent_transform && (child_transform = dynamic_cast<TransformNode *>(child)) &&
-					!child_transform->modinst->hasSpecialTags()) {
-				child_transform->matrix = parent_transform->matrix * child_transform->matrix;
-				pushed_down_children.push_back(child_transform);
-			}
-			else {
-				auto parent_clone = parent->clone_template(mi, ctx);
-				// Not all node types support cloning.
-				assert(parent_clone);
-				if (parent_clone) {
-					parent_clone->children.push_back(child);
-					pushed_down_children.push_back(parent_clone);
-				}
-			}
-		}
+    if (children.size() > 1 || children.size() == 1 && dynamic_cast<TransformNode *>(children[0])) {
+      std::vector<AbstractNode *> pushed_down_children;
+      for (auto child : children) {
+        // Special case if parent and child are both TransformNodes: concatenate
+        // transforms into child directly.
+        TransformNode *child_transform;
+        if (parent_transform && (child_transform = dynamic_cast<TransformNode *>(child)) &&
+            !child_transform->modinst->hasSpecialTags()) {
+          child_transform->matrix = parent_transform->matrix * child_transform->matrix;
+          pushed_down_children.push_back(child_transform);
+        }
+        else {
+          auto parent_clone = parent->clone_template(mi, ctx);
+          // Not all node types support cloning.
+          assert(parent_clone);
+          if (parent_clone) {
+            parent_clone->children.push_back(child);
+            pushed_down_children.push_back(parent_clone);
+          }
+        }
+      }
 
-		if (pushed_down_children.size()) {
-			AbstractNode *new_parent;
-			if (Feature::ExperimentalLazyUnion.is_enabled())
-				new_parent = new ListNode(mi, ctx);
-			else
-				new_parent = new GroupNode(mi, ctx);
+      if (pushed_down_children.size() == 1) {
+        return pushed_down_children[0];
+      } else if (pushed_down_children.size() > 1) {
+        AbstractNode *new_parent;
+        if (Feature::ExperimentalLazyUnion.is_enabled())
+          new_parent = new ListNode(mi, ctx);
+        else
+          new_parent = new GroupNode(mi, ctx);
 
-			new_parent->children.insert(new_parent->children.end(), pushed_down_children.begin(),
-																	pushed_down_children.end());
+        new_parent->children.insert(new_parent->children.end(), pushed_down_children.begin(),
+                                    pushed_down_children.end());
 
-			// We only used this node as a template.
-			delete parent;
+        // We only used this node as a template.
+        delete parent;
 
-			return new_parent;
-		}
+        return new_parent;
+      }
+    }
 	}
 
 	parent->children.insert(parent->children.end(), children.begin(), children.end());

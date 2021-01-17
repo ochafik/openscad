@@ -8,6 +8,7 @@
 #include "function.h"
 #include "annotation.h"
 #include "UserModule.h"
+#include "simplify_tree.h"
 
 LocalScope::LocalScope()
 {
@@ -103,21 +104,41 @@ void flatten_and_delete(ListNode *list, std::vector<AbstractNode *> &out)
 
 std::vector<AbstractNode*> LocalScope::instantiateChildren(const std::shared_ptr<Context> &evalctx) const
 {
-	std::vector<AbstractNode*> childnodes;
+  AbstractNode* list = new ListNode(nullptr, shared_ptr<EvalContext>());
 	for(const auto &modinst : this->children_inst) {
 		AbstractNode *node = modinst->evaluate(evalctx);
-
-		if (Feature::ExperimentalFlattenChildren.is_enabled()) {
-			if (auto list = dynamic_cast<ListNode *>(node)) {
-				flatten_and_delete(list, childnodes);
-				continue;
-			}
-		}
-		if (node) childnodes.push_back(node);
+		if (node) list->children.push_back(node);
 	}
+
+  if (Feature::ExperimentalFlattenChildren.is_enabled()) {
+    list = simplify_tree(list);
+  }
+
+  auto childnodes = list->children;
+  list->children.clear();
+  delete list;
 
 	return childnodes;
 }
+
+// std::vector<AbstractNode*> LocalScope::instantiateChildren(const std::shared_ptr<Context> &evalctx) const
+// {
+// 	std::vector<AbstractNode*> childnodes;
+// 	for(const auto &modinst : this->children_inst) {
+// 		AbstractNode *node = modinst->evaluate(evalctx);
+
+// 		if (Feature::ExperimentalFlattenChildren.is_enabled()) {
+//       node = simplify_tree(node);
+// 			if (auto list = dynamic_cast<ListNode *>(node)) {
+// 				flatten_and_delete(list, childnodes);
+// 				continue;
+// 			}
+// 		}
+// 		if (node) childnodes.push_back(node);
+// 	}
+
+// 	return childnodes;
+// }
 
 /*!
 	When instantiating a module which can take a scope as parameter (i.e. non-leaf nodes),
