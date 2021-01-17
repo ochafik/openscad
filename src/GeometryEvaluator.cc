@@ -37,8 +37,8 @@
 #include <CGAL/Point_2.h>
 #pragma pop_macro("NDEBUG")
 
-// #define GET_DIMENSION_FROM_NODE
-// #define PARALLELIZE_STORE_NEF_POLYHEDRON_IN_GEOMETRY_CACHE
+#define GET_DIMENSION_FROM_NODE
+#define PARALLELIZE_STORE_NEF_POLYHEDRON_IN_GEOMETRY_CACHE
 
 int getDimension(const Geometry::GeometryItem &item) {
   auto node_dim = item.first->getDimension();
@@ -111,14 +111,6 @@ lazy_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNode 
 bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem &item, unsigned int &dim) const {
   // TODO(ochafik): Find a way not to wait on the future geometry's lazy_ptr here!
 #ifdef GET_DIMENSION_FROM_NODE
-	if (!item.first->modinst->isBackground() && item.second) {
-		if (!dim) dim = item.second->getDimension();
-		else if (dim != item.second->getDimension() && !item.second->isEmpty()) {
-			LOG(message_group::Warning,item.first->modinst->location(),this->tree.getDocumentPath(),"Mixing 2D and 3D objects is not supported");
-			return false;
-		}
-	}
-#else
 	if (!item.first->modinst->isBackground()) {
     auto node_dim = getDimension(item);
 
@@ -128,6 +120,14 @@ bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem &item, unsigned 
       return false;
     }
   }
+#else
+	if (!item.first->modinst->isBackground() && item.second) {
+		if (!dim) dim = item.second->getDimension();
+		else if (dim != item.second->getDimension() && !item.second->isEmpty()) {
+			LOG(message_group::Warning,item.first->modinst->location(),this->tree.getDocumentPath(),"Mixing 2D and 3D objects is not supported");
+			return false;
+		}
+	}
 #endif
 	return true;
 }
