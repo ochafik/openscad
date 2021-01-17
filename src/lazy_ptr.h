@@ -8,7 +8,11 @@
 #include <iostream>
 #include "printutils.h"
 #include "stack_trace.h"
+
+// #define DEBUG_BLOCKING_FUTURE_GET_CALLS
 #endif
+
+
 
 template <typename T>
 std::future<T> future_value(const T &value)
@@ -72,13 +76,24 @@ public:
 
 	shared_ptr_t get_shared_ptr() const
 	{
-		#ifdef DEBUG
-				if (!got_shared_ptr_) {
-					printStackTrace("Blocking call on get_shared_ptr");
-					got_shared_ptr_ = true;
-				}
-		#endif
-		return sp_ ? sp_ : sf_.get();
+#ifdef DEBUG_BLOCKING_FUTURE_GET_CALLS
+    auto start = std::chrono::system_clock::now();
+#endif
+    auto sp = sp_ ? sp_ : sf_.get();;
+#ifdef DEBUG_BLOCKING_FUTURE_GET_CALLS
+    if (!got_shared_ptr_) {
+      got_shared_ptr_ = true;
+
+  		auto end = std::chrono::system_clock::now();
+      int elapsed_millis =
+          std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+
+      if (elapsed_millis > 0) {
+        printStackTrace((std::ostringstream() << "Call on get_shared_ptr blocked for " << elapsed_millis << "ms").str());
+      }
+    }
+#endif
+		return sp;
 	}
 	T *get() const { return get_shared_ptr().get(); }
 
