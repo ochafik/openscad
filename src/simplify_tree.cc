@@ -1,6 +1,7 @@
 #include "localscope.h"
 #include "modcontext.h"
 #include "module.h"
+#include "csgops.h"
 #include "ModuleInstantiation.h"
 #include "node.h"
 #include "UserModule.h"
@@ -117,6 +118,19 @@ AbstractNode *simplify_tree(AbstractNode *root)
       new_parent->children = children;
 
       return new_parent;
+    }
+  } else if (auto op_node = dynamic_cast<CsgOpNode*>(node)) {
+    if (Feature::ExperimentalDifferenceUnion.is_enabled() &&
+        op_node->type == OpenSCADOperator::DIFFERENCE && original_child_count > 2) {
+#ifdef DEBUG
+      std::cerr << "[simplify_tree] Grouping " << (original_child_count - 1) << " subtracted terms of a difference into a union\n";
+#endif
+      auto union_node = new CsgOpNode(mi, std::shared_ptr<EvalContext>(), OpenSCADOperator::UNION);
+      for (size_t i = 1; i < original_child_count; i++) {
+        union_node->children.push_back(node->children[i]);
+      }
+      node->children.resize(1);
+      node->children.push_back(union_node);
     }
   }
 
