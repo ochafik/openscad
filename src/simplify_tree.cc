@@ -1,14 +1,6 @@
-#include "localscope.h"
-#include "modcontext.h"
-#include "module.h"
 #include "csgops.h"
+#include "feature.h"
 #include "ModuleInstantiation.h"
-#include "node.h"
-#include "UserModule.h"
-#include "expression.h"
-#include "function.h"
-#include "annotation.h"
-#include "UserModule.h"
 #include "transformnode.h"
 
 // TODO(ochafik): Come up with a safer way to transform node trees.
@@ -33,63 +25,75 @@ void flatten_and_delete(T *list, std::vector<AbstractNode *> &out)
 	delete list;
 }
 
-AbstractNode *simplify_tree(AbstractNode *root)
+AbstractNode *simplify_tree(AbstractNode *node)
 {
-  for (auto it = root->children.begin(); it != root->children.end(); it++) {
+  for (auto it = node->children.begin(); it != node->children.end(); it++) {
     auto child = *it;
     auto simpler_child = simplify_tree(child);
     *it = simpler_child;
   }
 
-	if (root->modinst && root->modinst->hasSpecialTags()) {
+	if (node->modinst && node->modinst->hasSpecialTags()) {
     // Opt out of this mess.
-		return root;
+		return node;
 	}
 
-  auto list = dynamic_cast<ListNode *>(root);
-  auto group = dynamic_cast<GroupNode *>(root);
+  auto list = dynamic_cast<ListNode *>(node);
+  auto group = dynamic_cast<GroupNode *>(node);
+  auto root = dynamic_cast<RootNode *>(node);
 
-  auto mi = root->modinst;
+  auto mi = node->modinst;
+  auto original_child_count = node->children.size();
 
-  // if ((list || group) && root->children.size() == 1) {
-  //   // List or group w/ a single child? Return that child.
-  //   auto child = root->children[0];
-  //   root->children.clear();
-  //   delete root;
-  //   return child;
-  // } else
   if (list) {
     // Flatten lists.
-    auto node = new ListNode(mi, shared_ptr<EvalContext>());
-    flatten_and_delete(list, node->children);
-    // if (node->children.size() == 1) {
-    //   auto child = node->children[0];
-    //   node->children.clear();
-    //   delete node;
-    //   return child;
-    // }
-    return node;
-  } else if (group) {
+    auto new_node = new ListNode(mi, shared_ptr<EvalContext>());
+    flatten_and_delete(list, new_node->children);
+#ifdef DEBUG
+    if (original_child_count != new_node->children.size()) {
+      std::cerr << "[simplify_tree] Flattened ListNode (" << original_child_count << " -> " << new_node->children.size() << " children)\n";
+    }
+#endif
+    if (new_node->children.size() == 1) {
+#ifdef DEBUG
+      std::cerr << "[simplify_tree] Dropping single-child ListNode\n";
+#endif
+      auto child = new_node->children[0];
+      new_node->children.clear();
+      delete new_node;
+      return child;
+    }
+    return new_node;
+  } else if (group && !root) {
     // Flatten groups.
-    auto node = new GroupNode(mi, shared_ptr<EvalContext>());
-    flatten_and_delete(group, node->children);
-    // if (node->children.size() == 1) {
-    //   auto child = node->children[0];
-    //   node->children.clear();
-    //   delete node;
-    //   return child;
-    // }
-    return node;
-  } else if (auto transform = dynamic_cast<TransformNode *>(root)) {
+    // TODO(ochafik): Flatten root as a... Group unless we're in lazy-union mode (then as List)
+    auto new_node = new GroupNode(mi, shared_ptr<EvalContext>());
+    flatten_and_delete(group, new_node->children);
+#ifdef DEBUG
+    if (original_child_count != new_node->children.size()) {
+      std::cerr << "[simplify_tree] Flattened GroupNode (" << original_child_count << " -> " << new_node->children.size() << " children)\n";
+    }
+#endif
+    if (new_node->children.size() == 1) {
+#ifdef DEBUG
+      std::cerr << "[simplify_tree] Dropping single-child GroupNode\n";
+#endif
+      auto child = new_node->children[0];
+      new_node->children.clear();
+      delete new_node;
+      return child;
+    }
+    return new_node;
+  } else if (auto transform = dynamic_cast<TransformNode *>(node)) {
     // Push transforms down.
     auto has_any_specially_tagged_child = false;
-    auto has_any_transform_child = false;
+    auto transform_children_count = false;
     for (auto child : transform->children) {
-      if (dynamic_cast<TransformNode *>(child)) has_any_transform_child = true;
+      if (dynamic_cast<TransformNode *>(child)) transform_children_count = true;
       if (child->modinst && child->modinst->hasSpecialTags()) has_any_specially_tagged_child = true;
     }
 
-    if (!has_any_specially_tagged_child && (transform->children.size() > 1 || has_any_transform_child)) {
+    if (!has_any_specially_tagged_child && (transform->children.size() > 1 || transform_children_count)) {
       std::vector<AbstractNode *> children;
       for (auto child : transform->children) {
         if (auto child_transform = dynamic_cast<TransformNode *>(child)) {
@@ -105,6 +109,10 @@ AbstractNode *simplify_tree(AbstractNode *root)
 
       transform->children.clear();
       delete transform;
+
+#ifdef DEBUG
+      std::cerr << "[simplify_tree] Pushing TransformNode down onto " << children.size() << " children (of which " << transform_children_count << " were TransformNodes)\n";
+#endif
 
       if (children.size() == 1) {
         return children[0];
@@ -134,5 +142,6 @@ AbstractNode *simplify_tree(AbstractNode *root)
     }
   }
 
-  return root;
+  // No changes (*sighs*)
+  return node;
 }
