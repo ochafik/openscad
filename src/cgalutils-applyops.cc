@@ -35,6 +35,10 @@
 #include <queue>
 #include <unordered_set>
 
+// This isn't ready for prime time: lack of error handling + no progress support!
+// #define PARALLEL_APPLYOPS
+#define PARALLEL_APPLYOPS
+
 namespace CGALUtils {
 
 	template<typename Polyhedron>
@@ -77,71 +81,133 @@ namespace CGALUtils {
 	Applies op to all children and returns the result.
 	The child list should be guaranteed to contain non-NULL 3D or empty Geometry objects
 */
-	CGAL_Nef_polyhedron *applyOperator3D(const Geometry::Geometries &children, OpenSCADOperator op)
+	lazy_ptr<const Geometry> applyOperator3D(const Geometry::Geometries &children, OpenSCADOperator op)
 	{
-		CGAL_Nef_polyhedron *N = nullptr;
-		CGAL::Failure_behaviour old_behaviour = CGAL::set_error_behaviour(CGAL::THROW_EXCEPTION);
+    if (Feature::MultithreadedRender.is_enabled()) {
+      // Preprocess the operands asynchronously to ensure they're converted to CGAL_Nef_polyhedron ahead of time.
+      //std::vector<std::shared_future<shared_ptr<const CGAL_Nef_polyhedron>>> future_operands;
+      std::vector<lazy_ptr<const CGAL_Nef_polyhedron>> lazy_operands;
+      for(const auto &item : children) {
+        auto &chgeom = item.second;
+        lazy_operands.push_back(item.second.then_lazy<const CGAL_Nef_polyhedron>([](const shared_ptr<const Geometry>& chgeom) -> shared_ptr<const CGAL_Nef_polyhedron> {
+        //lazy_operands.push_back(item.second.then<shared_ptr<const CGAL_Nef_polyhedron>>([](const auto& chgeom) -> shared_ptr<const CGAL_Nef_polyhedron> {
+          if (auto poly = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom)) {
+            return poly;
+          }
+          const PolySet *chps = dynamic_cast<const PolySet*>(chgeom.get());
+          if (chps) return shared_ptr<const CGAL_Nef_polyhedron>(createNefPolyhedronFromGeometry(*chps));
 
-		assert(op != OpenSCADOperator::UNION && "use applyUnion3D() instead of applyOperator3D()");
-		bool foundFirst = false;
+          return shared_ptr<const CGAL_Nef_polyhedron>();
+        }));
+      }
 
-		try {
-			for(const auto &item : children) {
-				// TODO(ochafik): parallelize this loop!!!
-				const shared_ptr<const Geometry> &chgeom = item.second;
-				shared_ptr<const CGAL_Nef_polyhedron> chN =
-					dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
-				if (!chN) {
-					const PolySet *chps = dynamic_cast<const PolySet*>(chgeom.get());
-					if (chps) chN.reset(createNefPolyhedronFromGeometry(*chps));
-				}
-				// Initialize N with first expected geometric object
-				if (!foundFirst) {
-					if (chN) {
-						N = new CGAL_Nef_polyhedron(*chN);
-					} else { // first child geometry might be empty/null
-						N = nullptr;
-					}
-					foundFirst = true;
-					continue;
-				}
+      return lazy_ptr_op<const Geometry>([lazy_operands, op]() -> const Geometry * {
+#ifdef DEBUG
+        LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d operands)", getOperatorName(op), lazy_operands.size());
+#endif
+        CGAL_Nef_polyhedron *N = nullptr;
 
-				// Intersecting something with nothing results in nothing
-				if (!chN || chN->isEmpty()) {
-					if (op == OpenSCADOperator::INTERSECTION) N = nullptr;
-					continue;
-				}
+        for (const auto& lazy_operand : lazy_operands) {
+          auto chN = lazy_operand.get_shared_ptr();
+          if (!chN || chN->isEmpty()) {
+            // Intersecting something with nothing results in nothing
+            if (op == OpenSCADOperator::INTERSECTION) {
+              return nullptr;
+            }
+            continue;
+          }
 
-				// empty op <something> => empty
-				if (!N || N->isEmpty()) continue;
+          if (!N) {
+            N = new CGAL_Nef_polyhedron(*chN);
+            continue;
+          }
+          switch (op) {
+          case OpenSCADOperator::INTERSECTION:
+            // TODO(ochafik): Parallelize using first future children that complete? Or just spawn
+            // parallel threads blindly to divide and conquer.
+            *N *= *chN;
+            break;
+          case OpenSCADOperator::DIFFERENCE:
+            *N -= *chN;
+            break;
+          case OpenSCADOperator::MINKOWSKI:
+            N->minkowski(*chN);
+            break;
+          default:
+            LOG(message_group::Error,Location::NONE,"","Unsupported CGAL operator: %1$d",static_cast<int>(op));
+          }
+          // if (item.first) item.first->progress_report();
+        }
 
-				switch (op) {
-				case OpenSCADOperator::INTERSECTION:
-					// TODO(ochafik): Parallelize using first future children that complete? Or just spawn
-					// parallel threads blindly to divide and conquer.
-					*N *= *chN;
-					break;
-				case OpenSCADOperator::DIFFERENCE:
-					// TODO(ochafik): Could union the other nodes in parallel, *then* do a single difference?
-					*N -= *chN;
-					break;
-				case OpenSCADOperator::MINKOWSKI:
-					N->minkowski(*chN);
-					break;
-				default:
-					LOG(message_group::Error,Location::NONE,"","Unsupported CGAL operator: %1$d",static_cast<int>(op));
-				}
-				if (item.first) item.first->progress_report();
-			}
-		}
-		// union && difference assert triggered by testdata/scad/bugs/rotate-diff-nonmanifold-crash.scad and testdata/scad/bugs/issue204.scad
-		catch (const CGAL::Failure_exception &e) {
-			std::string opstr = op == OpenSCADOperator::INTERSECTION ? "intersection" : op == OpenSCADOperator::DIFFERENCE ? "difference" : op == OpenSCADOperator::UNION ? "union" : "UNKNOWN";
-			LOG(message_group::Error,Location::NONE,"","CGAL error in CGALUtils::applyBinaryOperator %1$s: %2$s",opstr,e.what());
+        return N;
+      });
+    } else {
+      CGAL_Nef_polyhedron *N = nullptr;
+      CGAL::Failure_behaviour old_behaviour = CGAL::set_error_behaviour(CGAL::THROW_EXCEPTION);
 
-		}
-		CGAL::set_error_behaviour(old_behaviour);
-		return N;
+      assert(op != OpenSCADOperator::UNION && "use applyUnion3D() instead of applyOperator3D()");
+      bool foundFirst = false;
+
+      try {
+        for(const auto &item : children) {
+          std::cerr << "applyOperator3D item\n";
+
+          // TODO(ochafik): parallelize this loop!!!
+          const shared_ptr<const Geometry> &chgeom = item.second;
+          shared_ptr<const CGAL_Nef_polyhedron> chN =
+            dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
+          if (!chN) {
+            const PolySet *chps = dynamic_cast<const PolySet*>(chgeom.get());
+            if (chps) chN.reset(createNefPolyhedronFromGeometry(*chps));
+          }
+          // Initialize N with first expected geometric object
+          if (!foundFirst) {
+            if (chN) {
+              N = new CGAL_Nef_polyhedron(*chN);
+            } else { // first child geometry might be empty/null
+              N = nullptr;
+            }
+            foundFirst = true;
+            continue;
+          }
+
+          // Intersecting something with nothing results in nothing
+          if (!chN || chN->isEmpty()) {
+            if (op == OpenSCADOperator::INTERSECTION) N = nullptr;
+            continue;
+          }
+
+          // empty op <something> => empty
+          if (!N || N->isEmpty()) continue;
+
+          switch (op) {
+          case OpenSCADOperator::INTERSECTION:
+            // TODO(ochafik): Parallelize using first future children that complete? Or just spawn
+            // parallel threads blindly to divide and conquer.
+            *N *= *chN;
+            break;
+          case OpenSCADOperator::DIFFERENCE:
+            // TODO(ochafik): Could union the other nodes in parallel, *then* do a single difference?
+            *N -= *chN;
+            break;
+          case OpenSCADOperator::MINKOWSKI:
+            N->minkowski(*chN);
+            break;
+          default:
+            LOG(message_group::Error,Location::NONE,"","Unsupported CGAL operator: %1$d",static_cast<int>(op));
+          }
+          if (item.first) item.first->progress_report();
+        }
+      }
+      // union && difference assert triggered by testdata/scad/bugs/rotate-diff-nonmanifold-crash.scad and testdata/scad/bugs/issue204.scad
+      catch (const CGAL::Failure_exception &e) {
+        std::string opstr = op == OpenSCADOperator::INTERSECTION ? "intersection" : op == OpenSCADOperator::DIFFERENCE ? "difference" : op == OpenSCADOperator::UNION ? "union" : "UNKNOWN";
+        LOG(message_group::Error,Location::NONE,"","CGAL error in CGALUtils::applyBinaryOperator %1$s: %2$s",opstr,e.what());
+
+      }
+      CGAL::set_error_behaviour(old_behaviour);
+      return lazy_ptr<const Geometry>(N);
+    }
 	}
 
 	CGAL_Nef_polyhedron *applyUnion3D(Geometry::Geometries::const_iterator chbegin,
@@ -478,7 +544,7 @@ namespace CGALUtils {
 			// If anything throws we simply fall back to Nef Minkowski
 			PRINTD("Minkowski: Falling back to Nef Minkowski");
 
-			CGAL_Nef_polyhedron *N = applyOperator3D(children, OpenSCADOperator::MINKOWSKI);
+			CGAL_Nef_polyhedron *N = new CGAL_Nef_polyhedron(*dynamic_pointer_cast<const CGAL_Nef_polyhedron>(applyOperator3D(children, OpenSCADOperator::MINKOWSKI).get_shared_ptr()));
 			CGAL::set_error_behaviour(old_behaviour);
 			return N;
 		}

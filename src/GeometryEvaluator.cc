@@ -44,7 +44,7 @@ int getDimension(const Geometry::GeometryItem &item) {
   auto node_dim = item.first->getDimension();
   if (!node_dim) {
     LOG(message_group::Warning, item.first->modinst->location(),"","Blocking on Geometry::getDimension");
-    node_dim = item.second->getDimension();
+    node_dim = item.second ? item.second->getDimension() : 0;
   }
   return node_dim;
 }
@@ -115,7 +115,7 @@ bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem &item, unsigned 
     auto node_dim = getDimension(item);
 
     if (!dim) dim = node_dim;
-    else if (dim != node_dim && !item.second->isEmpty()) {
+    else if (dim != node_dim) {//} && item.second && !item.second->isEmpty()) {
       LOG(message_group::Warning,item.first->modinst->location(),this->tree.getDocumentPath(),"Mixing 2D and 3D objects is not supported");
       return false;
     }
@@ -142,6 +142,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const Abstrac
 #endif
   if (!dim) {
     for(const auto &item : this->visitedchildren[node.index()]) {
+      std::cerr << "GeometryEvaluator::applyToChildren Item\n";
       if (!isValidDim(item, dim)) break;
     }
   }
@@ -163,7 +164,10 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 	if (op == OpenSCADOperator::HULL) {
     if (Feature::MultithreadedRender.is_enabled()) {
       return ResultObject(lazy_ptr_op<const Geometry>(
-          [children]() -> const Geometry * {
+          [children, op]() -> const Geometry * {
+#ifdef DEBUG
+            LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), children.size());
+#endif
             PolySet *ps = new PolySet(3, true);
 
             if (CGALUtils::applyHull(children, *ps)) {
@@ -172,8 +176,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 
             delete ps;
             return nullptr;
-          },
-          "CGALUtils::applyHull(applyToChildren3D)"));
+          }));
     } else {
       PolySet *ps = new PolySet(3, true);
 
@@ -201,10 +204,12 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 
       if (Feature::MultithreadedRender.is_enabled()) {
         return ResultObject(lazy_ptr_op<const Geometry>(
-            [actualchildren]() -> const Geometry * {
+            [actualchildren, op]() -> const Geometry * {
+#ifdef DEBUG
+              LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), actualchildren.size());
+#endif
               return CGALUtils::applyMinkowski(actualchildren);
-            },
-            "CGALUtils::applyMinkowski"));
+            }));
       } else {
 			  return ResultObject(CGALUtils::applyMinkowski(actualchildren));
       }
@@ -222,10 +227,12 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
         // Note: the union is now done in parallel inside CGALUtils::applyUnion3D and the NEF is lazy,
         // but the method still has some blocking code at the beginning so still making this async for now.
         return ResultObject(lazy_ptr_op<Geometry>(
-            [actualchildren]() -> Geometry * {
+            [actualchildren, op]() -> Geometry * {
+#ifdef DEBUG
+              LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), actualchildren.size());
+#endif
               return CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end());
-            },
-            "CGALUtils::applyUnion3D (from applyToChildren3D)"));
+            }));
       } else {
 			  return ResultObject(CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end()));
       }
@@ -233,18 +240,13 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 		}
 		default:
 		{
-      if (Feature::MultithreadedRender.is_enabled()) {
-				return ResultObject(lazy_ptr_op<Geometry>(
-						[children, op]() -> Geometry * { return CGALUtils::applyOperator3D(children, op); },
-						std::string("CGALUtils::applyOperator3D ") +
-								(op == OpenSCADOperator::UNION
-										 ? "union"
-										 : op == OpenSCADOperator::DIFFERENCE
-													 ? "difference"
-													 : op == OpenSCADOperator::INTERSECTION ? "intersection" : "?")));
-			} else {
-        return ResultObject(CGALUtils::applyOperator3D(children, op));
-      }
+      return ResultObject(CGALUtils::applyOperator3D(children, op));
+      // if (Feature::MultithreadedRender.is_enabled()) {
+			// 	return ResultObject(lazy_ptr_op<Geometry>(
+			// 			[children, op]() -> Geometry * { return CGALUtils::applyOperator3D(children, op); }));
+			// } else {
+      //   return ResultObject(CGALUtils::applyOperator3D(children, op));
+      // }
 			break;
 		}
 	}
@@ -563,6 +565,7 @@ Response GeometryEvaluator::visit(State &state, const ListNode &node)
 		if (state.isPostfix()) {
 				unsigned int dim = 0;
 				for(const auto &item : this->visitedchildren[node.index()]) {
+          std::cerr << "GeometryEvaluator::visit(ListNode) Item\n";
 					if (!isValidDim(item, dim)) break;
 					const AbstractNode *chnode = item.first;
 					const lazy_ptr<const Geometry> &chgeom = item.second;

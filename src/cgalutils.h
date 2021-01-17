@@ -36,7 +36,7 @@ namespace CGALUtils {
 	};
 
 	bool applyHull(const Geometry::Geometries &children, PolySet &P);
-	CGAL_Nef_polyhedron *applyOperator3D(const Geometry::Geometries &children, OpenSCADOperator op);
+	lazy_ptr<const Geometry> applyOperator3D(const Geometry::Geometries &children, OpenSCADOperator op);
 	CGAL_Nef_polyhedron *applyUnion3D(Geometry::Geometries::const_iterator chbegin,
 																		Geometry::Geometries::const_iterator chend);
 	//FIXME: Old, can be removed:

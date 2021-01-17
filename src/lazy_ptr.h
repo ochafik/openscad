@@ -55,7 +55,7 @@ public:
 	void reset(T *x = nullptr) { reset(shared_ptr_t(x)); }
 
   template <typename R>
-  std::shared_future<R> then(std::function<R(const shared_ptr_t&)> f) {
+  std::shared_future<R> then(std::function<R(const shared_ptr_t&)> f) const {
     if (sp_) {
       return std::shared_future<R>(future_value<R>(f(sp_)));
     } else {
@@ -63,7 +63,7 @@ public:
     }
   }
   template <typename R>
-  lazy_ptr<R> then_lazy(std::function<std::shared_ptr<R>(const shared_ptr_t&)> f) {
+  lazy_ptr<R> then_lazy(std::function<std::shared_ptr<R>(const shared_ptr_t&)> f) const {
     return then(f);
   }
 
@@ -155,14 +155,11 @@ lazy_ptr<B> static_pointer_cast(const lazy_ptr<A> &fp)
 }
 
 template <typename T>
-lazy_ptr<T> lazy_ptr_op(const std::function<T *()> &f, const std::string &description)
+lazy_ptr<T> lazy_ptr_op(const std::function<T *()> &f)
 {
 // #ifndef DEBUG
 	return std::shared_future<std::shared_ptr<T>>(
 			std::async(std::launch::async, [=] {
-#ifdef DEBUG
-        LOG(message_group::Echo, Location::NONE, "", "Async: %1$s", description);
-#endif
         return std::shared_ptr<T>(f());
       }));
 // #else

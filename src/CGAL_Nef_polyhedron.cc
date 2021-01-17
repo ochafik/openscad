@@ -28,8 +28,12 @@ CGAL_Nef_polyhedron CGAL_Nef_polyhedron::operator+(const CGAL_Nef_polyhedron &ot
   if (Feature::MultithreadedRender.is_enabled()) {
     auto op1 = this->p3;
     auto op2 = other.p3;
-    return CGAL_Nef_polyhedron(lazy_ptr_op<const CGAL_Nef_polyhedron3>(
-        [op1, op2]() { return new CGAL_Nef_polyhedron3((*op1) + (*op2)); }, "CGAL_Nef_polyhedron::operator+"));
+    return CGAL_Nef_polyhedron(lazy_ptr_op<const CGAL_Nef_polyhedron3>([op1, op2]() {
+#ifdef DEBUG
+      LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator+=");
+#endif
+     return new CGAL_Nef_polyhedron3((*op1) + (*op2));
+    }));
   } else {
     return CGAL_Nef_polyhedron(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
   }
@@ -42,8 +46,11 @@ CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator+=(const CGAL_Nef_polyhedron &
     auto op1 = this->p3;
     auto op2 = other.p3;
     this->p3.reset(lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() {
+#ifdef DEBUG
+      LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator+=");
+#endif
       return new CGAL_Nef_polyhedron3((*op1) + (*op2));
-    }, "CGAL_Nef_polyhedron::operator+="));
+    }));
   } else {
     this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
   }
@@ -56,8 +63,12 @@ CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator*=(const CGAL_Nef_polyhedron &
   if (Feature::MultithreadedRender.is_enabled()) {
     auto op1 = this->p3;
     auto op2 = other.p3;
-    this->p3.reset(
-        lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() { return new CGAL_Nef_polyhedron3((*op1) * (*op2)); }, "CGAL_Nef_polyhedron::operator*="));
+    this->p3.reset(lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() {
+#ifdef DEBUG
+      LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator*=");
+#endif
+      return new CGAL_Nef_polyhedron3((*op1) * (*op2));
+    }));
   } else {
 	  this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) * (*other.p3)));
   }
@@ -71,7 +82,12 @@ CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator-=(const CGAL_Nef_polyhedron &
     auto op1 = this->p3;
     auto op2 = other.p3;
     this->p3.reset(
-        lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() { return new CGAL_Nef_polyhedron3((*op1) - (*op2)); }, "CGAL_Nef_polyhedron::operator-="));
+        lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() {
+#ifdef DEBUG
+        LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator-=");
+#endif
+        return new CGAL_Nef_polyhedron3((*op1) - (*op2));
+    }));
   } else {
     this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) - (*other.p3)));
   }
@@ -91,11 +107,14 @@ CGAL_Nef_polyhedron &CGAL_Nef_polyhedron::minkowski(const CGAL_Nef_polyhedron &o
     auto other_p3 = other.p3;
     this->p3.reset(
         lazy_ptr_op<CGAL_Nef_polyhedron3>([self_p3, other_p3]() {
+#ifdef DEBUG
+        LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::minkowski");
+#endif
         CGAL_Nef_polyhedron3 op1(*self_p3);
         CGAL_Nef_polyhedron3 op2(*other_p3);
           // TODO(ochafik): Why the copy here?
           return new CGAL_Nef_polyhedron3(CGAL::minkowski_sum_3(op1, op2));
-          }, "CGAL_Nef_polyhedron::minkowski"));
+          }));
   } else {
     CGAL_Nef_polyhedron3 op1(*this->p3);
     CGAL_Nef_polyhedron3 op2(*other.p3);

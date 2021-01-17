@@ -34,7 +34,7 @@ int main()
 		lazy_ptr<string> p1 = new string("foo");
 		lazy_ptr<string> p2 = new string("bar");
 		lazy_ptr<string> ps =
-				lazy_ptr_op<string>([p1, p2]() -> string * { return new string(*p1 + *p2); }, "test");
+				lazy_ptr_op<string>([p1, p2]() -> string * { return new string(*p1 + *p2); });
 		print(ps);
 
     typedef std::shared_ptr<std::string> string_ptr_t;
@@ -96,7 +96,7 @@ int main()
 	// 	A &r = *fp;
 	// }
 	{
-		lazy_ptr<string> p = lazy_ptr_op<string>([] { return new string("lazy_ptr_op"); }, "test");
+		lazy_ptr<string> p = lazy_ptr_op<string>([] { return new string("lazy_ptr_op"); });
 		print(p);
 	}
 }
