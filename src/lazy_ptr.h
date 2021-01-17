@@ -16,6 +16,14 @@ std::future<T> future_value(const T &value)
 	return std::async(std::launch::async, [value] { return value; });
 }
 
+// TODO(ochafik): Find a better approach than this horribly inefficient code (spawns a thread that
+// blocks!)
+template <class A, class B>
+std::shared_future<B> heavy_then_(const std::shared_future<A>& a, std::function<B(const A&)> callback) {
+  return std::shared_future<B>(std::async(
+      std::launch::async, [callback, a]() -> B { return callback(a.get()); }));
+}
+
 // Future of a shared pointer. Behaves like a shared_ptr to a lazy value.
 // Designed to be a drop-in replacement for shared_ptr.
 template <typename T>
@@ -42,6 +50,19 @@ public:
   }
 	void reset(T *x = nullptr) { reset(shared_ptr_t(x)); }
 
+  template <typename R>
+  std::shared_future<R> then(std::function<R(const shared_ptr_t&)> f) {
+    if (sp_) {
+      return std::shared_future<R>(future_value<R>(f(sp_)));
+    } else {
+      return heavy_then_<shared_ptr_t, R>(sf_, f);
+    }
+  }
+  template <typename R>
+  lazy_ptr<R> then_lazy(std::function<std::shared_ptr<R>(const shared_ptr_t&)> f) {
+    return then(f);
+  }
+
 	template <class O>
 	typename std::enable_if<std::is_convertible<O *, T *>::value, void>::type reset(
 			const std::shared_ptr<O> &x)
@@ -51,12 +72,12 @@ public:
 
 	shared_ptr_t get_shared_ptr() const
 	{
-		// #ifdef DEBUG
-		// 		if (!got_shared_ptr_) {
-		// 			printStackTrace("Blocking call on get_shared_ptr");
-		// 			got_shared_ptr_ = true;
-		// 		}
-		// #endif
+		#ifdef DEBUG
+				if (!got_shared_ptr_) {
+					printStackTrace("Blocking call on get_shared_ptr");
+					got_shared_ptr_ = true;
+				}
+		#endif
 		return sp_ ? sp_ : sf_.get();
 	}
 	T *get() const { return get_shared_ptr().get(); }
@@ -100,14 +121,12 @@ public:
 #endif
 };
 
-// TODO(ochafik): Find a better approach than this horribly inefficient code (spawns a thread that
-// blocks!)
 template <class B, class A>
-lazy_ptr<B> dynamic_pointer_cast(const lazy_ptr<A> &fp)
+lazy_ptr<B> dynamic_pointer_cast(const lazy_ptr<A> &lp)
 {
-	return std::shared_future<std::shared_ptr<B>>(std::async(
-			std::launch::async, [fp]() { return dynamic_pointer_cast<B>(fp.get_shared_ptr()); }));
-	// return fp.future().then([](std::shared_ptr<A> p) { return dynamic_pointer_cast<B>(p); });
+  if (lp.sp_) return lazy_ptr<B>(dynamic_pointer_cast<B>(lp.sp_));
+
+  return heavy_then_<std::shared_ptr<A>, std::shared_ptr<B>>(lp.sf_, [](const std::shared_ptr<A>& p) { return dynamic_pointer_cast<B>(p); });
 }
 
 // TODO(ochafik): Find a better approach than this horribly inefficient code (spawns a thread that

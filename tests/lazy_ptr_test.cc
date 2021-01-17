@@ -17,7 +17,7 @@ class B : public A
 	virtual int x() { return 2; }
 };
 
-void print(lazy_ptr<std::string> &s)
+void print(const lazy_ptr<std::string> &s)
 {
 	if (!s.get()) {
 		cout << "null\n";
@@ -36,6 +36,15 @@ int main()
 		lazy_ptr<string> ps =
 				lazy_ptr_op<string>([p1, p2]() -> string * { return new string(*p1 + *p2); }, "test");
 		print(ps);
+
+    typedef std::shared_ptr<std::string> string_ptr_t;
+
+    print(ps.then<string_ptr_t>([](const string_ptr_t& x) {
+      return string_ptr_t(new std::string(*x + ".then"));
+    }));
+    print(ps.then_lazy<std::string>([](const string_ptr_t& x) -> string_ptr_t {
+      return string_ptr_t(new std::string(*x + ".then_lazy"));
+    }));
 	}
 	{
 		lazy_ptr<string> s;
