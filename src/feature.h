@@ -18,6 +18,8 @@ public:
 	static const Feature ExperimentalPushTransformsDown;
 	static const Feature ExperimentalInputDriverDBus;
 	static const Feature ExperimentalLazyUnion;
+  static const Feature ExperimentalLazyModule;
+  static const Feature ExperimentalDifferenceUnion;
 	static const Feature MultithreadedRender;
 
 	const std::string& get_name() const;
