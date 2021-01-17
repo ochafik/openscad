@@ -34,7 +34,7 @@ int main()
 		lazy_ptr<string> p1 = new string("foo");
 		lazy_ptr<string> p2 = new string("bar");
 		lazy_ptr<string> ps =
-				lazy_ptr_op<string>([p1, p2]() -> string * { return new string(*p1 + *p2); });
+				lazy_ptr_op<string>([p1, p2]() -> string * { return new string(*p1 + *p2); }, "test");
 		print(ps);
 	}
 	{
@@ -77,17 +77,17 @@ int main()
 		lazy_ptr<B> pb;
 		pb = static_pointer_cast<B>(pa);
 	}
-	{
-		lazy_ptr<A> fp;
-		A *f;
-		f = fp;
-		fp = f;
-		f = fp.get();
+	// {
+	// 	lazy_ptr<A> fp;
+	// 	A *f;
+	// 	f = fp;
+	// 	fp = f;
+	// 	f = fp.get();
 
-		A &r = *fp;
-	}
+	// 	A &r = *fp;
+	// }
 	{
-		lazy_ptr<string> p = lazy_ptr_op<string>([] { return new string("lazy_ptr_op"); });
+		lazy_ptr<string> p = lazy_ptr_op<string>([] { return new string("lazy_ptr_op"); }, "test");
 		print(p);
 	}
 }

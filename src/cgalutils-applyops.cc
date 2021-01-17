@@ -11,6 +11,7 @@
 #include "polyset-utils.h"
 #include "grid.h"
 #include "node.h"
+#include "parallel_reduce.h"
 
 #include "cgal.h"
 #pragma push_macro("NDEBUG")
@@ -177,22 +178,44 @@ namespace CGALUtils {
 			}
 
 			progress_tick();
-			while (q.size() > 1) {
-				auto p1 = q.top();
-				q.pop();
-				auto p2 = q.top();
-				q.pop();
-				q.emplace(make_shared<const CGAL_Nef_polyhedron>(*p1.first + *p2.first), -1);
-				progress_tick();
-			}
+			if (Feature::MultithreadedRender.is_enabled() && q.size() > 1) {
+        LOG(message_group::Echo, Location::NONE, "", "Async: CGALUtils::applyUnion3D on %1$d bodies", q.size());
 
-			if (q.size() == 1) {
-				return new CGAL_Nef_polyhedron(q.top().first->p3);
-			} else {
-				return nullptr;
+				std::vector<shared_ptr<const CGAL_Nef_polyhedron3>> bodies;
+				while (q.size() > 0) {
+					auto ptr = q.top();
+					q.pop();
+					bodies.push_back(ptr.first->p3.get_shared_ptr());
+				}
+
+				// TODO(ochafik): Us the priority queue in the parallel scheduler.
+				// Right now it just pick from the front, which doesn't reprioritize intermediate results.
+				auto future =
+						std::shared_future<shared_ptr<const CGAL_Nef_polyhedron3>>(parallel_reduce<shared_ptr<const CGAL_Nef_polyhedron3>>(bodies, [](auto a, auto b) {
+			        auto result = make_shared<const CGAL_Nef_polyhedron3>(*a + *b);
+							// Blocking call in case NEF ops are being parallelized.
+							progress_tick();
+							return result;
+						}));
+				return new CGAL_Nef_polyhedron(lazy_ptr<const CGAL_Nef_polyhedron3>(future));
 			}
-		}
-		catch (const CGAL::Failure_exception &e) {
+			else {
+				while (q.size() > 1) {
+          auto p1 = q.top();
+          q.pop();
+          auto p2 = q.top();
+          q.pop();
+          q.emplace(make_shared<const CGAL_Nef_polyhedron>(*p1.first + *p2.first), -1);
+          progress_tick();
+        }
+
+        if (q.size() == 1) {
+          return new CGAL_Nef_polyhedron(q.top().first->p3);
+        } else {
+          return nullptr;
+        }
+			}
+		} catch (const CGAL::Failure_exception &e) {
 			LOG(message_group::Error, Location::NONE, "", "CGAL error in CGALUtils::applyUnion3D: %1$s", e.what());
 		}
 		return nullptr;

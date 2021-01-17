@@ -190,11 +190,13 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
 			if (actualchildren.empty()) return ResultObject();
 			if (actualchildren.size() == 1) return ResultObject(actualchildren.front().second);
       if (Feature::MultithreadedRender.is_enabled()) {
+        // Note: the union is now done in parallel inside CGALUtils::applyUnion3D and the NEF is lazy,
+        // but the method still has some blocking code at the beginning so still making this async for now.
         return ResultObject(lazy_ptr_op<Geometry>(
             [actualchildren]() -> Geometry * {
               return CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end());
             },
-            "CGALUtils::applyUnion3D"));
+            "CGALUtils::applyUnion3D (from applyToChildren3D)"));
       } else {
 			  return ResultObject(CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end()));
       }

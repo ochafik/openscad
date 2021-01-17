@@ -6,8 +6,8 @@
 
 inline void printStackTrace(const std::string &title)
 {
-	void *buffer[5];
-	int size = backtrace(buffer, 5);
+	void *buffer[10];
+	int size = backtrace(buffer, 10);
 	std::cerr << "[" << title << "] stack:\n";
 	backtrace_symbols_fd(buffer, size, STDERR_FILENO);
 }
