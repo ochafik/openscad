@@ -239,8 +239,8 @@ function(add_cmdline_test TESTCMD_BASENAME)
         # add global experimental options here
         set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION}
           "--enable=lazy-union"
-          "--enable=lazy-module"
-          "--enable=flatten-children"
+          # "--enable=lazy-module"
+          # "--enable=flatten-children"
           "--enable=difference-union"
           "--enable=parallelize"
         )
@@ -280,10 +280,11 @@ function(add_cmdline_test TESTCMD_BASENAME)
       # Mostly just breaks issues that export non-manifold/intersecting geometry without explicit union.
       #set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-union")
 
+      # NOT WORKING YET:
+      # set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-module")
+      # set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=flatten-children")
 
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-union")
-      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-module")
-      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=flatten-children")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=difference-union")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=parallelize")
 
