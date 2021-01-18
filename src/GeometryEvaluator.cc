@@ -43,7 +43,7 @@
 int getDimension(const Geometry::GeometryItem &item) {
   auto node_dim = item.first->getDimension();
   if (!node_dim) {
-    LOG(message_group::Warning, item.first->modinst->location(),"","Blocking on Geometry::getDimension (%1$s)", item.first->toString().c_str());
+    LOG(message_group::Warning, item.first->modinst->location(),"","Async: Blocking on Geometry::getDimension (%1$s)", item.first->toString().c_str());
     node_dim = item.second ? item.second->getDimension() : 0;
   }
   return node_dim;
@@ -719,16 +719,22 @@ Response GeometryEvaluator::visit(State &state, const LeafNode &node)
 	if (state.isPrefix()) {
 		lazy_ptr<const Geometry> geom;
 		if (!isSmartCached(node)) {
-			const Geometry *geometry = node.createGeometry();
-			assert(geometry);
-			if (const Polygon2d *polygon = dynamic_cast<const Polygon2d*>(geometry)) {
-				if (!polygon->isSanitized()) {
-					Polygon2d *p = ClipperUtils::sanitize(*polygon);
-					delete geometry;
-					geometry = p;
-				}
-			}
-			geom.reset(geometry);
+      auto pNode = &node;
+      geom = lazy_ptr_op<const Geometry>([pNode]() -> const Geometry * {
+#ifdef DEBUG
+        LOG(message_group::None, Location::NONE, "", "Async: LeafNode.createGeometry");
+#endif
+        const Geometry *geometry = pNode->createGeometry();
+        assert(geometry);
+        if (const Polygon2d *polygon = dynamic_cast<const Polygon2d*>(geometry)) {
+          if (!polygon->isSanitized()) {
+            Polygon2d *p = ClipperUtils::sanitize(*polygon);
+            delete geometry;
+            geometry = p;
+          }
+        }
+        return geometry;
+      });
 		}
 		else geom = smartCacheGet(node, state.preferNef());
 		addToParent(state, node, geom);

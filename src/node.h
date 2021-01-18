@@ -86,7 +86,7 @@ protected:
       if (d) {
         // TODO(ochafik): What do we expect here?
         assert(!dim || d == dim);
-        if (dim > d) d = dim;
+        if (d > dim) dim = d;
       }
     }
     return dim;

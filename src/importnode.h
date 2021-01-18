@@ -47,6 +47,8 @@ protected:
       case ImportType::SVG:
       case ImportType::DXF:
         return 2;
+      case ImportType::UNKNOWN:
+        return 0;
       default:
         assert(false);
         return 0;
