@@ -30,9 +30,13 @@ AbstractNode *simplify_tree(AbstractNode *node)
 {
   auto original_child_count = node->children.size();
 
+  auto has_child_with_special_tags = false;
   for (auto it = node->children.begin(); it != node->children.end(); it++) {
     auto child = *it;
     auto simpler_child = simplify_tree(child);
+    if (simpler_child && simpler_child->modinst && simpler_child->modinst->hasSpecialTags()) {
+      has_child_with_special_tags = true;
+    }
     *it = simpler_child;
   }
 
@@ -165,7 +169,9 @@ AbstractNode *simplify_tree(AbstractNode *node)
         "[simplify_tree] Found csg node with %1$d children", new_node->children.size());
 #endif
     if (Feature::ExperimentalDifferenceUnion.is_enabled() &&
-        new_node->type == OpenSCADOperator::DIFFERENCE && new_node->children.size() > 2) {
+        new_node->type == OpenSCADOperator::DIFFERENCE &&
+        new_node->children.size() > 2 &&
+        !has_child_with_special_tags) {
 #ifdef DEBUG
       LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Grouping %1$d subtracted terms of a difference into a union", new_node->children.size() - 1);
