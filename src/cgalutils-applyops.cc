@@ -106,21 +106,31 @@ namespace CGALUtils {
         LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d operands)", getOperatorName(op), lazy_operands.size());
 #endif
         CGAL_Nef_polyhedron *N = nullptr;
+        bool foundFirst = false;
 
         for (const auto& lazy_operand : lazy_operands) {
           auto chN = lazy_operand.get_shared_ptr();
-          if (!chN || chN->isEmpty()) {
-            // Intersecting something with nothing results in nothing
-            if (op == OpenSCADOperator::INTERSECTION) {
-              return nullptr;
+
+          // Initialize N with first expected geometric object
+          if (!foundFirst) {
+            if (chN) {
+              N = new CGAL_Nef_polyhedron(*chN);
+            } else { // first child geometry might be empty/null
+              N = nullptr;
             }
+            foundFirst = true;
             continue;
           }
 
-          if (!N) {
-            N = new CGAL_Nef_polyhedron(*chN);
+          // Intersecting something with nothing results in nothing
+          if (!chN || chN->isEmpty()) {
+            if (op == OpenSCADOperator::INTERSECTION) N = nullptr;
             continue;
           }
+
+          // empty op <something> => empty
+          if (!N || N->isEmpty()) continue;
+
           switch (op) {
           case OpenSCADOperator::INTERSECTION:
             // TODO(ochafik): Parallelize using first future children that complete? Or just spawn
