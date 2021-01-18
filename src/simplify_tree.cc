@@ -26,62 +26,9 @@ void flatten_and_delete(T *list, std::vector<AbstractNode *> &out)
 	delete list;
 }
 
-
-AbstractNode *flatten_children(AbstractNode *node)
-{
-  auto original_child_count = node->children.size();
-
-  auto mi = node->modinst;
-
-  AbstractNode *new_node = nullptr;
-  std::string type = "?";
-  if (auto root = dynamic_cast<RootNode *>(node)) {
-    // TODO(ochafik): Flatten root as a... Group unless we're in lazy-union mode (then as List)
-  } else if (auto list = dynamic_cast<ListNode *>(node)) {
-    new_node = new ListNode(mi, shared_ptr<EvalContext>());
-    flatten_and_delete(list, new_node->children);
-    type = "ListNode";
-  } else if (auto group = dynamic_cast<GroupNode *>(node)) {
-    auto new_node = new GroupNode(mi, shared_ptr<EvalContext>());
-    flatten_and_delete(group, new_node->children);
-    type = "GroupNode";
-  } else if (auto csg = dynamic_cast<CsgOpNode *>(node)) {
-    // Flatten children.
-    new_node = new CsgOpNode(mi, shared_ptr<EvalContext>(), csg->type);
-    list = new ListNode(mi, shared_ptr<EvalContext>());
-    list->children = csg->children;
-    csg->children.clear();
-    delete csg;
-    flatten_and_delete(list, new_node->children);
-    type = "CsgOpNode";
-  }
-
-  if (new_node) {
-#ifdef DEBUG
-    if (original_child_count != new_node->children.size()) {
-      LOG(message_group::Echo, Location::NONE, "",
-        "[simplify_tree] Flattened %1$s (%2$d -> %3$d children)", type.c_str(), original_child_count, new_node->children.size());
-    }
-#endif
-    if (new_node->children.size() == 1) {
-#ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child %1$s", type.c_str());
-#endif
-      auto child = new_node->children[0];
-      new_node->children.clear();
-      delete new_node;
-      return child;
-    }
-    return new_node;
-  }
-
-  return node;
-}
-
-
 AbstractNode *simplify_tree(AbstractNode *node)
 {
-  auto mi = node->modinst;
+  auto original_child_count = node->children.size();
 
   for (auto it = node->children.begin(); it != node->children.end(); it++) {
     auto child = *it;
@@ -98,9 +45,55 @@ AbstractNode *simplify_tree(AbstractNode *node)
 		return node;
 	}
 
-  node = flatten_children(node);
+  auto list = dynamic_cast<ListNode *>(node);
+  auto group = dynamic_cast<GroupNode *>(node);
+  auto root = dynamic_cast<RootNode *>(node);
+  auto csg = dynamic_cast<CsgOpNode *>(node);
 
-  if (auto transform = dynamic_cast<TransformNode *>(node)) {
+  auto mi = node->modinst;
+
+  if (list) {
+    // Flatten lists.
+    auto new_node = new ListNode(mi, shared_ptr<EvalContext>());
+    flatten_and_delete(list, new_node->children);
+#ifdef DEBUG
+    if (original_child_count != new_node->children.size()) {
+      LOG(message_group::Echo, Location::NONE, "",
+        "[simplify_tree] Flattened ListNode (%1$d -> %2$d children)", original_child_count, new_node->children.size());
+    }
+#endif
+    if (new_node->children.size() == 1) {
+#ifdef DEBUG
+      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child ListNode\n");
+#endif
+      auto child = new_node->children[0];
+      new_node->children.clear();
+      delete new_node;
+      return child;
+    }
+    return new_node;
+  } else if (group && !root) {
+    // Flatten groups.
+    // TODO(ochafik): Flatten root as a... Group unless we're in lazy-union mode (then as List)
+    auto new_node = new GroupNode(mi, shared_ptr<EvalContext>());
+    flatten_and_delete(group, new_node->children);
+#ifdef DEBUG
+    if (original_child_count != new_node->children.size()) {
+      LOG(message_group::Echo, Location::NONE, "",
+        "[simplify_tree] Flattened GroupNode (%1$d -> %2$d children)", original_child_count, new_node->children.size());
+    }
+#endif
+    if (new_node->children.size() == 1) {
+#ifdef DEBUG
+      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child GroupNode\n");
+#endif
+      auto child = new_node->children[0];
+      new_node->children.clear();
+      delete new_node;
+      return child;
+    }
+    return new_node;
+  } else if (auto transform = dynamic_cast<TransformNode *>(node)) {
     // Push transforms down.
     auto has_any_specially_tagged_child = false;
     auto transform_children_count = false;
@@ -144,24 +137,47 @@ AbstractNode *simplify_tree(AbstractNode *node)
 
       return new_parent;
     }
-  } else if (auto csg = dynamic_cast<CsgOpNode*>(node)) {
+  } else if (csg) {
+    // Flatten children.
+    auto new_node = new CsgOpNode(mi, shared_ptr<EvalContext>(), csg->type);
+    list = new ListNode(mi, shared_ptr<EvalContext>());
+    list->children = csg->children;
+    csg->children.clear();
+    flatten_and_delete(list, new_node->children);
+#ifdef DEBUG
+    if (original_child_count != new_node->children.size()) {
+      LOG(message_group::Echo, Location::NONE, "",
+        "[simplify_tree] Flattened CsgOpNode (%1$d -> %2$d children)", original_child_count, new_node->children.size());
+    }
+#endif
+
+    if (new_node->children.size() == 1) {
+#ifdef DEBUG
+      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child CsgOpNode\n");
+#endif
+      auto child = new_node->children[0];
+      new_node->children.clear();
+      delete new_node;
+      return child;
+    }
 #ifdef DEBUG
       LOG(message_group::Echo, Location::NONE, "",
-        "[simplify_tree] Found csg node with %1$d children", csg->children.size());
+        "[simplify_tree] Found csg node with %1$d children", new_node->children.size());
 #endif
     if (Feature::ExperimentalDifferenceUnion.is_enabled() &&
-        csg->type == OpenSCADOperator::DIFFERENCE && csg->children.size() > 2) {
+        new_node->type == OpenSCADOperator::DIFFERENCE && new_node->children.size() > 2) {
 #ifdef DEBUG
       LOG(message_group::Echo, Location::NONE, "",
-        "[simplify_tree] Grouping %1$d subtracted terms of a difference into a union", csg->children.size() - 1);
+        "[simplify_tree] Grouping %1$d subtracted terms of a difference into a union", new_node->children.size() - 1);
 #endif
       auto union_node = new CsgOpNode(mi, std::shared_ptr<EvalContext>(), OpenSCADOperator::UNION);
-      for (size_t i = 1; i < csg->children.size(); i++) {
-        union_node->children.push_back(csg->children[i]);
+      for (size_t i = 1; i < new_node->children.size(); i++) {
+        union_node->children.push_back(new_node->children[i]);
       }
-      csg->children.resize(1);
-      csg->children.push_back(union_node);
+      new_node->children.resize(1);
+      new_node->children.push_back(union_node);
     }
+    return new_node;
   }
 
   // No changes (*sighs*)
