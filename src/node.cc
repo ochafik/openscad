@@ -87,6 +87,11 @@ std::string ListNode::name() const
 	return "list";
 }
 
+std::string ListNode::verbose_name() const
+{
+  return this->_name;
+}
+
 std::string RootNode::name() const
 {
 	return "root";
