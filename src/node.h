@@ -85,7 +85,7 @@ protected:
       int d = child->getDimension();
       if (d) {
         // TODO(ochafik): What do we expect here?
-        assert(!dim || d == dim);
+        //assert(!dim || d == dim);
         if (d > dim) dim = d;
       }
     }
