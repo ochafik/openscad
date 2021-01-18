@@ -78,13 +78,18 @@ public:
 	const AbstractNode *getNodeByID(int idx, std::deque<const AbstractNode *> &path) const;
 
 protected:
-  /*! By default, pick the dimension of the first child. */
+  /*! By default, pick the max dimension of all children. */
   virtual int getDimensionImpl() const {
+    auto dim = 0;
     for (const auto& child : children) {
       int d = child->getDimension();
-      if (d) return d;
+      if (d) {
+        // TODO(ochafik): What do we expect here?
+        assert(!dim || d == dim);
+        if (dim > d) d = dim;
+      }
     }
-    return 0;
+    return dim;
   }
 
 private:
