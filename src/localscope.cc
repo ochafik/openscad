@@ -116,25 +116,6 @@ std::vector<AbstractNode*> LocalScope::instantiateChildren(const std::shared_ptr
 	return childnodes;
 }
 
-// std::vector<AbstractNode*> LocalScope::instantiateChildren(const std::shared_ptr<Context> &evalctx) const
-// {
-// 	std::vector<AbstractNode*> childnodes;
-// 	for(const auto &modinst : this->children_inst) {
-// 		AbstractNode *node = modinst->evaluate(evalctx);
-
-// 		if (Feature::ExperimentalFlattenChildren.is_enabled()) {
-//       node = simplify_tree(node);
-// 			if (auto list = dynamic_cast<ListNode *>(node)) {
-// 				flatten_and_delete(list, childnodes);
-// 				continue;
-// 			}
-// 		}
-// 		if (node) childnodes.push_back(node);
-// 	}
-
-// 	return childnodes;
-// }
-
 /*!
 	When instantiating a module which can take a scope as parameter (i.e. non-leaf nodes),
 	use this method to apply the local scope definitions to the evaluation context.
