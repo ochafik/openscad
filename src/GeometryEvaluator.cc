@@ -43,7 +43,7 @@
 int getDimension(const Geometry::GeometryItem &item) {
   auto node_dim = item.first->getDimension();
   if (!node_dim) {
-    LOG(message_group::Warning, item.first->modinst->location(),"","Blocking on Geometry::getDimension");
+    LOG(message_group::Warning, item.first->modinst->location(),"","Blocking on Geometry::getDimension (%1$s)", item.first->toString().c_str());
     node_dim = item.second ? item.second->getDimension() : 0;
   }
   return node_dim;
@@ -166,7 +166,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
       return ResultObject(lazy_ptr_op<const Geometry>(
           [children, op]() -> const Geometry * {
 #ifdef DEBUG
-            LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), children.size());
+            LOG(message_group::None, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), children.size());
 #endif
             PolySet *ps = new PolySet(3, true);
 
@@ -206,7 +206,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
         return ResultObject(lazy_ptr_op<const Geometry>(
             [actualchildren, op]() -> const Geometry * {
 #ifdef DEBUG
-              LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), actualchildren.size());
+              LOG(message_group::None, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), actualchildren.size());
 #endif
               return CGALUtils::applyMinkowski(actualchildren);
             }));
@@ -229,7 +229,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
         return ResultObject(lazy_ptr_op<Geometry>(
             [actualchildren, op]() -> Geometry * {
 #ifdef DEBUG
-              LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), actualchildren.size());
+              LOG(message_group::None, Location::NONE, "", "Async: %1$s (%2$d children)", getOperatorName(op), actualchildren.size());
 #endif
               return CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end());
             }));

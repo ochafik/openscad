@@ -103,7 +103,7 @@ namespace CGALUtils {
 
       return lazy_ptr_op<const Geometry>([lazy_operands, op]() -> const Geometry * {
 #ifdef DEBUG
-        LOG(message_group::Echo, Location::NONE, "", "Async: %1$s (%2$d operands)", getOperatorName(op), lazy_operands.size());
+        LOG(message_group::None, Location::NONE, "", "Async: %1$s (%2$d operands)", getOperatorName(op), lazy_operands.size());
 #endif
         CGAL_Nef_polyhedron *N = nullptr;
         bool foundFirst = false;
@@ -255,7 +255,7 @@ namespace CGALUtils {
 
 			progress_tick();
 			if (Feature::MultithreadedRender.is_enabled() && q.size() > 1) {
-        LOG(message_group::Echo, Location::NONE, "", "Async: CGALUtils::applyUnion3D on %1$d bodies", q.size());
+        LOG(message_group::None, Location::NONE, "", "Async: CGALUtils::applyUnion3D on %1$d bodies", q.size());
 
 				std::vector<shared_ptr<const CGAL_Nef_polyhedron3>> bodies;
 				while (q.size() > 0) {

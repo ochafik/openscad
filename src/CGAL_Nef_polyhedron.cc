@@ -30,7 +30,7 @@ CGAL_Nef_polyhedron CGAL_Nef_polyhedron::operator+(const CGAL_Nef_polyhedron &ot
     auto op2 = other.p3;
     return CGAL_Nef_polyhedron(lazy_ptr_op<const CGAL_Nef_polyhedron3>([op1, op2]() {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator+=");
+      LOG(message_group::None, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator+=");
 #endif
      return new CGAL_Nef_polyhedron3((*op1) + (*op2));
     }));
@@ -47,7 +47,7 @@ CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator+=(const CGAL_Nef_polyhedron &
     auto op2 = other.p3;
     this->p3.reset(lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator+=");
+      LOG(message_group::None, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator+=");
 #endif
       return new CGAL_Nef_polyhedron3((*op1) + (*op2));
     }));
@@ -65,7 +65,7 @@ CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator*=(const CGAL_Nef_polyhedron &
     auto op2 = other.p3;
     this->p3.reset(lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator*=");
+      LOG(message_group::None, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator*=");
 #endif
       return new CGAL_Nef_polyhedron3((*op1) * (*op2));
     }));
@@ -84,7 +84,7 @@ CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator-=(const CGAL_Nef_polyhedron &
     this->p3.reset(
         lazy_ptr_op<CGAL_Nef_polyhedron3>([op1, op2]() {
 #ifdef DEBUG
-        LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator-=");
+        LOG(message_group::None, Location::NONE, "", "Async: CGAL_Nef_polyhedron::operator-=");
 #endif
         return new CGAL_Nef_polyhedron3((*op1) - (*op2));
     }));
@@ -108,7 +108,7 @@ CGAL_Nef_polyhedron &CGAL_Nef_polyhedron::minkowski(const CGAL_Nef_polyhedron &o
     this->p3.reset(
         lazy_ptr_op<CGAL_Nef_polyhedron3>([self_p3, other_p3]() {
 #ifdef DEBUG
-        LOG(message_group::Echo, Location::NONE, "", "Async: CGAL_Nef_polyhedron::minkowski");
+        LOG(message_group::None, Location::NONE, "", "Async: CGAL_Nef_polyhedron::minkowski");
 #endif
         CGAL_Nef_polyhedron3 op1(*self_p3);
         CGAL_Nef_polyhedron3 op2(*other_p3);

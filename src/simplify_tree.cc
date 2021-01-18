@@ -39,7 +39,7 @@ AbstractNode *simplify_tree(AbstractNode *node)
 	if (node->modinst && node->modinst->hasSpecialTags()) {
     // Opt out of this mess.
 #ifdef DEBUG
-    LOG(message_group::Echo, Location::NONE, "",
+    LOG(message_group::None, Location::NONE, "",
       "[simplify_tree] Ignoring tree with special tags");
 #endif
 		return node;
@@ -58,13 +58,13 @@ AbstractNode *simplify_tree(AbstractNode *node)
     flatten_and_delete(list, new_node->children);
 #ifdef DEBUG
     if (original_child_count != new_node->children.size()) {
-      LOG(message_group::Echo, Location::NONE, "",
+      LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Flattened ListNode (%1$d -> %2$d children)", original_child_count, new_node->children.size());
     }
 #endif
     if (new_node->children.size() == 1) {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child ListNode\n");
+      LOG(message_group::None, Location::NONE, "", "[simplify_tree] Dropping single-child ListNode\n");
 #endif
       auto child = new_node->children[0];
       new_node->children.clear();
@@ -79,13 +79,13 @@ AbstractNode *simplify_tree(AbstractNode *node)
     flatten_and_delete(group, new_node->children);
 #ifdef DEBUG
     if (original_child_count != new_node->children.size()) {
-      LOG(message_group::Echo, Location::NONE, "",
+      LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Flattened GroupNode (%1$d -> %2$d children)", original_child_count, new_node->children.size());
     }
 #endif
     if (new_node->children.size() == 1) {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child GroupNode\n");
+      LOG(message_group::None, Location::NONE, "", "[simplify_tree] Dropping single-child GroupNode\n");
 #endif
       auto child = new_node->children[0];
       new_node->children.clear();
@@ -120,7 +120,7 @@ AbstractNode *simplify_tree(AbstractNode *node)
       delete transform;
 
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "",
+      LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Pushing TransformNode down onto %1$d children (of which %2$d were TransformNodes)", children.size(), transform_children_count);
 #endif
 
@@ -146,14 +146,14 @@ AbstractNode *simplify_tree(AbstractNode *node)
     flatten_and_delete(list, new_node->children);
 #ifdef DEBUG
     if (original_child_count != new_node->children.size()) {
-      LOG(message_group::Echo, Location::NONE, "",
+      LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Flattened CsgOpNode (%1$d -> %2$d children)", original_child_count, new_node->children.size());
     }
 #endif
 
     if (new_node->children.size() == 1) {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "", "[simplify_tree] Dropping single-child CsgOpNode\n");
+      LOG(message_group::None, Location::NONE, "", "[simplify_tree] Dropping single-child CsgOpNode\n");
 #endif
       auto child = new_node->children[0];
       new_node->children.clear();
@@ -161,13 +161,13 @@ AbstractNode *simplify_tree(AbstractNode *node)
       return child;
     }
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "",
+      LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Found csg node with %1$d children", new_node->children.size());
 #endif
     if (Feature::ExperimentalDifferenceUnion.is_enabled() &&
         new_node->type == OpenSCADOperator::DIFFERENCE && new_node->children.size() > 2) {
 #ifdef DEBUG
-      LOG(message_group::Echo, Location::NONE, "",
+      LOG(message_group::None, Location::NONE, "",
         "[simplify_tree] Grouping %1$d subtracted terms of a difference into a union", new_node->children.size() - 1);
 #endif
       auto union_node = new CsgOpNode(mi, std::shared_ptr<EvalContext>(), OpenSCADOperator::UNION);
