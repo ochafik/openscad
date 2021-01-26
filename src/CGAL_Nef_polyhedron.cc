@@ -5,6 +5,9 @@
 #include "polyset.h"
 #include "svg.h"
 
+// Only good for intersection IF CGAL_NEF_VISUAL_HULL defined
+// #define INPLACE_NEF_OPS
+
 CGAL_Nef_polyhedron::CGAL_Nef_polyhedron(const CGAL_Nef_polyhedron3 *p)
 {
 	if (p) p3.reset(p);
@@ -25,19 +28,31 @@ CGAL_Nef_polyhedron CGAL_Nef_polyhedron::operator+(const CGAL_Nef_polyhedron &ot
 
 CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator+=(const CGAL_Nef_polyhedron &other)
 {
+#ifdef INPLACE_NEF_OPS
+	*this->p3 += *other.p3;
+#else
 	this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) + (*other.p3)));
+#endif
 	return *this;
 }
 
 CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator*=(const CGAL_Nef_polyhedron &other)
 {
+#ifdef INPLACE_NEF_OPS
+	*this->p3 *= *other.p3;
+#else
 	this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) * (*other.p3)));
+#endif
 	return *this;
 }
 
 CGAL_Nef_polyhedron& CGAL_Nef_polyhedron::operator-=(const CGAL_Nef_polyhedron &other)
 {
+#ifdef INPLACE_NEF_OPS
+	*this->p3 -= *other.p3;
+#else
 	this->p3.reset(new CGAL_Nef_polyhedron3((*this->p3) - (*other.p3)));
+#endif
 	return *this;
 }
 
