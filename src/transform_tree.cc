@@ -109,6 +109,19 @@ AbstractNode *transform_tree(AbstractNode *node)
         return child;
       }
 
+      if (Feature::ExperimentalDifferenceUnion.is_enabled() &&
+          new_node->type == OpenSCADOperator::DIFFERENCE &&
+          new_node->children.size() > 3 &&
+          !has_child_with_special_tags) {
+        LOG(message_group::None, Location::NONE, "",
+          "[transform_tree] Grouping %1$d subtracted terms of a difference into a union", new_node->children.size() - 1);
+        auto union_node = new CsgOpNode(mi, std::shared_ptr<EvalContext>(), OpenSCADOperator::UNION);
+        for (size_t i = 1; i < new_node->children.size(); i++) {
+          union_node->children.push_back(new_node->children[i]);
+        }
+        new_node->children.resize(1);
+        new_node->children.push_back(union_node);
+      }
       return new_node;
     }
   }

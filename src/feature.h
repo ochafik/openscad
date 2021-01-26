@@ -19,6 +19,7 @@ public:
   static const Feature ExperimentalLazyModule;
   static const Feature ExperimentalFlattenChildren;
 	static const Feature ExperimentalPushTransforms;
+  static const Feature ExperimentalDifferenceUnion;
 
 	const std::string& get_name() const;
 	const std::string& get_description() const;
