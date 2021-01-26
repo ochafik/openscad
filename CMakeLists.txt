@@ -119,16 +119,19 @@ macro(find_graphics)
   endif()
 endmacro(find_graphics)
 
+find_package(TBB REQUIRED)
 # NOTE FindCGAL.cmake resets the BOOST_* and Boost_* variables,
 #   because it looks for Boost itself, so it has to be called
 #   before we look for our own required boost libraries.
 set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
 find_package(CGAL REQUIRED)
+include(CGAL_TBB_support)
 message(STATUS "CGAL: ${CGAL_MAJOR_VERSION}.${CGAL_MINOR_VERSION}")
 add_definitions(-DENABLE_CGAL)
 if(TARGET CGAL::CGAL)
   list(APPEND COMMON_LIBRARIES CGAL::CGAL)
-  message(STATUS "CGAL: Using target CGAL::CGAL")
+  list(APPEND COMMON_LIBRARIES CGAL::CGAL CGAL::TBB_support)
+  message(STATUS "CGAL: Using targets CGAL::CGAL CGAL::TBB_support")
 else()
   list(APPEND COMMON_LIBRARIES ${CGAL_LIBRARY})
   list(APPEND COMMON_LIBRARIES ${GMP_LIBRARIES})
