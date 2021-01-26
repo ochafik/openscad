@@ -63,7 +63,12 @@ AbstractNode* UserModule::instantiate(const std::shared_ptr<const Context>& defi
 	PRINTDB("%s", module_context->dump());
 #endif
 
-	return this->body.instantiateModules(*module_context, new GroupNode(inst, std::string("module ") + this->name));
+	AbstractNode *node;
+	auto node_name = std::string("module ") + this->name;
+	if (Feature::ExperimentalLazyModule.is_enabled()) node = new ListNode(inst);
+	else node = new GroupNode(inst, node_name);
+
+	return this->body.instantiateModules(*module_context, node);
 }
 
 void UserModule::print(std::ostream &stream, const std::string &indent) const

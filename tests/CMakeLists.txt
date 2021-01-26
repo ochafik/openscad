@@ -273,7 +273,14 @@ function(add_cmdline_test TESTCMD_BASENAME)
         set(EXPERIMENTAL_OPTION "")
       else()
         # add global experimental options here
-        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=roof" "--enable=lazy-union" "--enable=textmetrics" "--enable=import-function")
+        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION}
+		  "--enable=roof"
+		  "--enable=lazy-union"
+		  "--enable=textmetrics"
+		  "--enable=import-function"
+          "--enable=lazy-union"
+          "--enable=lazy-module"
+        )
       endif()
 
       # 2D tests should be viewed from the top, not an angle.
@@ -318,6 +325,8 @@ function(add_cmdline_test TESTCMD_BASENAME)
         #set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=vertex-object-renderers-indexing")
       endif()
 
+      # NOT WORKING YET:
+      # set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-module")
       # debug message
       #message(STATUS "${TEST_FULLNAME} ${CONFARG} ${CONFVAL} COMMAND ${PYTHON_EXECUTABLE} ${TEST_CMDLINE_TOOL_PY} ${COMPARATOR} -c ${IMAGE_COMPARE_EXECUTABLE} -s ${TESTCMD_SUFFIX} ${EXTRA_OPTIONS} ${TESTNAME_OPTION} ${FILENAME_OPTION} ${TESTCMD_EXE} ${TESTCMD_SCRIPT} "${SCADFILE}" ${CAMERA_OPTION} ${EXPERIMENTAL_OPTION} ${TESTCMD_ARGS}")
       # only add test if it is not experimental or if it is and experimental option is enabled
@@ -925,106 +934,6 @@ add_cmdline_test(svgimport OPENSCAD ARGS --imgsize 600,600 SUFFIX png FILES
   ${TEST_SCAD_DIR}/svg/extruded/box-w-holes.scad
   ${TEST_SCAD_DIR}/svg/extruded/simple-center.scad
 )
-
-# lazy-union
-list(APPEND LAZYUNION_3D_FILES
-  ${TEST_SCAD_DIR}/experimental/lazyunion-toplevel-objects.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-toplevel-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-nested-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-children.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-hull-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-root-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-intersection-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-difference-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-minkowski-for.scad
-  ${TEST_SCAD_DIR}/experimental/lazyunion-transform-for.scad
-  ${TEST_SCAD_DIR}/3D/features/2d-3d.scad
-)
-list(APPEND LAZYUNION_2D_FILES
-  ${TEST_SCAD_DIR}/experimental/lazyunion-toplevel-2dobjects.scad
-)
-list(APPEND LAZYUNION_FILES ${LAZYUNION_2D_FILES} ${LAZYUNION_3D_FILES})
-
-experimental_tests(lazyunion-dump_lazyunion-toplevel-2dobjects)
-experimental_tests(lazyunion-dump_lazyunion-toplevel-objects)
-experimental_tests(lazyunion-dump_lazyunion-toplevel-for)
-experimental_tests(lazyunion-dump_lazyunion-nested-for)
-experimental_tests(lazyunion-dump_lazyunion-children)
-experimental_tests(lazyunion-dump_lazyunion-hull-for)
-experimental_tests(lazyunion-dump_lazyunion-root-for)
-experimental_tests(lazyunion-dump_lazyunion-intersection-for)
-experimental_tests(lazyunion-dump_lazyunion-difference-for)
-experimental_tests(lazyunion-dump_lazyunion-minkowski-for)
-experimental_tests(lazyunion-dump_lazyunion-transform-for)
-experimental_tests(lazyunion-dump_2d-3d)
-experimental_tests(lazyunion-opencsg_lazyunion-toplevel-2dobjects)
-experimental_tests(lazyunion-opencsg_lazyunion-toplevel-objects)
-experimental_tests(lazyunion-opencsg_lazyunion-toplevel-for)
-experimental_tests(lazyunion-opencsg_lazyunion-nested-for)
-experimental_tests(lazyunion-opencsg_lazyunion-children)
-experimental_tests(lazyunion-opencsg_lazyunion-hull-for)
-experimental_tests(lazyunion-opencsg_lazyunion-root-for)
-experimental_tests(lazyunion-opencsg_lazyunion-intersection-for)
-experimental_tests(lazyunion-opencsg_lazyunion-difference-for)
-experimental_tests(lazyunion-opencsg_lazyunion-minkowski-for)
-experimental_tests(lazyunion-opencsg_lazyunion-transform-for)
-experimental_tests(lazyunion-opencsg_2d-3d)
-experimental_tests(lazyunion-cgalpng_lazyunion-toplevel-2dobjects)
-experimental_tests(lazyunion-cgalpng_lazyunion-toplevel-objects)
-experimental_tests(lazyunion-cgalpng_lazyunion-toplevel-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-nested-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-children)
-experimental_tests(lazyunion-cgalpng_lazyunion-hull-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-root-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-intersection-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-difference-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-minkowski-for)
-experimental_tests(lazyunion-cgalpng_lazyunion-transform-for)
-experimental_tests(lazyunion-cgalpng_2d-3d)
-experimental_tests(lazyunion-monotonepng_lazyunion-toplevel-objects)
-experimental_tests(lazyunion-monotonepng_lazyunion-toplevel-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-nested-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-children)
-experimental_tests(lazyunion-monotonepng_lazyunion-hull-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-root-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-intersection-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-difference-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-minkowski-for)
-experimental_tests(lazyunion-monotonepng_lazyunion-transform-for)
-experimental_tests(lazyunion-monotonepng_2d-3d)
-experimental_tests(lazyunion-stlpngtest_lazyunion-toplevel-objects)
-experimental_tests(lazyunion-stlpngtest_lazyunion-toplevel-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-nested-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-children)
-experimental_tests(lazyunion-stlpngtest_lazyunion-hull-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-root-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-intersection-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-difference-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-minkowski-for)
-experimental_tests(lazyunion-stlpngtest_lazyunion-transform-for)
-experimental_tests(lazyunion-stlpngtest_2d-3d)
-experimental_tests(lazyunion-offpngtest_lazyunion-toplevel-objects)
-experimental_tests(lazyunion-offpngtest_lazyunion-toplevel-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-nested-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-children)
-experimental_tests(lazyunion-offpngtest_lazyunion-hull-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-root-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-intersection-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-difference-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-minkowski-for)
-experimental_tests(lazyunion-offpngtest_lazyunion-transform-for)
-experimental_tests(lazyunion-offpngtest_2d-3d)
-experimental_tests(lazyunion-dxfpngtest_lazyunion-toplevel-2dobjects)
-experimental_tests(lazyunion-svgpngtest_lazyunion-toplevel-2dobjects)
-
-add_cmdline_test(lazyunion-dump        OPENSCAD SUFFIX csg FILES ${LAZYUNION_FILES} ARGS --enable=lazy-union)
-add_cmdline_test(lazyunion-opencsg     OPENSCAD SUFFIX png FILES ${LAZYUNION_FILES} ARGS --enable=lazy-union)
-add_cmdline_test(lazyunion-cgalpng     OPENSCAD SUFFIX png FILES ${LAZYUNION_FILES} ARGS --enable=lazy-union --render)
-add_cmdline_test(lazyunion-monotonepng OPENSCAD SUFFIX png FILES ${LAZYUNION_3D_FILES} ARGS --colorscheme=Monotone --enable=lazy-union --render )
-add_cmdline_test(lazyunion-stlpngtest  SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_3D_FILES} EXPECTEDDIR lazyunion-monotonepng ARGS --openscad=${OPENSCAD_BINPATH} --format=STL --enable=lazy-union --render=cgal)
-add_cmdline_test(lazyunion-offpngtest  SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_3D_FILES} EXPECTEDDIR lazyunion-monotonepng ARGS --openscad=${OPENSCAD_BINPATH} --format=OFF --enable=lazy-union --render=cgal)
-add_cmdline_test(lazyunion-dxfpngtest  SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_FILES} EXPECTEDDIR lazyunion-cgalpng     ARGS --openscad=${OPENSCAD_BINPATH} --format=DXF --enable=lazy-union --render=cgal)
-add_cmdline_test(lazyunion-svgpngtest  SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_FILES} EXPECTEDDIR lazyunion-cgalpng     ARGS --openscad=${OPENSCAD_BINPATH} --format=SVG --enable=lazy-union --render=cgal)
 
 #
 # Trivial Export/Import files
