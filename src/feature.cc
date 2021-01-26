@@ -37,6 +37,7 @@ const Feature Feature::ExperimentalTextMetricsFunctions("textmetrics", "Enable t
 const Feature Feature::ExperimentalImportFunction("import-function", "Enable import function returning data instead of geometry.");
 const Feature Feature::ExperimentalLazyModule("lazy-module", "Enable lazy modules (enhances lazy-union).");
 const Feature Feature::ExperimentalFlattenChildren("flatten-children", "Enable flattening of children (enhances lazy-module).");
+const Feature Feature::ExperimentalPushTransforms("push-transforms", "Enable pushdown of transform & color nodes (enhances lazy-union).");
 
 Feature::Feature(const std::string &name, const std::string &description)
 	: enabled(false), name(name), description(description)
