@@ -424,6 +424,13 @@ int cmdline(const CommandLine& cmd)
 		}
 	}
 
+	root_module->handleDependencies();
+
+	auto fpath = fs::absolute(fs::path(cmd.filename));
+	auto fparent = fpath.parent_path();
+	fs::current_path(fparent);
+	top_ctx->setDocumentPath(fparent.string());
+
 	root_file->handleDependencies();
 
 	RenderVariables render_variables;
@@ -449,7 +456,7 @@ int cmdline(const CommandLine& cmd)
 			string frame_str = frame_file.generic_string();
 
 			LOG(message_group::None, Location::NONE, "", "Exporting %1$s...", cmd.filename);
-			
+
 			CommandLine frame_cmd = cmd;
 			frame_cmd.output_file = frame_str;
 
@@ -476,7 +483,8 @@ int do_export(const CommandLine &cmd, const RenderVariables& render_variables, F
 	ContextHandle<FileContext> filectx{Context::create<FileContext>(top_ctx.ctx)};
 	AbstractNode *absolute_root_node = root_module->instantiateWithFileContext(filectx.ctx, &root_inst, nullptr);
 
-	if (Feature::ExperimentalFlattenChildren.is_enabled()) {
+	if (Feature::ExperimentalFlattenChildren.is_enabled() ||
+			Feature::ExperimentalPushTransforms.is_enabled()) {
 		absolute_root_node = transform_tree(absolute_root_node);
 	}
 
@@ -1069,7 +1077,7 @@ int main(int argc, char **argv)
 	if (vm.count("hardwarnings")) {
 		OpenSCAD::hardwarnings = true;
 	}
-	
+
 	std::map<std::string, bool*> flags;
 	flags.insert(std::make_pair("check-parameters",&OpenSCAD::parameterCheck));
 	flags.insert(std::make_pair("check-parameter-ranges",&OpenSCAD::rangeCheck));
@@ -1084,7 +1092,7 @@ int main(int argc, char **argv)
 			}
 		}
 	}
-	
+
 	if (vm.count("help")) help(argv[0], desc);
 	if (vm.count("version")) version();
 	if (vm.count("info")) arg_info = true;
@@ -1166,7 +1174,7 @@ int main(int argc, char **argv)
 		}
 		parameterSet = vm["P"].as<string>().c_str();
 	}
-	
+
 	vector<string> inputFiles;
 	if (vm.count("input-file"))	{
 		inputFiles = vm["input-file"].as<vector<string>>();
