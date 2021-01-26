@@ -36,6 +36,7 @@ const Feature Feature::ExperimentalVxORenderersPrealloc("vertex-object-renderers
 const Feature Feature::ExperimentalTextMetricsFunctions("textmetrics", "Enable the <code>textmetrics()</code> and <code>fontmetrics()</code> functions.");
 const Feature Feature::ExperimentalImportFunction("import-function", "Enable import function returning data instead of geometry.");
 const Feature Feature::ExperimentalLazyModule("lazy-module", "Enable lazy modules (enhances lazy-union).");
+const Feature Feature::ExperimentalFlattenChildren("flatten-children", "Enable flattening of children (enhances lazy-module).");
 
 Feature::Feature(const std::string &name, const std::string &description)
 	: enabled(false), name(name), description(description)

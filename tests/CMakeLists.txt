@@ -280,6 +280,7 @@ function(add_cmdline_test TESTCMD_BASENAME)
 		  "--enable=import-function"
           "--enable=lazy-union"
           "--enable=lazy-module"
+          "--enable=flatten-children"
         )
       endif()
 
@@ -327,6 +328,7 @@ function(add_cmdline_test TESTCMD_BASENAME)
 
       # NOT WORKING YET:
       # set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-module")
+      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=flatten-children")
       # debug message
       #message(STATUS "${TEST_FULLNAME} ${CONFARG} ${CONFVAL} COMMAND ${PYTHON_EXECUTABLE} ${TEST_CMDLINE_TOOL_PY} ${COMPARATOR} -c ${IMAGE_COMPARE_EXECUTABLE} -s ${TESTCMD_SUFFIX} ${EXTRA_OPTIONS} ${TESTNAME_OPTION} ${FILENAME_OPTION} ${TESTCMD_EXE} ${TESTCMD_SCRIPT} "${SCADFILE}" ${CAMERA_OPTION} ${EXPERIMENTAL_OPTION} ${TESTCMD_ARGS}")
       # only add test if it is not experimental or if it is and experimental option is enabled

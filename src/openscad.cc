@@ -54,6 +54,7 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include "transform_tree.h"
 
 #ifdef ENABLE_CGAL
 
@@ -470,6 +471,16 @@ int do_export(const CommandLine &cmd, const RenderVariables& render_variables, F
 
 	// set CWD relative to source file
 	fs::current_path(fparent);
+	unique_ptr<OffscreenView> glview;
+	ModuleInstantiation root_inst("group");
+	ContextHandle<FileContext> filectx{Context::create<FileContext>(top_ctx.ctx)};
+	AbstractNode *absolute_root_node = root_module->instantiateWithFileContext(filectx.ctx, &root_inst, nullptr);
+
+	if (Feature::ExperimentalFlattenChildren.is_enabled()) {
+		absolute_root_node = transform_tree(absolute_root_node);
+	}
+
+	camera.updateView(filectx.ctx, true);
 
 	EvaluationSession session{fparent.string()};
 	ContextHandle<BuiltinContext> builtin_context{Context::create<BuiltinContext>(&session)};

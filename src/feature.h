@@ -24,6 +24,7 @@ public:
 	static const Feature ExperimentalTextMetricsFunctions;
 	static const Feature ExperimentalImportFunction;
   static const Feature ExperimentalLazyModule;
+  static const Feature ExperimentalFlattenChildren;
 
 	const std::string& get_name() const;
 	const std::string& get_description() const;
