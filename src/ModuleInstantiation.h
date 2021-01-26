@@ -22,6 +22,8 @@ public:
 	bool isHighlight() const { return this->tag_highlight; }
 	bool isRoot() const { return this->tag_root; }
 
+	bool hasSpecialTags() const { return isBackground() || isHighlight() || isRoot(); }
+
 	AssignmentList arguments;
 	LocalScope scope;
 
