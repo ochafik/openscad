@@ -15,6 +15,7 @@ parallel_feature_flags=(
    --enable=parallelize
    --enable=flatten-children
    --enable=lazy-module
+   --enable=push-transforms
    --enable=difference-union
 )
 

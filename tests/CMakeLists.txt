@@ -239,7 +239,8 @@ function(add_cmdline_test TESTCMD_BASENAME)
         # add global experimental options here
         set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION}
           "--enable=lazy-union"
-          # "--enable=lazy-module"
+          "--enable=lazy-module"
+          "--enable=push-transforms"
           "--enable=flatten-children"
           "--enable=difference-union"
           "--enable=parallelize"
@@ -283,6 +284,7 @@ function(add_cmdline_test TESTCMD_BASENAME)
       # NOT WORKING YET:
       # set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-module")
 
+      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=push-transforms")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=flatten-children")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=difference-union")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=parallelize")

@@ -18,6 +18,7 @@ public:
 	static const Feature ExperimentalInputDriverDBus;
 	static const Feature ExperimentalLazyUnion;
   static const Feature ExperimentalLazyModule;
+  static const Feature ExperimentalPushTransforms;
   static const Feature ExperimentalDifferenceUnion;
 	static const Feature MultithreadedRender;
 

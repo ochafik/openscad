@@ -465,7 +465,7 @@ set(CORE_SOURCES
   src/render.cc
   src/rendersettings.cc
   src/rotateextrude.cc
-  src/simplify_tree.cc
+  src/transform_tree.cc
   src/stackcheck.h
   src/surface.cc
   src/svg.cc
@@ -535,7 +535,7 @@ set(CGAL_SOURCES
   src/cgalutils-tess.cc
   src/export_nef.cc
   src/import_nef.cc
-  src/simplify_tree.cc
+  src/transform_tree.cc
   src/CGAL_Nef_polyhedron.cc
   src/CGALCache.cc
   src/CSGTreeEvaluator.cc

@@ -93,7 +93,7 @@ echo "Outputing stats in $STATS_CSV"
 # export_stl "$OPENSCAD_DEV" "$@" --enable=lazy-union --enable=parallelize
 # export_stl "$OPENSCAD_DEV" "$@" --enable=lazy-union --enable=parallelize --enable=flatten-children
 # export_stl "$OPENSCAD_DEV" "$@" --enable=lazy-union --enable=parallelize --enable=flatten-children --enable=lazy-module
-export_stl "$OPENSCAD_DEV" "$@" --enable=lazy-union --enable=parallelize --enable=flatten-children --enable=lazy-module --enable=difference-union
+export_stl "$OPENSCAD_DEV" "$@" --enable=lazy-union --enable=parallelize --enable=flatten-children --enable=lazy-module --enable=push-transforms --enable=difference-union
 # export_stl "$OPENSCAD_DEV" "$@" --enable=lazy-union
 export_stl "$OPENSCAD_SNAPSHOT" "$@" --enable=lazy-union
 # export_stl "$OPENSCAD_STABLE" "$@"

@@ -461,7 +461,7 @@ SOURCES += \
            src/dxfdata.cc \
            src/dxfdim.cc \
            src/offset.cc \
-           src/simplify_tree.cc \
+           src/transform_tree.cc \
            src/stack_trace.cc \
            src/linearextrude.cc \
            src/rotateextrude.cc \

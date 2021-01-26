@@ -24,8 +24,8 @@ Feature::list_t Feature::feature_list;
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");
 const Feature Feature::ExperimentalLazyModule("lazy-module", "Enable lazy modules (enhances lazy-union).");
-const Feature Feature::ExperimentalFlattenChildren(
-		"flatten-children", "Enable flattening of children + pushdown of transforms. Enhances lazy-union.");
+const Feature Feature::ExperimentalPushTransforms("push-transforms", "Enable pushdown of transform & color nodes. Enhances lazy-union.");
+const Feature Feature::ExperimentalFlattenChildren("flatten-children", "Enable flattening of children.");
 const Feature Feature::ExperimentalDifferenceUnion("difference-union", "Enable grouping of subtracted terms into union. Makes differences with large amount of subtracted terms easier to parallelize.");
 const Feature Feature::MultithreadedRender("parallelize", "Enable multithreaded rendering.");
 
