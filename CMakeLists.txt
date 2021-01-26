@@ -639,6 +639,7 @@ set(CORE_SOURCES
   src/roof_ss.cc
   src/roof_vd.cc
   src/rotateextrude.cc
+  src/transform_tree.cc
   src/stackcheck.h
   src/surface.cc
   src/svg.cc
