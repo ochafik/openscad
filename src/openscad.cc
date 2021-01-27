@@ -483,10 +483,18 @@ int do_export(const CommandLine &cmd, const RenderVariables& render_variables, F
 	ContextHandle<FileContext> filectx{Context::create<FileContext>(top_ctx.ctx)};
 	AbstractNode *absolute_root_node = root_module->instantiateWithFileContext(filectx.ctx, &root_inst, nullptr);
 
-	if (Feature::ExperimentalFlattenChildren.is_enabled() ||
-			Feature::ExperimentalPushTransforms.is_enabled()) {
-		absolute_root_node = transform_tree(absolute_root_node);
-	}
+  if (Feature::ExperimentalFlattenChildren.is_enabled() ||
+		Feature::ExperimentalPushTransformsDownUnions.is_enabled()) {
+#ifdef DEBUG
+	LOG(message_group::None,Location::NONE,"","BEFORE:");
+	printTree(*absolute_root_node);
+#endif
+	absolute_root_node = transform_tree(absolute_root_node);
+#ifdef DEBUG
+	LOG(message_group::None,Location::NONE,"","AFTER:");
+	printTree(*absolute_root_node);
+#endif
+  }
 
 	camera.updateView(filectx.ctx, true);
 
