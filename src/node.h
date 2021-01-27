@@ -68,6 +68,34 @@ public:
 	const Location location;
 
 	const AbstractNode *getNodeByID(int idx, std::deque<const AbstractNode *> &path) const;
+
+  /*!
+   * Does a bunch of stuff, depending on features enabled:
+   * - Flatten nested lists, groups, CSG ops, transforms
+   * - Potentially in the future, may swap operations around to optimize for
+   *   rendering speed / parallelizability.
+   *
+   * This might return itself if there's not change.
+   *
+   * TODO(ochafik): Can't make this method const b/c children doesn't contain
+   * const pointers. Fix this?
+   */
+  virtual AbstractNode *normalize() {
+    return this;
+  }
+
+protected:
+  /*
+   * TODO(ochafik): Can't make this method const b/c children doesn't contain
+   * const pointers. Fix this?
+   */
+  virtual std::vector<AbstractNode*> normalizedChildren() {
+    std::vector<AbstractNode*> normalized_children;
+    for (auto child : children) {
+      normalized_children.push_back(child ? child->normalize() : child);
+    }
+    return normalized_children;
+  }
 };
 
 class AbstractIntersectionNode : public AbstractNode
@@ -93,18 +121,66 @@ public:
 	};
 };
 
+class AbstractListLikeNode : public AbstractNode {
+public:
+	AbstractListLikeNode(const class ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx) : AbstractNode(mi, ctx), ctx(ctx) {}
+	~AbstractListLikeNode() {}
+
+  // TODO(ochafik): Move up to AbstractNode once we support cloning all node types!
+  virtual AbstractNode *normalize() override {
+    const auto normalized_children = normalizedChildren();
+    // Yup, just test two vectors of pointers for equality.
+    if (normalized_children != children) {
+      AbstractNode* clone = cloneWithoutChildren();
+      clone->children = normalized_children;
+      return clone;
+    }
+    return this;
+  }
+
+protected:
+  // TODO(ochafik): Move this to AbstractNode once we support all nodes.
+  const std::shared_ptr<EvalContext> ctx;
+
+  virtual AbstractNode* cloneWithoutChildren() const = 0;
+  virtual bool canFlattenChild(const AbstractNode*child) const = 0;
+
+  std::vector<AbstractNode*> normalizedChildren() override {
+    std::vector<AbstractNode*> normalized_children;
+    for (auto child : AbstractNode::normalizedChildren()) {
+      if (canFlattenChild(child)) {
+        for (auto grandchild : child->children) {
+          normalized_children.push_back(grandchild);
+        }
+      } else {
+        normalized_children.push_back(child);
+      }
+    }
+    return normalized_children;
+  }
+};
+
 /*!
 	Used for organizing objects into lists which should not be grouped but merely
 	unpacked by the parent node.
  */
-class ListNode : public AbstractNode
+class ListNode : public AbstractListLikeNode
 {
 public:
 	VISITABLE();
-	ListNode(const class ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx, const std::string &name="") : AbstractNode(mi, ctx), _name(name) { }
+	ListNode(const class ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx, const std::string &name="") : AbstractListLikeNode(mi, ctx), _name(name) { }
 	~ListNode() { }
 	std::string name() const override;
   std::string verbose_name() const override;
+
+protected:
+  AbstractNode* cloneWithoutChildren() const override {
+    return new ListNode(modinst, ctx);
+  }
+  bool canFlattenChild(const AbstractNode*child) const override {
+    return dynamic_cast<const ListNode*>(child);
+  }
+
 private:
 	const std::string _name;
 };
@@ -113,14 +189,22 @@ private:
   Logically groups objects together. Used as a way of passing
 	objects around without having to perform unions on them.
  */
-class GroupNode : public AbstractNode
+class GroupNode : public AbstractListLikeNode
 {
 public:
 	VISITABLE();
-	GroupNode(const class ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx, const std::string &name="") : AbstractNode(mi, ctx), _name(name) { }
+	GroupNode(const class ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx, const std::string &name="") : AbstractListLikeNode(mi, ctx), _name(name) { }
 	~GroupNode() { }
 	std::string name() const override;
   std::string verbose_name() const override;
+
+protected:
+  AbstractNode* cloneWithoutChildren() const override {
+    return new GroupNode(modinst, ctx);
+  }
+  bool canFlattenChild(const AbstractNode*child) const override {
+    return dynamic_cast<const GroupNode*>(child);
+  }
 private:
 	const std::string _name;
 };
@@ -136,6 +220,15 @@ public:
 	RootNode(const class ModuleInstantiation *mi, const std::shared_ptr<EvalContext> &ctx) : GroupNode(mi, ctx) { }
 	~RootNode() { }
 	std::string name() const override;
+
+protected:
+  AbstractNode* cloneWithoutChildren() const override {
+    return new RootNode(modinst, ctx);
+  }
+  bool canFlattenChild(const AbstractNode*child) const override {
+    return false; // TODO(ochafik): check this
+    // return dynamic_cast<const GroupNode*>(child);
+  }
 };
 
 class LeafNode : public AbstractPolyNode
