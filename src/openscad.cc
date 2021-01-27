@@ -494,6 +494,7 @@ int do_export(const CommandLine &cmd, const RenderVariables& render_variables, F
 	LOG(message_group::None,Location::NONE,"","AFTER:");
 	printTree(*absolute_root_node);
 #endif
+    }
   }
 
 	camera.updateView(filectx.ctx, true);
