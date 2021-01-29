@@ -85,7 +85,7 @@ if(EXISTS "$ENV{OPENSCAD_BINARY}")
   set(OPENSCAD_BINPATH "$ENV{OPENSCAD_BINARY}")
 elseif(APPLE)
   set(OPENSCAD_BINPATH "${CMAKE_CURRENT_BINARY_DIR}/../OpenSCAD.app/Contents/MacOS/OpenSCAD")
-elseif (MINGW_CROSS_ENV_DIR) 
+elseif (MINGW_CROSS_ENV_DIR)
   set(OPENSCAD_BINPATH "${CMAKE_CURRENT_BINARY_DIR}/../mingw32/release/openscad.exe")
 elseif(WIN32)
   set(OPENSCAD_BINPATH "${CMAKE_CURRENT_BINARY_DIR}/../Release/openscad.exe")
@@ -143,7 +143,7 @@ function(set_test_config CONFIG)
 endfunction()
 
 #
-# Returns a list of test configs 
+# Returns a list of test configs
 #
 function(get_test_config TESTNAME CONFIGS)
   foreach(CONFIG ${TEST_CONFIGS})
@@ -161,7 +161,7 @@ function(get_test_config TESTNAME CONFIGS)
 endfunction()
 
 #
-# Returns into the FULLNAME variable the global full test name (identifier) 
+# Returns into the FULLNAME variable the global full test name (identifier)
 # given a test command and source filename
 #
 function(get_test_fullname TESTCMD FILENAME FULLNAME)
@@ -237,7 +237,12 @@ function(add_cmdline_test TESTCMD_BASENAME)
         set(EXPERIMENTAL_OPTION "")
       else()
         # add global experimental options here
-        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-union")
+        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION}
+          "--enable=lazy-union"
+          "--enable=lazy-module"
+          "--enable=push-transforms-down-unions"
+          "--enable=flatten-children"
+        )
       endif()
 
       # 2D tests should be viewed from the top, not an angle.
@@ -274,8 +279,12 @@ function(add_cmdline_test TESTCMD_BASENAME)
       # Mostly just breaks issues that export non-manifold/intersecting geometry without explicit union.
       #set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-union")
 
-      # TODO(ochafik): Fix difference-tests (some color / special node tag issue maybe?)
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=fast-union")
+
+      # NOT WORKING YET:
+      # set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-module")
+      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=push-transforms-down-unions")
+      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=flatten-children")
       # debug message
       #message("${TEST_FULLNAME} ${CONFVAL} ${PYTHON_EXECUTABLE} ${tests_SOURCE_DIR}/test_cmdline_tool.py --comparator=${COMPARATOR} -c ${IMAGE_COMPARE_EXECUTABLE} -s ${TESTCMD_SUFFIX} ${EXTRA_OPTIONS} ${TESTNAME_OPTION} ${FILENAME_OPTION} ${TESTCMD_EXE} ${TESTCMD_SCRIPT} "${SCADFILE}" ${CAMERA_OPTION} ${EXPERIMENTAL_OPTION} ${TESTCMD_ARGS}")
       add_test(NAME ${TEST_FULLNAME} ${CONFARG} ${CONFVAL} COMMAND ${PYTHON_EXECUTABLE} ${tests_SOURCE_DIR}/test_cmdline_tool.py --comparator=${COMPARATOR} -c ${IMAGE_COMPARE_EXECUTABLE} -s ${TESTCMD_SUFFIX} ${EXTRA_OPTIONS} ${TESTNAME_OPTION} ${FILENAME_OPTION} ${TESTCMD_EXE} ${TESTCMD_SCRIPT} "${SCADFILE}" ${CAMERA_OPTION} ${EXPERIMENTAL_OPTION} ${TESTCMD_ARGS})
@@ -556,7 +565,7 @@ list(APPEND EXPORT3D_CGALCGAL_TEST_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/fn_bug.scad
                                 )
 
-set_test_config(Bugs 
+set_test_config(Bugs
   # Issue #910
   offcgalpngtest_polyhedron-tests
   offpngtest_nonmanifold-polyhedron
@@ -565,7 +574,7 @@ set_test_config(Bugs
   cgalpngtest_escape-test.scad
 )
 
-list(APPEND EXPORT3D_CGAL_TEST_FILES 
+list(APPEND EXPORT3D_CGAL_TEST_FILES
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/polyhedron-tests.scad
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1105b.scad
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1105c.scad
@@ -573,7 +582,7 @@ list(APPEND EXPORT3D_CGAL_TEST_FILES
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1258.scad
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue2259.scad)
 
-list(APPEND EXPORT3D_TEST_FILES 
+list(APPEND EXPORT3D_TEST_FILES
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/nonmanifold-polyhedron.scad
                                 ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/bad-stl-wing.scad)
 
@@ -679,7 +688,7 @@ experimental_tests(echotest_function-literal-compare)
 # Test config handling
 
 # Heavy tests are tests taking more than 10 seconds on a development computer
-set_test_config(Heavy 
+set_test_config(Heavy
   cgalpngtest_rotate_extrude-tests
   csgpngtest_rotate_extrude-tests
   cgalpngtest_for-nested-tests
@@ -813,7 +822,7 @@ endif()
 
 # Set up custom commands to run before & after Ctest run.
 # 1. Start/stop Virtual Framebuffer for linux/bsd. 2. Pretty Print
-# Please see the CTestCustom.template file for more info. 
+# Please see the CTestCustom.template file for more info.
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.template TMP)
 string(REPLACE __cmake_current_binary_dir__ ${CMAKE_CURRENT_BINARY_DIR} TMP ${TMP})
@@ -868,7 +877,7 @@ add_cmdline_test(echotest EXE ${OPENSCAD_BINPATH} ARGS --check-parameter-ranges=
 # generate a very large scad file which we would rather not commit to the source tree
 # this is for stress-testing the parser
 set(GEN_SCRIPT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/python)
-add_custom_target(issue2342 ALL 
+add_custom_target(issue2342 ALL
   COMMAND ${PYTHON_EXECUTABLE} ${GEN_SCRIPT_DIR}/gen_issue2342.py ">${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/issues/issue2342.scad"
   WORKING_DIRECTORY ${GEN_SCRIPT_DIR}
   COMMENT "Generating issue2342.scad"
@@ -933,6 +942,42 @@ add_cmdline_test(lazyunion-offpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CU
 add_cmdline_test(lazyunion-dxfpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=DXF --enable=lazy-union --render=cgal EXPECTEDDIR lazyunion-cgalpng SUFFIX png FILES ${LAZYUNION_2D_FILES})
 add_cmdline_test(lazyunion-svgpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=SVG --enable=lazy-union --render=cgal EXPECTEDDIR lazyunion-cgalpng SUFFIX png FILES ${LAZYUNION_2D_FILES})
 
+# lazy-union + lazy-module + flatten-children + push-transforms-down-unions
+list(APPEND LAZIERUNION_FILES
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-transformed-modules.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-toplevel-objects.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-toplevel-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-nested-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-children.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-hull-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-root-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-intersection-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-difference-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-minkowski-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-transform-for.scad
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/2d-3d.scad)
+
+list(APPEND LAZIERUNION_2D_FILES
+            ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/experimental/lazierunion-toplevel-2dobjects.scad)
+
+list(APPEND LAZIERUNION_FILES ${LAZIERUNION_2D_FILES} ${LAZIERUNION_3D_FILES})
+
+set(LAZIER_OPTIONS "")
+list(APPEND LAZIER_OPTIONS --enable=lazy-union)
+list(APPEND LAZIER_OPTIONS --enable=lazy-union)
+list(APPEND LAZIER_OPTIONS --enable=lazy-module)
+list(APPEND LAZIER_OPTIONS --enable=push-transforms-down-unions)
+list(APPEND LAZIER_OPTIONS --enable=flatten-children)
+
+add_cmdline_test(lazierunion-dump EXE ${OPENSCAD_BINPATH} ARGS ${LAZIER_OPTIONS} -o SUFFIX csg FILES ${LAZIERUNION_FILES})
+add_cmdline_test(lazierunion-opencsg EXE ${OPENSCAD_BINPATH} ARGS ${LAZIER_OPTIONS} -o SUFFIX png FILES ${LAZIERUNION_FILES})
+add_cmdline_test(lazierunion-cgalpng EXE ${OPENSCAD_BINPATH} ARGS ${LAZIER_OPTIONS} --render -o SUFFIX png FILES ${LAZIERUNION_FILES})
+add_cmdline_test(lazierunion-monotonepng EXE ${OPENSCAD_BINPATH} ARGS --colorscheme=Monotone ${LAZIER_OPTIONS} --render -o SUFFIX png FILES ${LAZIERUNION_3D_FILES})
+add_cmdline_test(lazierunion-stlpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=STL ${LAZIER_OPTIONS} --render=cgal EXPECTEDDIR lazyunion-monotonepng SUFFIX png FILES ${LAZIERUNION_3D_FILES})
+add_cmdline_test(lazierunion-offpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=OFF ${LAZIER_OPTIONS} --render=cgal EXPECTEDDIR lazyunion-monotonepng SUFFIX png FILES ${LAZIERUNION_3D_FILES})
+add_cmdline_test(lazierunion-dxfpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=DXF ${LAZIER_OPTIONS} --render=cgal EXPECTEDDIR lazyunion-cgalpng SUFFIX png FILES ${LAZIERUNION_2D_FILES})
+add_cmdline_test(lazierunion-svgpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=SVG ${LAZIER_OPTIONS} --render=cgal EXPECTEDDIR lazyunion-cgalpng SUFFIX png FILES ${LAZIERUNION_2D_FILES})
+
 #
 # Trivial Export/Import files
 # This sanity-checks bidirectional file format import/export
@@ -987,7 +1032,7 @@ add_failing_test(stlfailedtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_S
 add_failing_test(offfailedtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/shouldfail.py ARGS --openscad=${OPENSCAD_BINPATH} --retval=1 -o SUFFIX off FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/empty-union.scad)
 add_failing_test(parsererrors EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/shouldfail.py ARGS --openscad=${OPENSCAD_BINPATH} --retval=1 -o SUFFIX stl FILES ${FAILING_FILES})
 
-# Hardwarning Test       
+# Hardwarning Test
 add_failing_test(hardwarnings EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/shouldfail.py ARGS --openscad=${OPENSCAD_BINPATH} --retval=1 --hardwarnings -o SUFFIX echo FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/errors-warnings.scad)
 
 # Verify that test framework is paying attention to alpha channel, issue 1492
@@ -1018,8 +1063,8 @@ add_cmdline_test(customizertest-setNameWithDot EXE ${OPENSCAD_BINPATH} ARGS -p $
 # Tests using the actual OpenSCAD binary
 
 # non-ASCII filenames
-add_cmdline_test(openscad-nonascii EXE ${OPENSCAD_BINPATH} ARGS -o 
-                 SUFFIX csg 
+add_cmdline_test(openscad-nonascii EXE ${OPENSCAD_BINPATH} ARGS -o
+                 SUFFIX csg
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/sfære.scad)
 
 # Variable override (-D arg)
@@ -1035,19 +1080,19 @@ endif()
 
 # Image output parameters
 add_cmdline_test(openscad-imgsize EXE ${OPENSCAD_BINPATH}
-                 ARGS --imgsize 100,100 -o 
-                 SUFFIX png 
+                 ARGS --imgsize 100,100 -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
 add_cmdline_test(openscad-imgstretch EXE ${OPENSCAD_BINPATH}
-                 ARGS --imgsize 500,100 -o 
-                 SUFFIX png 
+                 ARGS --imgsize 500,100 -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
 add_cmdline_test(openscad-imgstretch2 EXE ${OPENSCAD_BINPATH}
-                 ARGS --imgsize 100,500 -o 
-                 SUFFIX png 
+                 ARGS --imgsize 100,500 -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
 # Perspective gimbal cam
-add_cmdline_test(openscad-camdist EXE ${OPENSCAD_BINPATH} 
+add_cmdline_test(openscad-camdist EXE ${OPENSCAD_BINPATH}
                  ARGS --imgsize=500,500 --camera=0,0,0,90,0,90,200 -o
                  SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
@@ -1128,12 +1173,12 @@ add_cmdline_test(openscad-camcenter-viewall EXE ${OPENSCAD_BINPATH}
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
 # Orthographic vector cam
 add_cmdline_test(openscad-cameyeortho EXE ${OPENSCAD_BINPATH}
-                 ARGS --imgsize=500,500 --camera=90,80,75,0,0,0 --projection=o -o 
+                 ARGS --imgsize=500,500 --camera=90,80,75,0,0,0 --projection=o -o
                  SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
 # Orthographic vector cam viewall
 add_cmdline_test(openscad-cameyeortho-viewall EXE ${OPENSCAD_BINPATH}
-                 ARGS --imgsize=500,500 --camera=16,14,13,0,0,0 --viewall --projection=o -o 
+                 ARGS --imgsize=500,500 --camera=16,14,13,0,0,0 --viewall --projection=o -o
                  SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/camera-tests.scad)
 
@@ -1156,28 +1201,28 @@ add_cmdline_test(openscad-viewoptions-crosshairs EXE ${OPENSCAD_BINPATH} ARGS --
 
 # Colorscheme tests
 add_cmdline_test(openscad-colorscheme-cornfield EXE ${OPENSCAD_BINPATH}
-                 ARGS --colorscheme=Cornfield -o 
-                 SUFFIX png 
+                 ARGS --colorscheme=Cornfield -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/logo.scad)
 add_cmdline_test(openscad-colorscheme-metallic EXE ${OPENSCAD_BINPATH}
-                 ARGS --colorscheme=Metallic -o 
-                 SUFFIX png 
+                 ARGS --colorscheme=Metallic -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/logo.scad)
 add_cmdline_test(openscad-colorscheme-sunset EXE ${OPENSCAD_BINPATH}
-                 ARGS --colorscheme=Sunset -o 
-                 SUFFIX png 
+                 ARGS --colorscheme=Sunset -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/logo.scad)
 add_cmdline_test(openscad-colorscheme-starnight EXE ${OPENSCAD_BINPATH}
-                 ARGS --colorscheme=Starnight -o 
-                 SUFFIX png 
+                 ARGS --colorscheme=Starnight -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/logo.scad)
 add_cmdline_test(openscad-colorscheme-monotone EXE ${OPENSCAD_BINPATH}
-                 ARGS --colorscheme=Monotone -o 
-                 SUFFIX png 
+                 ARGS --colorscheme=Monotone -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/logo.scad)
 add_cmdline_test(openscad-colorscheme-metallic-render EXE ${OPENSCAD_BINPATH}
-                 ARGS --colorscheme=Metallic --render -o 
-                 SUFFIX png 
+                 ARGS --colorscheme=Metallic --render -o
+                 SUFFIX png
                  FILES ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/CSG.scad)
 
 #message("Available test configurations: ${TEST_CONFIGS}")
