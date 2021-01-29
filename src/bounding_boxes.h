@@ -1,6 +1,7 @@
 #pragma once
 
 #include "cgal.h"
+#include "grid.h"
 #include <vector>
 #include <boost/variant.hpp>
 
@@ -26,12 +27,13 @@ public:
 														 NT3(max.z()));
 	}
 
+	static Eigen::Vector3d point3ToVector3d(const CGAL_Point_3 &pt)
+	{
+		return Eigen::Vector3d(to_double(pt.x()), to_double(pt.y()), to_double(pt.z()));
+	}
 	static BoundingBox isoCuboidToBbox(const CGAL_Iso_cuboid_3 &cuboid)
 	{
-		auto &min = cuboid.min();
-		auto &max = cuboid.max();
-		return BoundingBox(Eigen::Vector3d(to_double(min.x()), to_double(min.y()), to_double(min.z())),
-											 Eigen::Vector3d(to_double(max.x()), to_double(max.y()), to_double(max.z())));
+		return BoundingBox(point3ToVector3d(cuboid.min()), point3ToVector3d(cuboid.max()));
 	}
 
 	void add(const BoundingBoxoid &x)
@@ -50,12 +52,28 @@ public:
 	bool intersects(const BoundingBoxoid &x)
 	{
 		if (auto *bbox = boost::get<BoundingBox>(&x)) {
-			return intersects_bboxes(*bbox) ||
-						 (!bbox->isEmpty() && cuboids.size() && intersects_cuboids(bboxToIsoCuboid(*bbox)));
+			auto extended = *bbox;
+#ifdef DEFENSIVE_FAST_UNIONS
+			// static Eigen::Vector3d margin(GRID_FINE, GRID_FINE, GRID_FINE);
+			static Eigen::Vector3d margin(GRID_COARSE, GRID_COARSE, GRID_COARSE);
+			extended.extend(bbox->min() - margin);
+			extended.extend(bbox->max() + margin);
+#endif
+			return intersects_bboxes(extended) || (!extended.isEmpty() && cuboids.size() &&
+																							intersects_cuboids(bboxToIsoCuboid(extended)));
 		}
 		else if (auto *cuboid = boost::get<CGAL_Iso_cuboid_3>(&x)) {
-			return intersects_cuboids(*cuboid) ||
-						 (bboxes.size() && intersects_bboxes(isoCuboidToBbox(*cuboid)));
+			auto extended = *cuboid;
+#ifdef DEFENSIVE_FAST_UNIONS
+			// static Eigen::Vector3d margin(GRID_FINE, GRID_FINE, GRID_FINE);
+			static Eigen::Vector3d margin(GRID_COARSE, GRID_COARSE, GRID_COARSE);
+			auto bbox = isoCuboidToBbox(extended);
+			bbox.extend(bbox.min() - margin);
+			bbox.extend(bbox.max() + margin);
+			extended = bboxToIsoCuboid(bbox);
+#endif
+			return intersects_cuboids(extended) ||
+						 (bboxes.size() && intersects_bboxes(isoCuboidToBbox(extended)));
 		}
 		else {
 			assert(!"Unknown bbox type");

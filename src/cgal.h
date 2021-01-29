@@ -38,6 +38,7 @@ typedef CGAL::Exact_predicates_exact_constructions_kernel CGAL_ExactKernel2;
 typedef CGAL::Polygon_2<CGAL_ExactKernel2> CGAL_Poly2;
 typedef CGAL::Polygon_with_holes_2<CGAL_ExactKernel2> CGAL_Poly2h;
 
+// https://www.ics.uci.edu/~dock/manuals/cgal_manual/Kernel_23/Chapter_kernel_representation.html
 typedef CGAL::Gmpq NT3;
 typedef CGAL::Cartesian<NT3> CGAL_Kernel3;
 //typedef CGAL::Exact_predicates_exact_constructions_kernel::FT NT3;
