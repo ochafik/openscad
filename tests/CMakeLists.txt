@@ -8,6 +8,8 @@ if(POLICY CMP0017)
   # http://www.cmake.org/cmake/help/cmake-2-8-docs.html#policy:CMP0017
   cmake_policy(SET CMP0017 NEW)
 endif()
+# Interpret IN_LIST
+cmake_policy(SET CMP0057 NEW)
 
 project(tests)
 
@@ -185,6 +187,67 @@ function(is_2d FULLNAME RESULT)
   endif()
 endfunction()
 
+# See CGALPolyhedron.h for CGAL version needed for this feature.
+if(NOT DEFINED FAST_CSG_AVAILABLE)
+  set(FAST_CSG_AVAILABLE 1)
+endif()
+
+# Tests for which fast-csg cannot be enabled yet.
+list(APPEND FAST_CSG_FAILING_TESTS
+  # Resize issues that need investigation.
+  throwntogethertest_resize-convexity-tests
+  cgalpngtest_resize-convexity-tests csgpngtest_resize-convexity-tests opencsgtest_resize-convexity-tests
+  # Face orientation issue with OpenCSG?
+  opencsgtest_issue911
+  opencsgtest_issue913
+  opencsgtest_render-tests
+  opencsgtest_internal-cavity
+  opencsgtest_minkowski3-erosion
+  # Corefinement leaves some polyhedra in a state that we can't build Nefs from
+  cgalpngtest_mirror-tests csgpngtest_mirror-tests monotonepngtest_mirror-tests cgalstlcgalpngtest_mirror-tests cgalbinstlcgalpngtest_mirror-tests
+  # Different order of vertices
+  3mfexport_3mf-export
+  # Needs investigation:
+  cgalpngtest_issue1246 csgpngtest_issue1246
+  # Seems to only fail on some platforms:
+  cgalpngtest_module-recursion
+  # Test script argument passing issue
+  cgalstlsanitytest_normal-nan
+  # No wireframe rendering yet.
+  openscad-viewoptions-wireframe_view-options-tests)
+
+# Tests for which fast-csg works but produces different expectation files.
+# These tests are run twice (w/ and without fast-csg).
+list(APPEND SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
+  ${CMAKE_CURRENT_SOURCE_DIR}/../examples/Basics/CSG.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/2D/features/highlight-modifier-2d.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/difference-tests.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/highlight-modifier.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/highlight-modifier2.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/minkowski3-erosion.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/polyhedron-nonplanar-tests.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/polyhedron-tests.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/features/render-tests.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue835.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue911.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue913.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1105.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1105b.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1105c.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1105d.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1165.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1215c.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1223.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue1803.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/issues/issue3158.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/3D/misc/view-options-tests.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/internal-cavity-polyhedron.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/internal-cavity.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/let-module-tests.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/rotate_extrude-hole.scad
+  ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/rotate-empty-bbox.scad
+)
+
 #
 # This functions adds cmd-line tests given files.
 #
@@ -235,6 +298,12 @@ function(add_cmdline_test TESTCMD_BASENAME)
 
       if (${EXPERIMENTAL_TEST} EQUAL -1)
         set(EXPERIMENTAL_OPTION "")
+        # Enable fast-csg for all tests but those that have different expectations or fail for other reasons.
+        if (FAST_CSG_AVAILABLE
+            AND NOT SCADFILE IN_LIST SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
+            AND NOT TEST_FULLNAME IN_LIST FAST_CSG_FAILING_TESTS)
+          set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=fast-csg")
+        endif()
       else()
         # add global experimental options here
         set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=lazy-union")
@@ -534,7 +603,7 @@ list(APPEND STL_IMPORT_FILES
             )
 
 list(APPEND CGALPNGTEST_FILES ${CGALPNGTEST_2D_FILES} ${CGALPNGTEST_3D_FILES})
-list(SUBLIST CGALPNGTEST_FILES 0 1 CGALPNGSTDIOTEST_FILES)
+list(GET CGALPNGTEST_FILES 0 1 2 CGALPNGSTDIOTEST_FILES)
 list(APPEND OPENCSGTEST_FILES ${CGALPNGTEST_FILES})
 list(APPEND OPENCSGTEST_FILES ${CMAKE_CURRENT_SOURCE_DIR}/../testdata/scad/misc/intersection-prune-test.scad)
 list(APPEND THROWNTOGETHERTEST_FILES ${OPENCSGTEST_FILES})
@@ -708,6 +777,7 @@ set_test_config(Heavy
   csgpngtest_resize-tests
   csgpngtest_minkowski3-erosion
   cgalpngtest_minkowski3-erosion
+  fastcsg-cgalpng_minkowski3-erosion
   opencsgtest_minkowski3-erosion
   cgalpngtest_camera-tests
   csgpngtest_camera-tests
@@ -1013,6 +1083,10 @@ add_cmdline_test(lazyunion-stlpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CU
 add_cmdline_test(lazyunion-offpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=OFF --enable=lazy-union --render=cgal EXPECTEDDIR lazyunion-monotonepng SUFFIX png FILES ${LAZYUNION_3D_FILES})
 add_cmdline_test(lazyunion-dxfpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=DXF --enable=lazy-union --render=cgal EXPECTEDDIR lazyunion-cgalpng SUFFIX png FILES ${LAZYUNION_2D_FILES})
 add_cmdline_test(lazyunion-svgpngtest EXE ${PYTHON_EXECUTABLE} SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/export_import_pngtest.py ARGS --openscad=${OPENSCAD_BINPATH} --format=SVG --enable=lazy-union --render=cgal EXPECTEDDIR lazyunion-cgalpng SUFFIX png FILES ${LAZYUNION_2D_FILES})
+
+if (FAST_CSG_AVAILABLE)
+  add_cmdline_test(fastcsg-cgalpng EXE ${OPENSCAD_BINPATH} ARGS --enable=fast-csg --render -o SUFFIX png FILES ${SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS})
+endif()
 
 #
 # Trivial Export/Import files

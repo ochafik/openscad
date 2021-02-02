@@ -8,6 +8,7 @@
 
 #include "feature.h"
 #include "printutils.h"
+#include "cgal.h" // Only for FAST_CSG_AVAILABLE
 
 /**
  * Feature registration map/list for later lookup. This must be initialized
@@ -21,6 +22,9 @@ Feature::list_t Feature::feature_list;
  * argument to enable the option and for saving the option value in GUI
  * context.
  */
+#ifdef FAST_CSG_AVAILABLE
+const Feature Feature::ExperimentalFastCsg("fast-csg", "Enable much faster CSG operations.");
+#endif
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");
 const Feature Feature::ExperimentalVxORenderers("vertex-object-renderers", "Enable vertex object renderers");
