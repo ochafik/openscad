@@ -64,6 +64,10 @@ namespace CGALUtils {
 	CGAL_Nef_polyhedron *createNefPolyhedronFromGeometry(const class Geometry &geom);
 	template <typename K>
 	bool createPolySetFromNefPolyhedron3(const CGAL::Nef_polyhedron_3<K> &N, PolySet &ps);
+  template <typename K>
+	void transform(CGAL::Nef_polyhedron_3<K> &N, const Transform3d &matrix);
+  template <typename K>
+	void transform(CGAL::Polyhedron_3<K> &N, const Transform3d &matrix);
 	bool tessellatePolygon(const PolygonK &polygon,
 												 Polygons &triangles,
 												 const K::Vector_3 *normal = nullptr);

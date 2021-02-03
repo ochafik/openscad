@@ -15,6 +15,7 @@
 #include "cgal.h"
 #pragma push_macro("NDEBUG")
 #undef NDEBUG
+#include <CGAL/Aff_transformation_3.h>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/normal_vector_newell_3.h>
 #include <CGAL/Handle_hash_function.h>
@@ -421,6 +422,37 @@ namespace CGALUtils {
 
 	template bool createPolySetFromNefPolyhedron3(const CGAL_Nef_polyhedron3 &N, PolySet &ps);
 	template bool createPolySetFromNefPolyhedron3(const CGAL::Nef_polyhedron_3<CGAL::Epeck> &N, PolySet &ps);
+
+  template <typename K>
+  CGAL::Aff_transformation_3<K> createAffineTransformFromMatrix(const Transform3d &matrix) {
+    return CGAL::Aff_transformation_3<K>(
+      matrix(0,0), matrix(0,1), matrix(0,2), matrix(0,3),
+      matrix(1,0), matrix(1,1), matrix(1,2), matrix(1,3),
+      matrix(2,0), matrix(2,1), matrix(2,2), matrix(2,3), matrix(3,3));
+  }
+
+  template <typename K>
+	void transform(CGAL::Nef_polyhedron_3<K> &N, const Transform3d &matrix)
+  {
+    assert(matrix.matrix().determinant() != 0);
+    N.transform(createAffineTransformFromMatrix<K>(matrix));
+  }
+
+  template void transform(CGAL_Nef_polyhedron3 &N, const Transform3d &matrix);
+  template void transform(CGAL::Nef_polyhedron_3<CGAL::Epeck> &N, const Transform3d &matrix);
+
+  template <typename K>
+	void transform(CGAL::Polyhedron_3<K> &poly, const Transform3d &matrix)
+  {
+    assert(matrix.matrix().determinant() != 0);
+    auto t = createAffineTransformFromMatrix<K>(matrix);
+
+    typename CGAL::Polyhedron_3<K>::Vertex_handle vi;
+    CGAL_forall_vertices(vi, poly) t(vi->point());
+  }
+
+  template void transform(CGAL::Polyhedron_3<CGAL::Epeck> &N, const Transform3d &matrix);
+
 }; // namespace CGALUtils
 
 #endif /* ENABLE_CGAL */
