@@ -8,6 +8,7 @@
 #include "memory.h"
 
 class GeometryVisitor;
+class FastPolyhedron;
 
 class Geometry
 {
@@ -45,6 +46,7 @@ public:
 	virtual void visit(const class Polygon2d &node) = 0;
 #ifdef ENABLE_CGAL
 	virtual void visit(const class CGAL_Nef_polyhedron &node) = 0;
+	virtual void visit(const class FastPolyhedron &node) = 0;
 #endif
 	virtual ~GeometryVisitor(){};
 };

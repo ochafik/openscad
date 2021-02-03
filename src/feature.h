@@ -16,6 +16,8 @@ public:
 
 	static const Feature ExperimentalFastCsg;
 	static const Feature ExperimentalTrustManifold;
+	static const Feature ExperimentalAsyncUnion;
+	static const Feature ExperimentalFastCsgGeometry;
 	static const Feature ExperimentalInputDriverDBus;
 	static const Feature ExperimentalLazyUnion;
 	static const Feature ExperimentalVxORenderers;

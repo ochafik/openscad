@@ -66,6 +66,7 @@ protected:
   void visit(const class Polygon2d &node) override;
 #ifdef ENABLE_CGAL
   void visit(const class CGAL_Nef_polyhedron &node) override;
+  void visit(const class FastPolyhedron &node) override;
 #endif // ENABLE_CGAL
 };
 

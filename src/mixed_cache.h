@@ -6,6 +6,7 @@
 #include "CGALCache.h"
 #include "polyset.h"
 #include "CGAL_Nef_polyhedron.h"
+#include "polyhedron.h"
 #include "Tree.h"
 #include "cgalutils.h"
 #include "ModuleInstantiation.h"
@@ -53,6 +54,9 @@ public:
 			if (auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(result)) {
 				CGALCache::instance()->insert(key, nef);
 			}
+			else if (auto poly = dynamic_pointer_cast<const FastPolyhedron>(result)) {
+				GeometryCache::instance()->insert(key,  poly);
+			}
 			else if (auto polyset = dynamic_pointer_cast<const PolySet>(result)) {
 				GeometryCache::instance()->insert(key, polyset);
 			}
@@ -76,6 +80,9 @@ shared_ptr<const T> getGeometryAs(const shared_ptr<const Geometry> &geom,
 		if (auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom)) {
 			result = nef;
 		}
+		else if (auto poly = dynamic_pointer_cast<const FastPolyhedron>(geom)) {
+			result = poly->toNef();
+		}
 		else if (auto polyset = dynamic_pointer_cast<const PolySet>(geom)) {
 			result = MixedCache::getOrSet<CGAL_Nef_polyhedron>(getCacheKey(node, tree), [&]() {
 				SCOPED_PERFORMANCE_TIMER("PolySet -> Nef conversion in MixedCache::getAs");
@@ -90,6 +97,9 @@ shared_ptr<const T> getGeometryAs(const shared_ptr<const Geometry> &geom,
 	else if (std::is_assignable<PolySet, T>::value) {
 		if (auto polyset = dynamic_pointer_cast<const PolySet>(geom)) {
 			result = polyset;
+		}
+		else if (auto poly = dynamic_pointer_cast<const FastPolyhedron>(geom)) {
+			result = poly->toPolySet();
 		}
 		else if (auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom)) {
 			result = MixedCache::getOrSet<PolySet>(getCacheKey(node, tree), [&]() {

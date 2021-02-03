@@ -25,6 +25,8 @@ Feature::list_t Feature::feature_list;
 #ifdef FAST_POLYHEDRON_AVAILABLE
 const Feature Feature::ExperimentalFastCsg("fast-csg", "Enable 10x faster CSG operations.");
 const Feature Feature::ExperimentalTrustManifold("trust-manifold", "Trust that polyhedral meshes are manifold. Can speed up CSG operations on large imported STL files.");
+const Feature Feature::ExperimentalAsyncUnion("async-union", "Spawn async tasks in unions.");
+const Feature Feature::ExperimentalFastCsgGeometry("fast-csg-geometry", "Let fast CSG objects bubble up as normal geometry");
 #endif
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");

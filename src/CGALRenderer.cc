@@ -32,6 +32,7 @@
 // dxfdata.h must come first for Eigen SIMD alignment issues
 #include "dxfdata.h"
 #include "polyset.h"
+#include "polyhedron.h"
 #include "polyset-utils.h"
 #include "printutils.h"
 #include "feature.h"
@@ -63,6 +64,12 @@ void CGALRenderer::addGeometry(const shared_ptr<const Geometry> &geom)
 		PolysetUtils::tessellate_faces(*ps, *ps_tri);
 		this->polysets.push_back(shared_ptr<const PolySet>(ps_tri));
 	}
+#ifdef FAST_POLYHEDRON_AVAILABLE
+	else if (const auto poly = dynamic_pointer_cast<const FastPolyhedron>(geom)) {
+		// Polyhedron will only have triangles.
+		this->polysets.push_back(poly->toPolySet());
+	}
+#endif
 	else if (const auto poly = dynamic_pointer_cast<const Polygon2d>(geom)) {
 		this->polysets.push_back(shared_ptr<const PolySet>(poly->tessellate()));
 	}

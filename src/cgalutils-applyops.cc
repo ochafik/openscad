@@ -3,6 +3,7 @@
 
 #ifdef ENABLE_CGAL
 
+#include <future>
 #include "cgalutils.h"
 #include "polyset.h"
 #include "printutils.h"
@@ -81,9 +82,9 @@ namespace CGALUtils {
 	Applies op to all children and returns the result.
 	The child list should be guaranteed to contain non-NULL 3D or empty Geometry objects
 */
-	shared_ptr<const Polyhedron> applyOperator3DPolyhedron(const Geometry::Geometries &children, OpenSCADOperator op, const Tree* tree)
+	shared_ptr<const FastPolyhedron> applyOperator3DPolyhedron(const Geometry::Geometries &children, OpenSCADOperator op, const Tree* tree)
 	{
-		shared_ptr<Polyhedron> N;
+		shared_ptr<FastPolyhedron> N;
 		CGAL::Failure_behaviour old_behaviour = CGAL::set_error_behaviour(CGAL::THROW_EXCEPTION);
 
 		assert(op != OpenSCADOperator::UNION && "use applyUnion3D() instead of applyOperator3D()");
@@ -92,7 +93,7 @@ namespace CGALUtils {
 		try {
 			for(const auto &item : children) {
 				auto ps = getGeometryAs<PolySet>(item, tree);
-				auto chN = ps ? make_shared<Polyhedron>(*ps) : nullptr;
+				auto chN = ps ? make_shared<FastPolyhedron>(*ps) : nullptr;
 				// Initialize N with first expected geometric object
 				if (!foundFirst) {
 					if (chN) {
@@ -149,7 +150,11 @@ namespace CGALUtils {
 #ifdef FAST_POLYHEDRON_AVAILABLE
 		if (Feature::ExperimentalFastCsg.is_enabled()) {
 			auto result = applyOperator3DPolyhedron(children, op, tree);
-			return result ? result->toGeometry() : nullptr;
+      if (Feature::ExperimentalFastCsgGeometry.is_enabled()) {
+        return result;
+      } else {
+			  return result ? result->toPolySet() : nullptr;
+      }
 		}
 #endif // FAST_POLYHEDRON_AVAILABLE
 
@@ -162,6 +167,7 @@ namespace CGALUtils {
 		try {
 			for(const auto &item : children) {
 				const shared_ptr<const Geometry> &chgeom = item.second;
+        assert(!dynamic_pointer_cast<const FastPolyhedron>(chgeom));
 				shared_ptr<const CGAL_Nef_polyhedron> chN =
 					dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
 				if (!chN) {
@@ -215,11 +221,117 @@ namespace CGALUtils {
 	}
 
 #ifdef FAST_POLYHEDRON_AVAILABLE
-	shared_ptr<const Polyhedron> applyUnion3DPolyhedron(
+	shared_ptr<const FastPolyhedron> applyUnion3DPolyhedron(
 		Geometry::Geometries::iterator chbegin, Geometry::Geometries::iterator chend,
 		const Tree* tree)
 	{
-		typedef std::pair<shared_ptr<Polyhedron>, int> QueueItem;
+    if (Feature::ExperimentalAsyncUnion.is_enabled()) {
+    typedef std::shared_future<shared_ptr<FastPolyhedron>> future_poly_t;
+    struct QueueItem {
+      future_poly_t future_poly;
+      size_t num_facets;
+      int node_mark;
+    };
+		// typedef std::pair<std::future<shared_ptr<FastPolyhedron>>, int> QueueItem;
+		struct QueueItemGreater {
+			// stable sort for priority_queue by facets, then progress mark
+			bool operator()(const QueueItem &lhs, const QueueItem& rhs) const
+			{
+				size_t l = lhs.num_facets;
+				size_t r = rhs.num_facets;
+				return (l > r) || (l == r && lhs.node_mark > rhs.node_mark);
+			}
+		};
+
+		try {
+			Geometry::Geometries children;
+			children.insert(children.end(), chbegin, chend);
+
+			// We'll fill the queue in one go to get linear time construction.
+			std::vector<QueueItem> queueItems;
+			queueItems.reserve(children.size());
+
+			size_t total_facets = 0;
+			for (auto &item : children) {
+				auto chgeom = item.second;
+				if (!chgeom || chgeom->isEmpty()) {
+					continue;
+				}
+				QueueItem queueItem;
+        // queueItem.future_poly = future_poly_t(std::async(std::launch::async, [=]() { return poly; }));
+
+        // TODO(ochafik): Have that helper return futures, and wait for them in batch.
+				if (auto ps = dynamic_pointer_cast<const PolySet>(chgeom)) {
+					queueItem.future_poly = future_poly_t(std::async(std::launch::async, [=]() {
+            return make_shared<FastPolyhedron>(*ps);
+          }));
+          queueItem.num_facets = ps->numFacets();
+        } else if (auto constpoly = dynamic_pointer_cast<const FastPolyhedron>(chgeom)) {
+          queueItem.future_poly = future_poly_t(std::async(std::launch::async, [=]() {
+            return make_shared<FastPolyhedron>(*constpoly);
+          }));
+          queueItem.num_facets = constpoly->numFacets();
+          //poly = shared_ptr<FastPolyhedron>(new FastPolyhedron(*constpoly));
+				} else if (auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom)) {
+					assert(nef->p3);
+					if (!nef->p3) continue;
+          queueItem.future_poly = future_poly_t(std::async(std::launch::async, [=]() {
+            return make_shared<FastPolyhedron>(*nef->p3);
+          }));
+          queueItem.num_facets = nef->numFacets();
+				} else {
+					assert(!"Unsupported format");
+					continue;
+				}
+
+				//queueItem.future_poly.get(); // DO NOT SUBMIT
+				total_facets += queueItem.num_facets;
+        queueItem.node_mark = item.first ? item.first->progress_mark : -1;;
+				queueItems.push_back(queueItem);
+			}
+			// Build the queue in linear time (don't add items one by one!).
+			std::priority_queue<QueueItem, std::vector<QueueItem>, QueueItemGreater>
+				 q(queueItems.begin(), queueItems.end());
+
+			LOG(message_group::Warning, getLocation(chbegin->first),
+				"", "Union of %1$lu geometries (%2$lu total facets)", q.size(), total_facets);
+
+			progress_tick();
+			while (q.size() > 1) {
+				auto p1 = q.top();
+				q.pop();
+				auto p2 = q.top();
+				q.pop();
+				assert(p1.num_facets <= p2.num_facets);
+
+        QueueItem queueItem = {
+          future_poly_t(std::async(std::launch::async, [=]() {
+				    // Modify in-place the biggest polyhedron.
+            auto lhs = p2.future_poly.get();
+            auto rhs = p1.future_poly.get();
+            *lhs += *rhs;
+
+            return lhs;
+          })),
+          p2.num_facets + p1.num_facets,
+          -1
+        };
+        q.push(queueItem);
+				progress_tick();
+			}
+
+			if (q.size() == 1) {
+        // Blocking on the future.
+				return q.top().future_poly.get();
+			} else {
+				return nullptr;
+			}
+		}
+		catch (const CGAL::Failure_exception &e) {
+			LOG(message_group::Error, Location::NONE, "", "CGAL error in CGALUtils::applyUnion3DPolyhedron: %1$s", e.what());
+		}
+  } else {
+		typedef std::pair<shared_ptr<FastPolyhedron>, int> QueueItem;
 		struct QueueItemGreater {
 			// stable sort for priority_queue by facets, then progress mark
 			bool operator()(const QueueItem &lhs, const QueueItem& rhs) const
@@ -245,14 +357,16 @@ namespace CGALUtils {
 					continue;
 				}
 				// TODO(ochafik): Have that helper return futures, and wait for them in batch.
-				shared_ptr<Polyhedron> poly;
-				if (auto ps = dynamic_pointer_cast<const PolySet>(chgeom)) {
-					poly = make_shared<Polyhedron>(*ps);
+				shared_ptr<FastPolyhedron> poly;
+				if (auto constpoly = dynamic_pointer_cast<const FastPolyhedron>(chgeom)) {
+					poly = make_shared<FastPolyhedron>(*constpoly);
+				} else if (auto ps = dynamic_pointer_cast<const PolySet>(chgeom)) {
+					poly = make_shared<FastPolyhedron>(*ps);
 				} else if (auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom)) {
 					// assert(!"Unsupported: CGAL_Nef_polyhedron!");
 					assert(nef->p3);
 					if (!nef->p3) continue;
-					poly = make_shared<Polyhedron>(*nef->p3);
+					poly = make_shared<FastPolyhedron>(*nef->p3);
 				} else {
 					assert(!"Unsupported format");
 					continue;
@@ -292,6 +406,7 @@ namespace CGALUtils {
 		catch (const CGAL::Failure_exception &e) {
 			LOG(message_group::Error, Location::NONE, "", "CGAL error in CGALUtils::applyUnion3DPolyhedron: %1$s", e.what());
 		}
+    }
 		return nullptr;
 	}
 #endif // FAST_POLYHEDRON_AVAILABLE
@@ -303,7 +418,11 @@ namespace CGALUtils {
 #ifdef FAST_POLYHEDRON_AVAILABLE
 		if (Feature::ExperimentalFastCsg.is_enabled()) {
 			auto result = applyUnion3DPolyhedron(chbegin, chend, tree);
-			return result ? result->toGeometry() : nullptr;
+      if Feature::ExperimentalFastCsgGeometry.is_enabled()) {
+        return result;
+      } else {
+			  return result ? result->toPolySet() : nullptr;
+      }
 		}
 #endif // FAST_POLYHEDRON_AVAILABLE
 
@@ -323,6 +442,7 @@ namespace CGALUtils {
 			// sort children by fewest faces
 			for (auto it = chbegin; it != chend; ++it) {
 				const shared_ptr<const Geometry> &chgeom = it->second;
+        assert(!dynamic_pointer_cast<const FastPolyhedron>(chgeom));
 				shared_ptr<const CGAL_Nef_polyhedron> curChild = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
 				if (!curChild) {
 					const PolySet *chps = dynamic_cast<const PolySet*>(chgeom.get());
@@ -442,6 +562,9 @@ namespace CGALUtils {
 
 					auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(operands[i]);
 
+          auto constpoly = dynamic_pointer_cast<const FastPolyhedron>(operands[i]);
+          if (constpoly) ps = constpoly->toPolySet();
+
 					if (ps) CGALUtils::createPolyhedronFromPolySet(*ps, poly);
 					else if (nef && nef->p3->is_simple()) nef->p3->convert_to_polyhedron(poly);
 					else throw 0;
@@ -460,7 +583,7 @@ namespace CGALUtils {
 							delete p;
 						} else {
 							PRINTDB("Minkowski: child %d is nonconvex Nef, decomposing...",i);
-							decomposed_nef = *nef->p3;
+							decomposed_nef = nef ? *nef->p3 : *constpoly->toNef()->p3;
 						}
 
 						t.start();

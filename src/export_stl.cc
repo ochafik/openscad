@@ -27,6 +27,7 @@
 #include "export.h"
 #include "polyset.h"
 #include "polyset-utils.h"
+#include "polyhedron.h"
 #include "dxfdata.h"
 
 #ifdef ENABLE_CGAL
@@ -180,6 +181,11 @@ size_t append_stl(const shared_ptr<const Geometry> &geom, std::ostream &output,
 	else if (const auto ps = dynamic_pointer_cast<const PolySet>(geom)) {
 		triangle_count += append_stl(*ps, output, binary);
 	}
+#ifdef FAST_POLYHEDRON_AVAILABLE
+	else if (const auto poly = dynamic_pointer_cast<const FastPolyhedron>(geom)) {
+		triangle_count += append_stl(poly->toPolySet(), output, binary);
+	}
+#endif
 	else if (dynamic_pointer_cast<const Polygon2d>(geom)) {
 		assert(false && "Unsupported file format");
 	} else {

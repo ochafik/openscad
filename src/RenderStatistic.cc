@@ -27,6 +27,7 @@
 #include "GeometryCache.h"
 #include "CGALCache.h"
 #include "polyset.h"
+#include "polyhedron.h"
 #include "Polygon2d.h"
 #include "boost-utils.h"
 #ifdef ENABLE_CGAL
@@ -93,6 +94,19 @@ void RenderStatistic::visit(const CGAL_Nef_polyhedron& Nef)
     LOG(message_group::None,Location::NONE,"","   Halffacets: %1$6d",Nef.p3->number_of_halffacets());
     LOG(message_group::None,Location::NONE,"","   Facets:     %1$6d",Nef.p3->number_of_facets());
     LOG(message_group::None,Location::NONE,"","   Volumes:    %1$6d",Nef.p3->number_of_volumes());
+    if (!simple) {
+      LOG(message_group::UI_Warning,Location::NONE,"","Object may not be a valid 2-manifold and may need repair!");
+    }
+  }
+}
+void RenderStatistic::visit(const FastPolyhedron& Nef)
+{
+  if (Nef.getDimension() == 3) {
+    bool simple = Nef.isManifold();
+    LOG(message_group::None,Location::NONE,"","   Top level object is a 3D object (fast-csg):");
+    LOG(message_group::None,Location::NONE,"","   Simple:     %6s",(simple ? "yes" : "no"));
+    LOG(message_group::None,Location::NONE,"","   Vertices:   %1$6d",Nef.numVertices());
+    LOG(message_group::None,Location::NONE,"","   Facets:     %1$6d",Nef.numFacets());
     if (!simple) {
       LOG(message_group::UI_Warning,Location::NONE,"","Object may not be a valid 2-manifold and may need repair!");
     }

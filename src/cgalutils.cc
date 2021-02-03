@@ -11,6 +11,7 @@
 #include "grid.h"
 #include "node.h"
 #include "degree_trig.h"
+#include "polyhedron.h"
 
 #include "cgal.h"
 #pragma push_macro("NDEBUG")
@@ -274,6 +275,8 @@ namespace CGALUtils {
 		}
 		else if (auto poly2d = dynamic_cast<const Polygon2d*>(&geom)) {
 			return createNefPolyhedronFromPolygon2d(*poly2d);
+		} else if (auto poly = dynamic_cast<const FastPolyhedron*>(&geom)) {
+			return new CGAL_Nef_polyhedron(*poly->toNef());
 		}
 		assert(false && "createNefPolyhedronFromGeometry(): Unsupported geometry type");
 		return nullptr;

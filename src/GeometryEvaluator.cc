@@ -21,6 +21,7 @@
 #include "clipper-utils.h"
 #include "polyset-utils.h"
 #include "polyset.h"
+#include "polyhedron.h"
 #include "calc.h"
 #include "printutils.h"
 #include "svg.h"
@@ -30,6 +31,7 @@
 #include <ciso646> // C alternative tokens (xor)
 #include <algorithm>
 #include "boost-utils.h"
+#include "mixed_cache.h"
 
 #pragma push_macro("NDEBUG")
 #undef NDEBUG
@@ -77,6 +79,12 @@ shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNod
 
 			// We cannot render concave polygons, so tessellate any 3D PolySets
 			auto ps = dynamic_pointer_cast<const PolySet>(this->root);
+#ifdef FAST_POLYHEDRON_AVAILABLE
+	    if (!ps) {
+        const auto poly = dynamic_pointer_cast<const FastPolyhedron>(this->root);
+		    ps = poly ? poly->toPolySet() : nullptr;
+	    }
+#endif
 			if (ps && !ps->isEmpty()) {
 				// Since is_convex() doesn't handle non-planar faces, we need to tessellate
 				// also in the indeterminate state so we cannot just use a boolean comparison. See #1061
@@ -579,6 +587,16 @@ Response GeometryEvaluator::visit(State &state, const RenderNode &node)
 				newps->setConvexity(node.convexity);
 				geom = newps;
 			}
+#ifdef FAST_POLYHEDRON_AVAILABLE
+	    else if (auto poly = dynamic_pointer_cast<const FastPolyhedron>(geom)) {
+				// If we got a const object, make a copy
+				shared_ptr<FastPolyhedron> newpoly;
+				if (res.isConst()) newpoly.reset(new FastPolyhedron(*poly));
+				else newpoly = dynamic_pointer_cast<FastPolyhedron>(res.ptr());
+				newpoly->setConvexity(node.convexity);
+				geom = newpoly;
+	    }
+#endif
 			else if (shared_ptr<const CGAL_Nef_polyhedron> N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom)) {
 				// If we got a const object, make a copy
 				shared_ptr<CGAL_Nef_polyhedron> newN;
@@ -726,8 +744,13 @@ Response GeometryEvaluator::visit(State &state, const TransformNode &node)
 							else newps = dynamic_pointer_cast<PolySet>(res.ptr());
 							newps->transform(node.matrix);
 							geom = newps;
-						}
-						else {
+#ifdef FAST_POLYHEDRON_AVAILABLE
+            } else if (auto poly = dynamic_pointer_cast<const FastPolyhedron>(geom)) {
+              auto newpoly = make_shared<FastPolyhedron>(*poly);
+              newpoly->transform(node.matrix);
+              geom = newpoly;
+#endif
+						} else {
 							shared_ptr<const CGAL_Nef_polyhedron> N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom);
 							assert(N);
 							// If we got a const object, make a copy
@@ -1222,21 +1245,9 @@ Response GeometryEvaluator::visit(State &state, const ProjectionNode &node)
 // It's better in V6 but not quite there. FIXME: stand-alone example.
 #if 1
 					// project chgeom -> polygon2d
-					shared_ptr<const PolySet> chPS = dynamic_pointer_cast<const PolySet>(chgeom);
-					if (!chPS) {
-						shared_ptr<const CGAL_Nef_polyhedron> chN = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom);
-						if (chN && !chN->isEmpty()) {
-							PolySet *ps = new PolySet(3);
-							bool err = CGALUtils::createPolySetFromNefPolyhedron3(*chN->p3, *ps);
-							if (err) {
-								LOG(message_group::Error,Location::NONE,"","Nef->PolySet failed");
-							}
-							else {
-								chPS.reset(ps);
-							}
-						}
-					}
-					if (chPS) poly = PolysetUtils::project(*chPS);
+          if (auto chPS = getGeometryAs<const PolySet>(chgeom)) {
+            poly = PolysetUtils::project(*chPS);
+          }
 #endif
 
 					if (poly) {
@@ -1258,21 +1269,15 @@ Response GeometryEvaluator::visit(State &state, const ProjectionNode &node)
 				sumclipper.Execute(ClipperLib::ctUnion, sumresult, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
 				if (sumresult.Total() > 0) geom.reset(ClipperUtils::toPolygon2d(sumresult));
 			}
-			else {
-				shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
-				if (newgeom) {
-					shared_ptr<const CGAL_Nef_polyhedron> Nptr = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(newgeom);
-					if (!Nptr) {
-						Nptr.reset(CGALUtils::createNefPolyhedronFromGeometry(*newgeom));
-					}
-					if (!Nptr->isEmpty()) {
-						Polygon2d *poly = CGALUtils::project(*Nptr, node.cut_mode);
-						if (poly) {
-							poly->setConvexity(node.convexity);
-							geom.reset(poly);
-						}
-					}
-				}
+			else if (auto newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr()) {
+        auto Nptr = getGeometryAs<const CGAL_Nef_polyhedron>(newgeom);
+        if (Nptr && !Nptr->isEmpty()) {
+          Polygon2d *poly = CGALUtils::project(*Nptr, node.cut_mode);
+          if (poly) {
+            poly->setConvexity(node.convexity);
+            geom.reset(poly);
+          }
+        }
 			}
 		}
 		else {
