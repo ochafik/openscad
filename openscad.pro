@@ -657,21 +657,33 @@ HEADERS += src/cgal.h \
            src/CGALRenderer.h \
            src/CGAL_Nef_polyhedron.h \
            src/cgalworker.h \
+           src/CGALHybridPolyhedron.h \
            src/Polygon2d-CGAL.h
 
 SOURCES += src/cgalutils.cc \
            src/cgalutils-applyops.cc \
+           src/cgalutils-applyops-hybrid.cc \
+           src/cgalutils-closed.cc \
+           src/cgalutils-corefine.cc \
+           src/cgalutils-hybrid.cc \
+           src/cgalutils-kernel.cc \
+           src/cgalutils-minkowski.cc \
+           src/cgalutils-nef.cc \
+           src/cgalutils-orient.cc \
+           src/cgalutils-polyhedron.cc \
            src/cgalutils-project.cc \
            src/cgalutils-tess.cc \
-           src/cgalutils-polyhedron.cc \
+           src/cgalutils-triangulate.cc \
            src/CGALCache.cc \
            src/CGALRenderer.cc \
            src/CGAL_Nef_polyhedron.cc \
            src/cgalworker.cc \
+           src/CGALHybridPolyhedron.cc \
            src/Polygon2d-CGAL.cc \
            src/import_nef.cc
 }
 
+QMAKE_CXXFLAGS+=-DCGAL_USE_GMPXX
 macx {
   HEADERS += src/AppleEvents.h \
              src/EventFilter.h \

@@ -13,11 +13,19 @@ TESTDIR=tests
 do_build() {
 	echo "do_build()"
 
+	export CMAKE_PREFIX_PATH="$PWD/libraries/lib/cmake/CGAL:$CMAKE_PREFIX_PATH"
+
 	rm -rf "$BUILDDIR"
 	mkdir "$BUILDDIR"
 	(
 		cd "$BUILDDIR"
-		cmake -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DPROFILE=ON .. && make $PARALLEL_MAKE
+		cmake \
+			-DCMAKE_BUILD_TYPE=Release \
+			-DEXPERIMENTAL=ON \
+			-DPROFILE=ON \
+			-DFAST_CSG_AVAILABLE=${FAST_CSG_AVAILABLE:-1} \
+			.. && \
+		make $PARALLEL_MAKE
 	)
 	if [[ $? != 0 ]]; then
 		echo "Build failure"

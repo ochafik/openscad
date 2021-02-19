@@ -24,10 +24,15 @@
 #include <CGAL/minkowski_sum_3.h>
 #include <CGAL/bounding_box.h>
 #include <CGAL/utils.h>
+#include <CGAL/version.h>
 
 #include <CGAL/assertions_behaviour.h>
 #include <CGAL/exceptions.h>
 #pragma pop_macro("NDEBUG")
+
+// Stringification macro helpers
+#define FAST_CSG_STRING2(x) #x
+#define FAST_CSG_STRING(x) FAST_CSG_STRING2(x)
 
 typedef CGAL::Gmpq NT2;
 typedef CGAL::Extended_cartesian<NT2> CGAL_Kernel2;
@@ -48,6 +53,7 @@ typedef CGAL_Nef_polyhedron3::Aff_transformation_3 CGAL_Aff_transformation;
 typedef CGAL::Polyhedron_3<CGAL_Kernel3> CGAL_Polyhedron;
 
 typedef CGAL::Point_3<CGAL_Kernel3> CGAL_Point_3;
+typedef CGAL::Vector_3<CGAL_Kernel3> CGAL_Vector_3;
 typedef CGAL::Triangle_3<CGAL_Kernel3> CGAL_Triangle_3;
 typedef CGAL::Iso_cuboid_3<CGAL_Kernel3> CGAL_Iso_cuboid_3;
 typedef std::vector<CGAL_Point_3> CGAL_Polygon_3;
@@ -57,5 +63,32 @@ typedef std::vector<CGAL_Point_3> CGAL_Polygon_3;
 // CGAL_Kernel2::Point. Hence the suffix 'e'
 typedef CGAL_Nef_polyhedron2::Explorer::Point CGAL_Point_2e;
 typedef CGAL::Iso_rectangle_2<CGAL::Simple_cartesian<NT2>> CGAL_Iso_rectangle_2e;
+
+#if CGAL_VERSION_NR >= CGAL_VERSION_NUMBER(5, 1, 0)
+
+#define FAST_CSG_AVAILABLE
+// Some notes about kernels for CGALHybridPolyhedron:
+// - CGAL::Epick isn't exact and gives errors with some algorithms on some models.
+// - CGAL_Kernel3 (CGAL::Cartesian<CGAL::Gmpq>) uses much less memory than CGAL::Epeck
+//   (see https://github.com/openscad/openscad/issues/481) so ideally we'd always
+//   use it, but CGAL's corefinement functions cannot use it before 5.2.1
+//   (see https://github.com/CGAL/cgal/issues/5322).
+// - Conversions between CGAL::Epeck and CGAL_Kernel3 are relatively cheap
+//   (see cgalutils-kernel.cc) and require -DCGAL_USE_GMPXX.
+#if CGAL_VERSION_NR > CGAL_VERSION_NUMBER(5, 2, 0)
+typedef CGAL_Kernel3 CGAL_HybridKernel3;
+#else
+#define FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
+#pragma message( \
+		"Using CGAL::Epeck as kernel for fast-csg. Compile with CGAL >5.2.0 for smaller memory footprint.")
+typedef CGAL::Epeck CGAL_HybridKernel3;
+#endif
+
+#else
+
+#pragma message("[fast-csg] No support for fast-csg with CGAL " FAST_CSG_STRING( \
+		CGAL_VERSION) ". Please compile against CGAL 5.1 or later to use the feature.")
+
+#endif
 
 #endif /* ENABLE_CGAL */
