@@ -287,14 +287,18 @@ namespace CGALUtils {
 
 	template void copyPolyhedron<CGAL::Epick, CGAL_Kernel3>(const CGAL::Polyhedron_3<CGAL::Epick> &, CGAL_Polyhedron &);
 	template void copyPolyhedron<CGAL_Kernel3, CGAL::Epick>(const CGAL_Polyhedron &, CGAL::Polyhedron_3<CGAL::Epick> &);
+#ifndef FAST_CSG_KERNEL_IS_EPICK
 #ifdef FAST_CSG_AVAILABLE
 	template void copyPolyhedron<CGAL_HybridKernel3, CGAL_Kernel3>(const CGAL::Polyhedron_3<CGAL_HybridKernel3> &, CGAL_Polyhedron &);
-#endif
+#endif // FAST_CSG_AVAILABLE
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
 	template void copyPolyhedron<CGAL_Kernel3, CGAL_HybridKernel3>(const CGAL_Polyhedron &, CGAL::Polyhedron_3<CGAL_HybridKernel3> &);
-	template void copyPolyhedron<CGAL_HybridKernel3, CGAL_HybridKernel3>(const CGAL::Polyhedron_3<CGAL_HybridKernel3> &, CGAL::Polyhedron_3<CGAL_HybridKernel3> &);
 	template void copyPolyhedron<CGAL::Epick, CGAL_HybridKernel3>(const CGAL::Polyhedron_3<CGAL::Epick> &, CGAL::Polyhedron_3<CGAL_HybridKernel3> &);
 	template void copyPolyhedron<CGAL_HybridKernel3, CGAL::Epick>(const CGAL::Polyhedron_3<CGAL_HybridKernel3> &, CGAL::Polyhedron_3<CGAL::Epick> &);
+#endif // FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
+#endif // FAST_CSG_KERNEL_IS_EPICK
+#ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
+  template void copyPolyhedron<CGAL_HybridKernel3, CGAL_HybridKernel3>(const CGAL::Polyhedron_3<CGAL_HybridKernel3> &, CGAL::Polyhedron_3<CGAL_HybridKernel3> &);
 #endif
 
 	template <typename K>
@@ -358,7 +362,9 @@ template bool createPolyhedronFromPolySet(const PolySet &ps, CGAL::Polyhedron_3<
 	template bool createPolySetFromPolyhedron(const CGAL_Polyhedron &p, PolySet &ps);
 	template bool createPolySetFromPolyhedron(const CGAL::Polyhedron_3<CGAL::Epick> &p, PolySet &ps);
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
+#ifndef FAST_CSG_KERNEL_IS_EPICK
 	template bool createPolySetFromPolyhedron(const CGAL::Polyhedron_3<CGAL_HybridKernel3> &p, PolySet &ps);
+#endif
 #endif
 	template bool createPolySetFromPolyhedron(const CGAL::Polyhedron_3<CGAL::Simple_cartesian<long>> &p, PolySet &ps);
 

@@ -19,8 +19,23 @@ CGAL::Gmpq KernelConverter<CGAL::Epick, CGAL::Cartesian<CGAL::Gmpq>>::operator()
 	return n;
 }
 
+template <>
+CGAL::Epeck::FT KernelConverter<CGAL::Cartesian<double>, CGAL::Epeck>::operator()(
+		const double &n) const
+{
+	return n;
+}
+
+template <>
+double KernelConverter<CGAL::Epeck, CGAL::Cartesian<double>>::operator()(
+		const CGAL::Epeck::FT &n) const
+{
+	return CGAL::to_double(n);
+}
+
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
 
+#ifndef FAST_CSG_KERNEL_IS_EPICK
 template <>
 CGAL_HybridKernel3::FT KernelConverter<CGAL::Epick, CGAL_HybridKernel3>::operator()(
 		const double &n) const
@@ -39,16 +54,26 @@ template <>
 CGAL_HybridKernel3::FT KernelConverter<CGAL_Kernel3, CGAL_HybridKernel3>::operator()(
 		const CGAL::Gmpq &n) const
 {
+#ifdef FAST_CSG_USES_SAME_FIELD_TYPE
+  return n;
+#else
 	return mpq_class(mpz_class(n.numerator().mpz()), mpz_class(n.denominator().mpz()));
+#endif
 }
 
 template <>
 CGAL::Gmpq KernelConverter<CGAL_HybridKernel3, CGAL_Kernel3>::operator()(
 		const CGAL_HybridKernel3::FT &n) const
 {
+#ifdef FAST_CSG_USES_SAME_FIELD_TYPE
+  return n;
+#else
 	auto &e = n.exact();
 	return CGAL::Gmpq(CGAL::Gmpz(e.get_num().get_mpz_t()), CGAL::Gmpz(e.get_den().get_mpz_t()));
+#endif
 }
+
+#endif // FAST_CSG_KERNEL_IS_EPICK
 
 #endif // FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
 

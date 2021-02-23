@@ -17,6 +17,7 @@
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Nef_polyhedron_3.h>
 #include <CGAL/IO/Polyhedron_iostream.h>
+// #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Polygon_2.h>
 #include <CGAL/Polygon_with_holes_2.h>
@@ -75,9 +76,8 @@ typedef CGAL::Iso_rectangle_2<CGAL::Simple_cartesian<NT2>> CGAL_Iso_rectangle_2e
 // CGAL::Epeck is faster than CGAL::Cartesian<CGAL::Gmpq> (because of filtering)...
 // except in some pathological cases. It can also use a lot or memory (because
 // of laziness, see https://github.com/openscad/openscad/issues/481).
-// For both reasons, we regularly force its numbers to exact values (either after
-// each fast-csg operation, and/or inside corefinement callbacks, see
-// Feature::ExperimentalFastCsgExactCallback).
+// For both reasons, we regularly force its numbers to exact values (after
+// some operation, and inside corefinement callbacks).
 //
 // Conversions between CGAL::Epeck and CGAL_Kernel3 are cheap
 // (see cgalutils-kernel.cc) and require -DCGAL_USE_GMPXX.
@@ -97,6 +97,17 @@ typedef CGAL_Kernel3 CGAL_HybridKernel3;
 #define FAST_CSG_KERNEL_IS_LAZY
 
 typedef CGAL::Epeck CGAL_HybridKernel3;
+
+// - Filtered_kernel for speed
+// - Simple_cartesian for multithreading (no refcounting)
+// - Gmpq for exact numbers
+// #define FAST_CSG_USES_SAME_FIELD_TYPE
+// typedef CGAL::Filtered_kernel<CGAL::Simple_cartesian<CGAL::Gmpq>> CGAL_HybridKernel3;
+// typedef CGAL::Filtered_kernel<CGAL::Cartesian<CGAL::Gmpq>> CGAL_HybridKernel3;
+// typedef CGAL::Simple_cartesian<double> CGAL_HybridKernel3;
+// typedef CGAL::Cartesian<double> CGAL_HybridKernel3;
+// #define FAST_CSG_KERNEL_IS_EPICK
+// typedef CGAL::Epick CGAL_HybridKernel3;
 
 #endif // FAST_CSG_USE_SAME_KERNEL
 

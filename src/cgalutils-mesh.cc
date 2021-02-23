@@ -124,6 +124,14 @@ void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<InputKernel>> &input,
 
 template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &input,
 											 CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &output);
+template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &input,
+											 CGAL::Surface_mesh<CGAL::Point_3<CGAL::Cartesian<double>>> &output);
+template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Cartesian<double>>> &input,
+											 CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &output);
+template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &input,
+											 CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>> &output);
+template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>> &input,
+											 CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &output);
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
 template void copyMesh(const CGAL::Surface_mesh<CGAL_Point_3> &input,
 											 CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>> &output);
