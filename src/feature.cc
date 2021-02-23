@@ -25,6 +25,7 @@ Feature::list_t Feature::feature_list;
 #ifdef FAST_CSG_AVAILABLE
 const Feature Feature::ExperimentalFastCsg("fast-csg", "Enable much faster CSG operations with corefinement instead of nef when possible.");
 const Feature Feature::ExperimentalFastCsgMesh("fast-csg-mesh", "Same as fast-csg but w/ Surface_mesh.");
+const Feature Feature::ExperimentalFastCsgMinkowski("fast-csg-minkowski", "Do exact minkowksi with fast-csg.");
 const Feature Feature::ExperimentalFastCsgDisjointOpt("fast-csg-disjoint", "Fast-track operations on disjoint solids when fast-csg is on.");
 #ifdef FAST_CSG_KERNEL_IS_LAZY
 const Feature Feature::ExperimentalFastCsgExactCallback("fast-csg-exact-callbacks", "Force lazy numbers to exact during corefinement using callbacks rather than at the end of each operation. Only works with fast-csg-mesh for now.");

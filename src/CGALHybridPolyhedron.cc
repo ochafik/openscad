@@ -49,8 +49,7 @@ void cleanupMesh(CGALHybridPolyhedron::mesh_t &mesh, bool is_corefinement_result
 #ifdef FAST_CSG_KERNEL_IS_LAZY
 	// Coordinates of new vertices would have already been forced to exact in the
 	// corefinement callbacks called whenever new faces are created.
-	if (!Feature::ExperimentalFastCsgExactCallback.is_enabled() || !is_corefinement_result)
-	{
+	if (!Feature::ExperimentalFastCsgExactCallback.is_enabled() || !is_corefinement_result) {
 		for (auto v : mesh.vertices()) {
 			auto &pt = mesh.point(v);
 			CGAL::exact(pt.x());
@@ -149,6 +148,8 @@ CGALHybridPolyhedron::CGALHybridPolyhedron(const shared_ptr<nef_polyhedron_t> &n
 CGALHybridPolyhedron::CGALHybridPolyhedron(const shared_ptr<mesh_t> &mesh)
 {
 	assert(mesh);
+	CGALUtils::triangulateFaces(*mesh);
+	cleanupMesh(*mesh, /* is_corefinement_result */ false);
 	data = mesh;
 	bboxes.push_back(CGALUtils::boundingBox(*mesh));
 }
@@ -156,6 +157,8 @@ CGALHybridPolyhedron::CGALHybridPolyhedron(const shared_ptr<mesh_t> &mesh)
 CGALHybridPolyhedron::CGALHybridPolyhedron(const shared_ptr<polyhedron_t> &polyhedron)
 {
 	assert(polyhedron);
+	CGALUtils::triangulateFaces(*polyhedron);
+	cleanupMesh(*polyhedron, /* is_corefinement_result */ false);
 	data = polyhedron;
 	bboxes.push_back(CGALUtils::boundingBox(*polyhedron));
 }

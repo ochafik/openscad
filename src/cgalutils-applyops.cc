@@ -240,6 +240,12 @@ namespace CGALUtils {
 	*/
 	shared_ptr<const Geometry> applyMinkowski(const Geometry::Geometries &children)
 	{
+#ifdef FAST_CSG_AVAILABLE
+		if (Feature::ExperimentalFastCsgMinkowski.is_enabled()) {
+			return applyMinkowskiHybrid(children);
+		}
+#endif // FAST_CSG_AVAILABLE
+
 		CGAL::Failure_behaviour old_behaviour = CGAL::set_error_behaviour(CGAL::THROW_EXCEPTION);
 		CGAL::Timer t,t_tot;
 		assert(children.size() >= 2);

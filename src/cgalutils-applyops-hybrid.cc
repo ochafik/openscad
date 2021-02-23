@@ -50,6 +50,34 @@ namespace CGALUtils {
 		const Geometry::Geometries::const_iterator &chbegin,
 		const Geometry::Geometries::const_iterator &chend)
 	{
+		CGALUtils::CGALErrorBehaviour behaviour{CGAL::THROW_EXCEPTION};
+		try {
+      std::vector<std::pair<const AbstractNode*, shared_ptr<CGALHybridPolyhedron>>> mutableOperands;
+
+      for (auto it = chbegin; it != chend; ++it) {
+        auto &item = *it;
+        auto chgeom = item.second;
+        if (!chgeom || chgeom->isEmpty()) {
+          continue;
+        }
+        auto poly = CGALUtils::createHybridPolyhedronFromGeometry(*chgeom);
+        if (!poly) {
+          continue;
+        }
+
+        mutableOperands.emplace_back(std::make_pair(item.first, poly));
+      }
+      return applyUnion3DHybrid(mutableOperands);
+    }
+		catch (const CGAL::Failure_exception &e) {
+			LOG(message_group::Error, Location::NONE, "", "CGAL error in CGALUtils::applyUnion3DPolyhedron: %1$s", e.what());
+		}
+		return nullptr;
+  }
+
+	shared_ptr<CGALHybridPolyhedron> applyUnion3DHybrid(
+		const std::vector<std::pair<const AbstractNode*, shared_ptr<CGALHybridPolyhedron>>> &mutableOperands)
+	{
 		typedef std::pair<shared_ptr<CGALHybridPolyhedron>, int> QueueItem;
 		struct QueueItemGreater {
 			// stable sort for priority_queue by facets, then progress mark
@@ -63,26 +91,14 @@ namespace CGALUtils {
 
 		CGALUtils::CGALErrorBehaviour behaviour{CGAL::THROW_EXCEPTION};
 		try {
-			Geometry::Geometries children;
-			children.insert(children.end(), chbegin, chend);
+      // We'll fill the queue in one go to get linear time construction.
+      std::vector<QueueItem> queueItems;
+      queueItems.reserve(mutableOperands.size());
+      for (auto &item : mutableOperands) {
+        auto node_mark = item.first ? item.first->progress_mark : -1;
+        queueItems.emplace_back(item.second, node_mark);
+      }
 
-			// We'll fill the queue in one go to get linear time construction.
-			std::vector<QueueItem> queueItems;
-			queueItems.reserve(children.size());
-
-			for (auto &item : children) {
-				auto chgeom = item.second;
-				if (!chgeom || chgeom->isEmpty()) {
-					continue;
-				}
-				auto poly = CGALUtils::createHybridPolyhedronFromGeometry(*chgeom);
-				if (!poly) {
-					continue;
-				}
-
-				auto node_mark = item.first ? item.first->progress_mark : -1;
-				queueItems.emplace_back(poly, node_mark);
-			}
 			// Build the queue in linear time (don't add items one by one!).
 			std::priority_queue<QueueItem, std::vector<QueueItem>, QueueItemGreater>
 				 q(queueItems.begin(), queueItems.end());

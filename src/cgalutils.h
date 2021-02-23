@@ -62,7 +62,10 @@ namespace CGALUtils {
 	shared_ptr<CGALHybridPolyhedron> applyUnion3DHybrid(
 		const Geometry::Geometries::const_iterator &chbegin,
 		const Geometry::Geometries::const_iterator &chend);
+	shared_ptr<CGALHybridPolyhedron> applyUnion3DHybrid(
+		const std::vector<std::pair<const AbstractNode*, shared_ptr<CGALHybridPolyhedron>>> &mutableOperands);
 	shared_ptr<CGALHybridPolyhedron> applyOperator3DHybrid(const Geometry::Geometries &children, OpenSCADOperator op);
+	shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries &children);
 	//FIXME: Old, can be removed:
 	//void applyBinaryOperator(CGAL_Nef_polyhedron &target, const CGAL_Nef_polyhedron &src, OpenSCADOperator op);
 	Polygon2d *project(const CGAL_Nef_polyhedron &N, bool cut);

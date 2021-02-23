@@ -109,6 +109,7 @@ SOURCES += export_nef.cpp \
            ../src/cgalutils.cc \
            ../src/cgalutils-applyops.cc \
            ../src/cgalutils-applyops-hybrid.cc \
+           ../src/cgalutils-applyops-hybrid-minkowski.cc \
            ../src/cgalutils-closed.cc \
            ../src/cgalutils-convex.cc \
            ../src/cgalutils-corefine.cc \
