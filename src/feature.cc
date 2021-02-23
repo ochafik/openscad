@@ -22,6 +22,7 @@ Feature::list_t Feature::feature_list;
  * argument to enable the option and for saving the option value in GUI
  * context.
  */
+const Feature Feature::ExperimentalAsyncUnion("async-union", "Enable async unions!");
 #ifdef FAST_CSG_AVAILABLE
 const Feature Feature::ExperimentalFastCsg("fast-csg", "Enable much faster CSG operations with corefinement instead of nef when possible.");
 const Feature Feature::ExperimentalFastCsgMesh("fast-csg-mesh", "Same as fast-csg but w/ Surface_mesh.");

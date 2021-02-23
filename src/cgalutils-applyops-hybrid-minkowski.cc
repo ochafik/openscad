@@ -200,7 +200,9 @@ namespace CGALUtils {
 					for (const auto &part : result_parts) {
 						mutableOperands.push_back(std::make_pair((const AbstractNode*)nullptr, part));
 					}
-					auto N = CGALUtils::applyUnion3DHybrid(mutableOperands);
+					auto N = Feature::ExperimentalAsyncUnion.is_enabled()
+            ? CGALUtils::applyUnion3DHybridAsync(mutableOperands)
+            : CGALUtils::applyUnion3DHybrid(mutableOperands);
 					// FIXME: This should really never throw.
 					// Assert once we figured out what went wrong with issue #1069?
 					if (!N) throw 0;

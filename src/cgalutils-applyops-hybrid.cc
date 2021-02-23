@@ -38,6 +38,7 @@
 #include <map>
 #include <queue>
 #include <unordered_set>
+#include <future>
 
 Location getLocation(const AbstractNode *node)
 {
@@ -127,6 +128,89 @@ namespace CGALUtils {
 		}
 		return nullptr;
 	}
+
+  shared_ptr<CGALHybridPolyhedron> applyUnion3DHybridAsync(
+		const std::vector<std::pair<const AbstractNode*, shared_ptr<CGALHybridPolyhedron>>> &mutableOperands)
+	{
+    typedef std::shared_future<shared_ptr<CGALHybridPolyhedron>> future_poly_t;
+    struct QueueItem {
+      future_poly_t future_poly;
+      size_t num_facets;
+      int node_mark;
+    };
+		// typedef std::pair<std::future<shared_ptr<CGALHybridPolyhedron>>, int> QueueItem;
+		struct QueueItemGreater {
+			// stable sort for priority_queue by facets, then progress mark
+			bool operator()(const QueueItem &lhs, const QueueItem& rhs) const
+			{
+				size_t l = lhs.num_facets;
+				size_t r = rhs.num_facets;
+				return (l > r) || (l == r && lhs.node_mark > rhs.node_mark);
+			}
+		};
+
+		try {
+			// We'll fill the queue in one go to get linear time construction.
+			std::vector<QueueItem> queueItems;
+      queueItems.reserve(mutableOperands.size());
+
+			for (auto &item : mutableOperands) {
+        auto node_mark = item.first ? item.first->progress_mark : -1;
+        auto &poly = item.second;
+        if (!poly) {
+					continue;
+				}
+
+				QueueItem queueItem;
+        queueItem.future_poly = future_poly_t(std::async(std::launch::async, [=]() {
+          return poly;
+        }));
+        queueItem.num_facets = poly->numFacets();
+
+				//queueItem.future_poly.get(); // DO NOT SUBMIT
+        queueItem.node_mark = item.first ? item.first->progress_mark : -1;;
+				queueItems.push_back(queueItem);
+      }
+
+			// Build the queue in linear time (don't add items one by one!).
+			std::priority_queue<QueueItem, std::vector<QueueItem>, QueueItemGreater>
+				 q(queueItems.begin(), queueItems.end());
+
+			progress_tick();
+			while (q.size() > 1) {
+				auto p1 = q.top();
+				q.pop();
+				auto p2 = q.top();
+				q.pop();
+				assert(p1.num_facets <= p2.num_facets);
+
+        QueueItem queueItem = {
+          future_poly_t(std::async(std::launch::async, [=]() {
+				    // Modify in-place the biggest polyhedron.
+            auto lhs = p2.future_poly.get();
+            auto rhs = p1.future_poly.get();
+            *lhs += *rhs;
+
+            return lhs;
+          })),
+          ((p2.num_facets + p1.num_facets) * 120) / 100,
+          -1
+        };
+        q.push(queueItem);
+				progress_tick();
+			}
+
+			if (q.size() == 1) {
+        // Blocking on the future.
+				return q.top().future_poly.get();
+			} else {
+				return nullptr;
+			}
+		}
+		catch (const CGAL::Failure_exception &e) {
+			LOG(message_group::Error, Location::NONE, "", "CGAL error in CGALUtils::applyUnion3DPolyhedron: %1$s", e.what());
+		}
+  }
 
 /*!
 	Applies op to all children and returns the result.

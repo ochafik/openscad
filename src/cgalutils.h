@@ -64,6 +64,8 @@ namespace CGALUtils {
 		const Geometry::Geometries::const_iterator &chend);
 	shared_ptr<CGALHybridPolyhedron> applyUnion3DHybrid(
 		const std::vector<std::pair<const AbstractNode*, shared_ptr<CGALHybridPolyhedron>>> &mutableOperands);
+	shared_ptr<CGALHybridPolyhedron> applyUnion3DHybridAsync(
+		const std::vector<std::pair<const AbstractNode*, shared_ptr<CGALHybridPolyhedron>>> &mutableOperands);
 	shared_ptr<CGALHybridPolyhedron> applyOperator3DHybrid(const Geometry::Geometries &children, OpenSCADOperator op);
 	shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries &children);
 	//FIXME: Old, can be removed:
