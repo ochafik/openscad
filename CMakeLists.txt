@@ -165,6 +165,7 @@ set(CGAL_DO_NOT_WARN_ABOUT_CMAKE_BUILD_TYPE TRUE)
 find_package(CGAL REQUIRED COMPONENTS Core)
 message(STATUS "CGAL: ${CGAL_MAJOR_VERSION}.${CGAL_MINOR_VERSION}")
 add_definitions(-DENABLE_CGAL)
+add_definitions(-DCGAL_USE_GMPXX)
 # The macro `CGAL_DEBUG` allows to force CGAL assertions, even if `NDEBUG` is defined,
 # Enabling CGAL assertions is necessary for us to catch them before they cause a crash
 # on bad geometry input.
@@ -456,6 +457,10 @@ if(DEFINED OPENSCAD_COMMIT)
   add_definitions(-DOPENSCAD_COMMIT=${OPENSCAD_COMMIT})
 endif()
 
+if(DEFINED FAST_CSG_USE_SAME_KERNEL)
+  add_definitions(-DFAST_CSG_USE_SAME_KERNEL=${FAST_CSG_USE_SAME_KERNEL})
+endif()
+
 #
 # Platform specific settings
 #
@@ -633,10 +638,22 @@ set(CORE_SOURCES
 set(CGAL_SOURCES
   src/cgalutils.cc
   src/cgalutils-applyops.cc
+  src/cgalutils-applyops-hybrid.cc
+  src/cgalutils-closed.cc
+  src/cgalutils-convex.cc
+  src/cgalutils-corefine.cc
+  src/cgalutils-hybrid.cc
+  src/cgalutils-kernel.cc
+  src/cgalutils-mesh.cc
+  src/cgalutils-minkowski.cc
+  src/cgalutils-nef.cc
+  src/cgalutils-orient.cc
   src/cgalutils-polyhedron.cc
   src/cgalutils-project.cc
   src/cgalutils-tess.cc
+  src/cgalutils-triangulate.cc
   src/export_nef.cc
+  src/CGALHybridPolyhedron.cc
   src/import_nef.cc
   src/CGAL_Nef_polyhedron.cc
   src/CGALCache.cc
