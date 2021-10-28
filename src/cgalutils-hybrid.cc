@@ -11,13 +11,11 @@
 
 #include "CGAL_Nef_polyhedron.h"
 #include "polyset-utils.h"
-#include "scoped_timer.h"
 
 namespace CGALUtils {
 
 std::shared_ptr<CGALHybridPolyhedron> createHybridPolyhedronFromPolySet(const PolySet &ps)
 {
-  SCOPED_PERFORMANCE_TIMER("createHybridPolyhedronFromPolySet");
   auto mesh = make_shared<CGALHybridPolyhedron::mesh_t>();
 
   auto err = createMeshFromPolySet(ps, *mesh, /* use_grid */ false);
@@ -40,8 +38,6 @@ std::shared_ptr<CGALHybridPolyhedron> createHybridPolyhedronFromPolySet(const Po
 std::shared_ptr<CGALHybridPolyhedron> createHybridPolyhedronFromNefPolyhedron(const CGAL_Nef_polyhedron &nef)
 {
   assert(nef.p3);
-
-  SCOPED_PERFORMANCE_TIMER("createHybridPolyhedronFromNefPolyhedron");
 
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
   auto mesh = make_shared<CGALHybridPolyhedron::mesh_t>();
@@ -78,8 +74,6 @@ shared_ptr<CGAL_Nef_polyhedron> createNefPolyhedronFromHybrid(const CGALHybridPo
 {
 	typedef CGAL::Surface_mesh<CGAL::Point_3<CGAL_Kernel3>> CGAL_SurfaceMesh;
 	if (auto mesh = hybrid.getMesh()) {
-		SCOPED_PERFORMANCE_TIMER("createNefPolyhedronFromHybrid: mesh -> nef");
-
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
 		CGAL_SurfaceMesh alien_mesh;
 		copyMesh(*mesh, alien_mesh);
@@ -90,8 +84,6 @@ shared_ptr<CGAL_Nef_polyhedron> createNefPolyhedronFromHybrid(const CGALHybridPo
 #endif
 	}
 	if (auto nef = hybrid.getNefPolyhedron()) {
-		SCOPED_PERFORMANCE_TIMER("createNefPolyhedronFromHybrid: nef -> nef");
-
 #ifdef FAST_CSG_AVAILABLE_WITH_DIFFERENT_KERNEL
 		CGALHybridPolyhedron::mesh_t mesh;
 		CGALUtils::convertNefPolyhedronToTriangleMesh(*nef, mesh);

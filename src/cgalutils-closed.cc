@@ -7,15 +7,12 @@
 
 #include <CGAL/boost/graph/helpers.h>
 #include <CGAL/Surface_mesh.h>
-#include "scoped_timer.h"
 
 namespace CGALUtils {
 
 template <typename Polyhedron>
 bool isClosed(const Polyhedron &p)
 {
-  SCOPED_PERFORMANCE_TIMER("isClosed");
-
 	return CGAL::is_closed(p);
 }
 

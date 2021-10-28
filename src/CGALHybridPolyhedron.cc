@@ -5,7 +5,6 @@
 
 #include "cgalutils.h"
 #include "hash.h"
-#include "scoped_timer.h"
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/boost/graph/helpers.h>
 
@@ -20,8 +19,6 @@
  */
 void cleanupMesh(CGALHybridPolyhedron::mesh_t &mesh, bool is_corefinement_result)
 {
-	SCOPED_PERFORMANCE_TIMER("force exact numbers");
-
 	mesh.collect_garbage();
 
 #ifdef FAST_CSG_KERNEL_IS_LAZY
@@ -219,12 +216,10 @@ void CGALHybridPolyhedron::transform(const Transform3d &mat)
 		auto t = CGALUtils::createAffineTransformFromMatrix<CGAL_HybridKernel3>(mat);
 
 		if (auto mesh = getMesh()) {
-			SCOPED_PERFORMANCE_TIMER("mesh transform");
 			CGALUtils::transform(*mesh, mat);
 			cleanupMesh(*mesh, /* is_corefinement_result */ false);
 		}
 		else if (auto nef = getNefPolyhedron()) {
-			SCOPED_PERFORMANCE_TIMER("nef transform");
 			CGALUtils::transform(*nef, mat);
 		}
 		else {
@@ -300,8 +295,6 @@ void CGALHybridPolyhedron::nefPolyBinOp(
 		const std::function<void(nef_polyhedron_t &destinationNef, nef_polyhedron_t &otherNef)>
 				&operation)
 {
-	SCOPED_PERFORMANCE_TIMER(opName);
-
 	LOG(message_group::Echo, Location::NONE, "", "[fast-csg] %1$s (%2$lu vs. %3$lu facets)",
 			opName.c_str(), numFacets(), other.numFacets());
 
@@ -312,8 +305,6 @@ bool CGALHybridPolyhedron::polyBinOp(
 		const std::string &opName, CGALHybridPolyhedron &other,
 		const std::function<bool(mesh_t &lhs, mesh_t &rhs, mesh_t &out)> &operation)
 {
-	SCOPED_PERFORMANCE_TIMER(opName);
-
 	LOG(message_group::Echo, Location::NONE, "", "[fast-csg] %1$s (%2$lu vs. %3$lu facets)",
 			opName.c_str(), numFacets(), other.numFacets());
 
@@ -361,8 +352,6 @@ bool CGALHybridPolyhedron::polyBinOp(
 CGALHybridPolyhedron::nef_polyhedron_t &CGALHybridPolyhedron::convertToNef()
 {
 	if (auto mesh = getMesh()) {
-		SCOPED_PERFORMANCE_TIMER("mesh -> nef");
-
 		auto nef = make_shared<nef_polyhedron_t>(*mesh);
 		data = nef;
 		return *nef;
@@ -381,8 +370,6 @@ CGALHybridPolyhedron::mesh_t &CGALHybridPolyhedron::convertToMesh()
 		return *mesh;
 	}
 	else if (auto nef = getNefPolyhedron()) {
-		SCOPED_PERFORMANCE_TIMER("nef -> polyhedron");
-
 		auto mesh = make_shared<mesh_t>();
 		CGALUtils::convertNefPolyhedronToTriangleMesh(*nef, *mesh);
 		cleanupMesh(*mesh, /* is_corefinement_result */ false);
