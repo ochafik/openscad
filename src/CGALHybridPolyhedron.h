@@ -5,6 +5,7 @@
 
 #include <boost/variant.hpp>
 #include "Geometry.h"
+#include <future>
 
 class CGAL_Nef_polyhedron;
 class CGALHybridPolyhedron;
@@ -36,9 +37,24 @@ public:
   typedef CGAL::Nef_polyhedron_3<CGAL_HybridKernel3> nef_polyhedron_t;
   typedef CGAL::Iso_cuboid_3<CGAL_HybridKernel3> bbox_t;
   typedef CGAL::Surface_mesh<point_t> mesh_t;
+  
+  // This contains data either as a polyhedron, or as a nef polyhedron.
+  //
+  // We stick to nef polyhedra in presence of non-manifold geometry or literal
+  // edge-cases of the Polygon Mesh Processing corefinement functions (e.g. it
+  // does not like shared edges, but tells us so politely).
+  typedef boost::variant<std::shared_ptr<mesh_t>, std::shared_ptr<nef_polyhedron_t>> immediate_data_t;
+  typedef std::shared_future<immediate_data_t> future_data_t;
+  typedef boost::variant<
+    std::shared_ptr<mesh_t>,
+    std::shared_ptr<nef_polyhedron_t>,
+    // immediate_data_t,
+    future_data_t> hybrid_data_t;
 
   CGALHybridPolyhedron(const shared_ptr<nef_polyhedron_t>& nef);
   CGALHybridPolyhedron(const shared_ptr<mesh_t>& mesh);
+  CGALHybridPolyhedron(const std::shared_future<shared_ptr<nef_polyhedron_t>>& nef, size_t estimatedFacetCount);
+  CGALHybridPolyhedron(const std::shared_future<shared_ptr<mesh_t>>& mesh, size_t estimatedFacetCount);
   CGALHybridPolyhedron(const CGALHybridPolyhedron& other);
   CGALHybridPolyhedron();
   CGALHybridPolyhedron& operator=(const CGALHybridPolyhedron& other);
@@ -85,10 +101,14 @@ private:
   friend std::shared_ptr<CGAL_Nef_polyhedron> CGALUtils::createNefPolyhedronFromHybrid(
     const CGALHybridPolyhedron& hybrid);
 
+  static size_t numFacets(const immediate_data_t &data);
+  static size_t numVertices(const immediate_data_t &data);
+
   /*! Runs a binary operation that operates on nef polyhedra, stores the result in
    * the first one and potentially mutates (e.g. corefines) the second. */
-  void nefPolyBinOp(
-    const std::string& opName, CGALHybridPolyhedron& other,
+  static void nefPolyBinOp(
+    const std::string& opName,
+    immediate_data_t &lhs, const immediate_data_t &rhs,
     const std::function<void(
                           nef_polyhedron_t& destinationNef,
                           nef_polyhedron_t& otherNef)>& operation);
@@ -98,28 +118,36 @@ private:
    * Returns false if the operation failed (e.g. because of shared edges), in
    * which case it may still have corefined the polyhedron, but it reverts the
    * original nef if there was one. */
-  bool meshBinOp(
-    const std::string& opName, CGALHybridPolyhedron& other,
+  static bool meshBinOp(
+    const std::string& opName,
+    immediate_data_t &lhs, const immediate_data_t &rhs,
     const std::function<bool(mesh_t& lhs, mesh_t& rhs, mesh_t& out)>& operation);
 
-  nef_polyhedron_t& convertToNef();
-  mesh_t& convertToMesh();
+  void runOperation(
+    CGALHybridPolyhedron& other,
+    const std::function<void(immediate_data_t &, immediate_data_t &)> immediateOp);
 
-  bool sharesAnyVertexWith(const CGALHybridPolyhedron& other) const;
+  static shared_ptr<nef_polyhedron_t> convertToNef(const immediate_data_t &data);
+  static shared_ptr<mesh_t> convertToMesh(const immediate_data_t &data);
+
+  static bool isManifold(const immediate_data_t &data);
+  static bool sharesAnyVertices(const immediate_data_t lhs, const immediate_data_t rhs);
+  static void foreachVertexUntilTrue(const hybrid_data_t &data, const std::function<bool(const point_t& pt)>& f);
+
+  static bool hasImmediateData(const hybrid_data_t &data);
+  static immediate_data_t getImmediateData(const hybrid_data_t &data);
 
   /*! Returns the mesh if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  mesh_t *getMesh() const;
+  static shared_ptr<mesh_t> getMesh(const immediate_data_t &data);
+
   /*! Returns the nef polyhedron if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  nef_polyhedron_t *getNefPolyhedron() const;
-
+  static shared_ptr<nef_polyhedron_t> getNefPolyhedron(const immediate_data_t &data);
+  
   bbox_t getExactBoundingBox() const;
 
-  // This contains data either as a polyhedron, or as a nef polyhedron.
-  //
-  // We stick to nef polyhedra in presence of non-manifold geometry or literal
-  // edge-cases of the Polygon Mesh Processing corefinement functions (e.g. it
-  // does not like shared edges, but tells us so politely).
-  boost::variant<std::shared_ptr<mesh_t>, std::shared_ptr<nef_polyhedron_t>> data;
+  hybrid_data_t data;
+  size_t estimated_facet_count;
+  size_t estimated_vertex_count;
 };
