@@ -7,6 +7,7 @@
 #include "CGALHybridPolyhedron.h"
 #include "node.h"
 #include "progress.h"
+#include "parallel_reduce.h"
 
 Location getLocation(const std::shared_ptr<const AbstractNode> &node)
 {
@@ -51,6 +52,16 @@ shared_ptr<CGALHybridPolyhedron> applyUnion3DHybrid(
       auto node_mark = item.first ? item.first->progress_mark : -1;
       queueItems.emplace_back(poly, node_mark);
     }
+
+    if (Feature::ExperimentalParallelUnion.is_enabled()) {
+      auto result = parallel_reduce<QueueItem, QueueItemGreater>(queueItems, [](auto a, auto b) {
+        *a.first += *b.first;
+        progress_tick();
+        return make_pair(a.first, -1);
+      });
+      return result.first;
+    }
+    
     // Build the queue in linear time (don't add items one by one!).
     std::priority_queue<QueueItem, std::vector<QueueItem>, QueueItemGreater>
     q(queueItems.begin(), queueItems.end());
