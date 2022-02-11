@@ -39,14 +39,20 @@ if(CLANG_TIDY AND CLANG_TIDY_EXE)
   set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE};-header-filter=${regex}")
 endif()
 
-add_executable(OpenSCAD)
+list(APPEND Executables OpenSCAD)
+if(ENABLE_CGAL_BUG_REPRO_TOOL)
+  list(APPEND Executables cgal-bug-repro)
+endif()
 
-# Strict c++14, e.g. no GNU extensions
-set_property(TARGET OpenSCAD PROPERTY CXX_STANDARD 14)
-set_property(TARGET OpenSCAD PROPERTY CXX_EXTENSIONS OFF)
-set_property(TARGET OpenSCAD PROPERTY CXX_STANDARD_REQUIRED ON)
-# Output compilation database (compile_commands.json), so we can e.g. run clang-tidy or other tools separately
-set_property(TARGET OpenSCAD PROPERTY EXPORT_COMPILE_COMMANDS ON)
+foreach(Executable ${Executables})
+  add_executable(${Executable})
+  # Strict c++14, e.g. no GNU extensions
+  set_property(TARGET ${Executable} PROPERTY CXX_STANDARD 14)
+  set_property(TARGET ${Executable} PROPERTY CXX_EXTENSIONS OFF)
+  set_property(TARGET ${Executable} PROPERTY CXX_STANDARD_REQUIRED ON)
+  # Output compilation database (compile_commands.json), so we can e.g. run clang-tidy or other tools separately
+  set_property(TARGET ${Executable} PROPERTY EXPORT_COMPILE_COMMANDS ON)
+endforeach()
 
 option(INFO "Display build configuration info at end of cmake config" ON)
 option(EXPERIMENTAL "Enable Experimental Features" OFF)
@@ -65,6 +71,7 @@ if(APPLE)
 endif()
 
 option(ENABLE_TESTS "Run testsuite after building." ON)
+option(ENABLE_CGAL_BUG_REPRO_TOOL "Build the CGAL bug repro tool." OFF)
 set(SUFFIX "" CACHE STRING "Installation suffix for binary (e.g. 'nightly')")
 set(STACKSIZE 8388608 CACHE STRING "Stack size (default is 8MB)")
 
@@ -303,14 +310,23 @@ target_compile_definitions(OpenSCAD PRIVATE ENABLE_CGAL)
 # on bad geometry input.
 target_compile_definitions(OpenSCAD PRIVATE CGAL_DEBUG)
 target_compile_definitions(OpenSCAD PRIVATE CGAL_USE_GMPXX)
+foreach(Executable ${Executables})
+  target_compile_definitions(${Executable} PRIVATE ENABLE_CGAL)
+  # The macro `CGAL_DEBUG` allows to force CGAL assertions, even if `NDEBUG` is defined,
+  # Enabling CGAL assertions is necessary for us to catch them before they cause a crash
+  # on bad geometry input.
+  target_compile_definitions(${Executable} PRIVATE CGAL_DEBUG)
+  target_compile_definitions(${Executable} PRIVATE CGAL_USE_GMPXX)
+endforeach()
 if(TARGET CGAL::CGAL)
-  list(APPEND COMMON_LIBRARIES CGAL::CGAL CGAL::CGAL_Core)
+  list(APPEND CGAL_LIBRARIES CGAL::CGAL CGAL::CGAL_Core)
   message(STATUS "CGAL: Using target CGAL::CGAL CGAL::CGAL_Core")
 else()
-  list(APPEND COMMON_LIBRARIES ${CGAL_LIBRARY})
-  list(APPEND COMMON_LIBRARIES ${GMP_LIBRARIES})
-  list(APPEND COMMON_LIBRARIES ${MPFR_LIBRARIES})
+  list(APPEND CGAL_LIBRARIES ${CGAL_LIBRARY})
+  list(APPEND CGAL_LIBRARIES ${GMP_LIBRARIES})
+  list(APPEND CGAL_LIBRARIES ${MPFR_LIBRARIES})
 endif()
+list(APPEND COMMON_LIBRARIES ${CGAL_LIBRARIES})
 # revert any changes to module path from CGAL_Macros.cmake; see note above
 # Commented out code should work in CGAL>= 5.4
 #if (CGAL_MODULE_PATH_IS_SET)
@@ -861,6 +877,9 @@ if (SORT_BUILD)
 endif()
 
 target_sources(OpenSCAD PRIVATE ${Sources} ${RESOURCE_FILES} ${WINDOWS_RESOURCE_PATH})
+if(ENABLE_CGAL_BUG_REPRO_TOOL)
+  target_sources(cgal-bug-repro PRIVATE src/cgal-bug-repro)
+endif()
 find_program(SHELL_EXE NAMES sh bash $ENV{SHELL})
 add_custom_command(TARGET OpenSCAD POST_BUILD
     COMMAND "${SHELL_EXE}"
@@ -902,6 +921,9 @@ if(MXECROSS)
 endif()
 
 target_link_libraries(OpenSCAD PRIVATE ${COMMON_LIBRARIES} ${PLATFORM_LIBS})
+if(ENABLE_CGAL_BUG_REPRO_TOOL)
+  target_link_libraries(cgal-bug-repro PRIVATE ${CGAL_LIBRARIES})
+endif()
 
 if(NOT APPLE OR APPLE_UNIX)
 set_target_properties(OpenSCAD PROPERTIES OUTPUT_NAME openscad${SUFFIX_WITH_DASH})
