@@ -17,6 +17,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/normal_vector_newell_3.h>
 #include <CGAL/Handle_hash_function.h>
+#include <CGAL/Lazy.h>
 
 #include <CGAL/config.h>
 #include <CGAL/version.h>
@@ -322,7 +323,13 @@ shared_ptr<const Geometry> applyMinkowski(const Geometry::Geometries& children)
           minkowski_points.reserve(points[0].size() * points[1].size());
           for (size_t i = 0; i < points[0].size(); ++i) {
             for (size_t j = 0; j < points[1].size(); ++j) {
-              minkowski_points.push_back(points[0][i] + (points[1][j] - CGAL::ORIGIN));
+              auto pt = points[0][i] + (points[1][j] - CGAL::ORIGIN);
+              if (Feature::ExperimentalExactMinkowksi.is_enabled()) {
+                CGAL::exact(pt.x());
+                CGAL::exact(pt.y());
+                CGAL::exact(pt.z());
+              }
+              minkowski_points.push_back(pt);
             }
           }
 

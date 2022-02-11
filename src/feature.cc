@@ -38,6 +38,7 @@ const Feature Feature::ExperimentalFastCsgExact("fast-csg-exact", "Force lazy nu
 const Feature Feature::ExperimentalFastCsgExactCorefinementCallback("fast-csg-exact-callbacks", "Same as fast-csg-exact but even forces exact numbers inside corefinement callbacks rather than at the end of each operation.");
 #endif // FAST_CSG_KERNEL_IS_LAZY
 const Feature Feature::ExperimentalRoof("roof", "Enable <code>roof</code>");
+const Feature Feature::ExperimentalExactMinkowksi("exact-minkowski", "Force numbers generated in minowksi to be exact to improve performance.");
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");
 const Feature Feature::ExperimentalVxORenderers("vertex-object-renderers", "Enable vertex object renderers");

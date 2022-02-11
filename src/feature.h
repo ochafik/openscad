@@ -20,6 +20,7 @@ public:
   static const Feature ExperimentalFastCsgExact;
   static const Feature ExperimentalFastCsgExactCorefinementCallback;
   static const Feature ExperimentalRoof;
+  static const Feature ExperimentalExactMinkowksi;
   static const Feature ExperimentalInputDriverDBus;
   static const Feature ExperimentalLazyUnion;
   static const Feature ExperimentalVxORenderers;
