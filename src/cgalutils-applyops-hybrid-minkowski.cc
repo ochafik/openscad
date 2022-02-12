@@ -42,9 +42,10 @@ shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries& chil
 {
   // TODO: use Surface_mesh everywhere!!!
   typedef CGAL::Epick Hull_kernel;
-  typedef CGAL::Polyhedron_3<CGAL_HybridKernel3> Hybrid_Polyhedron;
+  typedef CGALHybridPolyhedron::mesh_t mesh_t;
+  typedef CGALHybridPolyhedron::nef_polyhedron_t nef_polyhedron_t;
+  typedef CGAL::Polyhedron_3<CGAL_HybridKernel3> polyhedron_t;
   typedef CGAL::Polyhedron_3<Hull_kernel>        Hull_Polyhedron;
-  typedef CGAL::Nef_polyhedron_3<CGAL_HybridKernel3> Hybrid_Nef;
 
   CGAL::Timer t, t_tot;
   assert(children.size() >= 2);
@@ -55,51 +56,50 @@ shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries& chil
     while (++it != children.end()) {
       operands[1] = it->second;
 
-      std::list<shared_ptr<Hybrid_Polyhedron>> P[2];
+      std::list<shared_ptr<mesh_t>> P[2];
       std::list<shared_ptr<Hull_Polyhedron>> result_parts;
 
       for (size_t i = 0; i < 2; ++i) {
-        auto poly = make_shared<Hybrid_Polyhedron>();
-
         auto ps = dynamic_pointer_cast<const PolySet>(operands[i]);
         auto hybrid = CGALUtils::getHybridPolyhedronFromGeometry(operands[i]);
         if (!hybrid) throw 0;
 
-        if (ps) CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
-        else if (auto nef = hybrid->getNefPolyhedron()) {
-          if (nef->is_simple()) CGALUtils::convertNefToPolyhedron(*nef, *poly);
-          else throw 0;
-        }  
-        else if (auto mesh = hybrid->getMesh()) {
-          if (CGAL::is_valid_polygon_mesh(*mesh)) CGAL::copy_face_graph(*mesh, *poly);
-          else throw 0;
-        }  
-        else throw 0;
-
+        auto mesh = hybrid->getMesh();
+        auto nef = hybrid->getNefPolyhedron();
+        if (nef) {
+          if (!nef->is_simple()) throw 0;
+          mesh = make_shared<mesh_t>();
+          CGALUtils::convertNefPolyhedronToTriangleMesh(*nef, *mesh);
+          CGALUtils::triangulateFaces(*mesh);
+        } else {
+          if (!mesh) throw 0;
+          if (!CGAL::is_valid_polygon_mesh(*mesh)) throw 0;
+        }
+        
         if ((ps && ps->is_convex()) ||
-            (!ps && CGALUtils::is_weakly_convex(*poly))) {
+            (!ps && CGALUtils::is_weakly_convex(*mesh))) {
           PRINTDB("Minkowski: child %d is convex and %s", i % (ps?"PolySet":"Hybrid"));
-          P[i].push_back(poly);
+          P[i].push_back(mesh);
         } else {
           PRINTDB("Minkowski: child %d is nonconvex, decomposing...", i);
-          shared_ptr<Hybrid_Nef> decomposed_nef;
-
-          if (auto mesh = hybrid->getMesh()) {
-            decomposed_nef = make_shared<Hybrid_Nef>(*mesh);
-          } else if (auto nef = hybrid->getNefPolyhedron()) {
-            decomposed_nef = make_shared<Hybrid_Nef>(*nef);
-          }
+          auto decomposed_nef = nef ? make_shared<nef_polyhedron_t>(*nef)
+                                    : make_shared<nef_polyhedron_t>(*mesh);
 
           t.start();
           CGAL::convex_decomposition_3(*decomposed_nef);
 
           // the first volume is the outer volume, which ignored in the decomposition
-          Hybrid_Nef::Volume_const_iterator ci = ++decomposed_nef->volumes_begin();
+          auto ci = ++decomposed_nef->volumes_begin();
           for (; ci != decomposed_nef->volumes_end(); ++ci) {
             if (ci->mark()) {
-              auto poly = make_shared<Hybrid_Polyhedron>();
-              decomposed_nef->convert_inner_shell_to_polyhedron(ci->shells_begin(), *poly);
-              P[i].push_back(poly);
+              polyhedron_t poly;
+              decomposed_nef->convert_inner_shell_to_polyhedron(ci->shells_begin(), poly);
+
+              auto mesh = make_shared<mesh_t>();
+              CGAL::copy_face_graph(poly, *mesh);
+              CGALUtils::triangulateFaces(*mesh);
+
+              P[i].push_back(mesh);
             }
           }
 
@@ -124,11 +124,11 @@ shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries& chil
             auto it = P[k].begin();
             std::advance(it, k == 0?i:j);
 
-            auto& poly = *it;
-            points[k].reserve(poly->size_of_vertices());
+            auto& mesh = *it;
+            points[k].reserve(mesh->number_of_vertices());
 
-            for (auto pi = poly->vertices_begin(); pi != poly->vertices_end(); ++pi) {
-              Hybrid_Polyhedron::Point_3 const& p = pi->point();
+            for (auto vi : mesh->vertices()) {
+              auto &p = mesh->point(vi);
               points[k].push_back(conv(p));
             }
           }
