@@ -2,7 +2,9 @@
 
 #include <CGAL/boost/graph/convert_nef_polyhedron_to_polygon_mesh.h>
 #include <CGAL/Surface_mesh.h>
+#include "CGALHybridPolyhedron.h"
 #include "Reindexer.h"
+#include "Polygon2d.h"
 
 namespace CGALUtils {
 
@@ -143,5 +145,58 @@ void cleanupMesh(CGAL::Surface_mesh<CGAL::Point_3<CGAL_HybridKernel3>>& mesh, bo
 #endif // FAST_CSG_KERNEL_IS_LAZY
 }
 
-} // namespace CGALUtils
+std::pair<size_t, std::shared_ptr<const CGAL_HybridMesh>> get2dOr3dMeshFromGeometry(const std::shared_ptr<const Geometry> &geomRef)
+{
+  auto geom = geomRef;
 
+  size_t dimension = 3;
+  if (auto polygon2d = dynamic_pointer_cast<const Polygon2d>(geom)) {
+    geom = std::shared_ptr<const PolySet>(polygon2d->tessellate());
+    dimension = 2;
+  } else if (auto ps = dynamic_pointer_cast<const PolySet>(geom)) {
+    dimension = ps->getDimension();
+  }
+  
+  if (auto hybrid = createMutableHybridPolyhedronFromGeometry(geom)) {
+    return std::make_pair(dimension, hybrid->convertToMesh());
+  }
+  return std::make_pair(0, shared_ptr<const CGAL_HybridMesh>());
+}
+
+template <typename TriangleMesh, typename OutStream>
+void meshToSource(const TriangleMesh &tm, size_t dimension, OutStream &out, const std::string &indent)
+{
+  if (dimension != 2 && dimension != 3) throw 0;
+
+  out << (dimension == 2 ? "polygon" : "polyhedron") << "([\n";
+  for (auto &v : tm.vertices()) {
+    auto& p = tm.point(v);
+    double x = CGAL::to_double(p.x());
+    double y = CGAL::to_double(p.y());
+    double z = CGAL::to_double(p.z());
+    out << indent << "  [" << x << ", " << y;
+    if (dimension == 3) out << ", " << z;
+    out << "],\n";
+  }
+  out << indent << "], [\n";
+  for (auto &f : tm.faces()) {
+    auto first = true;
+    out << indent << "  [";
+    CGAL::Vertex_around_face_iterator<TriangleMesh> vit, vend;
+    for (boost::tie(vit, vend) = vertices_around_face(tm.halfedge(f), tm); vit != vend; ++vit) {
+      auto v = *vit;
+      if (first) {
+        first = false;
+      } else {
+        out << ", ";
+      }
+      out << (size_t) v;
+    }
+    out << indent << "],\n";
+  }
+  out << indent << "]);\n";
+}
+
+template void meshToSource(const CGAL_HybridMesh &tm, size_t dimension, std::ostringstream &o, const std::string &indent);
+
+} // namespace CGALUtils
