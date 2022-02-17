@@ -264,28 +264,37 @@ Response NodeDumper::visit(State& state, const ImportNode& node)
 {
 #ifdef ENABLE_CGAL
   if (Feature::ExperimentalCsgInlineImports.is_enabled()) {
-    if (auto geom = std::shared_ptr<const Geometry>(node.createGeometry())) {
-      auto p = CGALUtils::get2dOr3dMeshFromGeometry(geom);
-      auto dimension = p.first;
-      auto mesh = p.second;
-      if (mesh) {
-        if (state.isPrefix()) {
-          dumpModifiers(state, node);
 
-          // insert start index
-          this->cache.insertStart(node.index(), this->dumpstream.tellp());
+    if (state.isPrefix()) {
+      // For handling root modifier '!'
+      if (this->root.get() == &node) {
+        this->initCache();
+      }
+      this->cache.insertStart(node.index(), this->dumpstream.tellp());
 
-          this->dumpstream << this->indent << "/* " << STR(node).c_str() << " */\n" << this->indent;
-          CGALUtils::meshToSource(*mesh, dimension, this->dumpstream, this->indent);
-          
-          // insert end index
-          this->cache.insertEnd(node.index(), this->dumpstream.tellp());
+      dumpModifiers(state, node);
+
+      for (int i = 0; i < this->currindent; ++i) {
+        this->dumpstream << this->indent;
+      }
+      this->dumpstream << "/* " << STR(node).c_str() << " */\n";
+
+      if (auto geom = std::shared_ptr<const Geometry>(node.createGeometry())) {
+        if (auto mesh = CGALUtils::getMeshFromNDGeometry(geom)) {
+          CGALUtils::dumpMesh(*mesh, geom->getDimension(), node.convexity, this->dumpstream, this->indent, this->currindent);
         }
-        return Response::ContinueTraversal;
+      }
+
+    } else if (state.isPostfix()) {
+      this->cache.insertEnd(node.index(), this->dumpstream.tellp());
+      // For handling root modifier '!'
+      if (this->root.get() == &node) {
+        this->finalizeCache();
       }
     }
+    return Response::ContinueTraversal;
   }
 #endif // ENABLE_CGAL
 
-  return visit(state, *(const AbstractNode*)&node);
+  return visit(state, *(const AbstractNode *)&node);
 }
