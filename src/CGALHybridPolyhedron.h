@@ -18,6 +18,9 @@ class Surface_mesh;
 namespace CGALUtils {
 std::shared_ptr<CGAL_Nef_polyhedron> createNefPolyhedronFromHybrid(
   const CGALHybridPolyhedron& hybrid);
+
+std::shared_ptr<const Geometry> applyMinkowskiHybrid(
+  const Geometry::Geometries& children);
 } // namespace CGALUtils
 
 /*! A mutable polyhedron backed by a CGAL::Surface_mesh and fast Polygon Mesh
@@ -101,6 +104,9 @@ private:
   friend std::shared_ptr<CGAL_Nef_polyhedron> CGALUtils::createNefPolyhedronFromHybrid(
     const CGALHybridPolyhedron& hybrid);
 
+  friend std::shared_ptr<const Geometry> CGALUtils::applyMinkowskiHybrid(
+    const Geometry::Geometries& children);
+
   static size_t numFacets(const immediate_data_t &data);
   static size_t numVertices(const immediate_data_t &data);
 
@@ -137,13 +143,15 @@ private:
   static bool hasImmediateData(const hybrid_data_t &data);
   static immediate_data_t getImmediateData(const hybrid_data_t &data);
 
+  static bool canCorefine(const immediate_data_t& lhs, const immediate_data_t& rhs);
+
   /*! Returns the mesh if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  static shared_ptr<mesh_t> getMesh(const immediate_data_t &data);
+  static std::shared_ptr<mesh_t> getMesh(const immediate_data_t &data);
 
   /*! Returns the nef polyhedron if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  static shared_ptr<nef_polyhedron_t> getNefPolyhedron(const immediate_data_t &data);
+  static std::shared_ptr<nef_polyhedron_t> getNefPolyhedron(const immediate_data_t &data);
   
   bbox_t getExactBoundingBox() const;
 

@@ -9,7 +9,7 @@
 #include "progress.h"
 #include "parallel_reduce.h"
 
-Location getLocation(const std::shared_ptr<const AbstractNode> &node)
+Location getLocation(const std::shared_ptr<const AbstractNode>& node)
 {
   return node && node->modinst ? node->modinst->location() : Location::NONE;
 }
@@ -44,7 +44,7 @@ shared_ptr<CGALHybridPolyhedron> applyUnion3DHybrid(
       if (!chgeom || chgeom->isEmpty()) {
         continue;
       }
-      auto poly = CGALUtils::createHybridPolyhedronFromGeometry(*chgeom);
+      auto poly = CGALUtils::createMutableHybridPolyhedronFromGeometry(chgeom);
       if (!poly) {
         continue;
       }
@@ -103,7 +103,7 @@ shared_ptr<CGALHybridPolyhedron> applyOperator3DHybrid(const Geometry::Geometrie
 
   try {
     for (const auto& item : children) {
-      auto chN = item.second ? CGALUtils::createHybridPolyhedronFromGeometry(*item.second) : nullptr;
+      auto chN = item.second ? CGALUtils::createMutableHybridPolyhedronFromGeometry(item.second) : nullptr;
       // Initialize N with first expected geometric object
       if (!foundFirst) {
         if (chN) {
