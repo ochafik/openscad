@@ -37,7 +37,6 @@ public:
   VISITABLE_GEOMETRY();
 
   typedef CGAL::Point_3<CGAL_HybridKernel3> point_t;
-  typedef CGAL::Nef_polyhedron_3<CGAL_HybridKernel3> nef_polyhedron_t;
   typedef CGAL::Iso_cuboid_3<CGAL_HybridKernel3> bbox_t;
   typedef CGAL::Surface_mesh<point_t> mesh_t;
   
@@ -46,18 +45,16 @@ public:
   // We stick to nef polyhedra in presence of non-manifold geometry or literal
   // edge-cases of the Polygon Mesh Processing corefinement functions (e.g. it
   // does not like shared edges, but tells us so politely).
-  typedef boost::variant<std::shared_ptr<mesh_t>, std::shared_ptr<nef_polyhedron_t>> immediate_data_t;
+  typedef boost::variant<std::shared_ptr<CGAL_HybridMesh>, std::shared_ptr<CGAL_HybridNef>> immediate_data_t;
   typedef std::shared_future<immediate_data_t> future_data_t;
   typedef boost::variant<
-    std::shared_ptr<mesh_t>,
-    std::shared_ptr<nef_polyhedron_t>,
+    std::shared_ptr<CGAL_HybridMesh>,
+    std::shared_ptr<CGAL_HybridNef>,
     // immediate_data_t,
     future_data_t> hybrid_data_t;
 
-  CGALHybridPolyhedron(const shared_ptr<nef_polyhedron_t>& nef);
-  CGALHybridPolyhedron(const shared_ptr<mesh_t>& mesh);
-  CGALHybridPolyhedron(const std::shared_future<shared_ptr<nef_polyhedron_t>>& nef, size_t estimatedFacetCount);
-  CGALHybridPolyhedron(const std::shared_future<shared_ptr<mesh_t>>& mesh, size_t estimatedFacetCount);
+  CGALHybridPolyhedron(const shared_ptr<CGAL_HybridNef>& nef);
+  CGALHybridPolyhedron(const shared_ptr<CGAL_HybridMesh>& mesh);
   CGALHybridPolyhedron(const CGALHybridPolyhedron& other);
   CGALHybridPolyhedron();
   CGALHybridPolyhedron& operator=(const CGALHybridPolyhedron& other);
@@ -97,6 +94,9 @@ public:
   /*! Iterate over all vertices' points until the function returns true (for done). */
   void foreachVertexUntilTrue(const std::function<bool(const point_t& pt)>& f) const;
 
+  std::shared_ptr<CGAL_HybridNef> convertToNef();
+  std::shared_ptr<CGAL_HybridMesh> convertToMesh();
+
 private:
   // Old GCC versions used to build releases have object file limitations.
   // This conversion function could have been in the class but it requires knowledge
@@ -116,8 +116,8 @@ private:
     const std::string& opName,
     immediate_data_t &lhs, const immediate_data_t &rhs,
     const std::function<void(
-                          nef_polyhedron_t& destinationNef,
-                          nef_polyhedron_t& otherNef)>& operation);
+                          CGAL_HybridNef& destinationNef,
+                          CGAL_HybridNef& otherNef)>& operation);
 
   /*! Runs a binary operation that operates on polyhedra, stores the result in
    * the first one and potentially mutates (e.g. corefines) the second.
@@ -127,14 +127,14 @@ private:
   static bool meshBinOp(
     const std::string& opName,
     immediate_data_t &lhs, const immediate_data_t &rhs,
-    const std::function<bool(mesh_t& lhs, mesh_t& rhs, mesh_t& out)>& operation);
+    const std::function<bool(CGAL_HybridMesh& lhs, CGAL_HybridMesh& rhs, CGAL_HybridMesh& out)>& operation);
 
   void runOperation(
     CGALHybridPolyhedron& other,
     const std::function<void(immediate_data_t &, immediate_data_t &)> immediateOp);
 
-  static shared_ptr<nef_polyhedron_t> convertToNef(const immediate_data_t &data);
-  static shared_ptr<mesh_t> convertToMesh(const immediate_data_t &data);
+  static shared_ptr<CGAL_HybridNef> convertToNef(const immediate_data_t &data);
+  static shared_ptr<CGAL_HybridMesh> convertToMesh(const immediate_data_t &data);
 
   static bool isManifold(const immediate_data_t &data);
   static bool sharesAnyVertices(const immediate_data_t lhs, const immediate_data_t rhs);
@@ -147,11 +147,11 @@ private:
 
   /*! Returns the mesh if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  static std::shared_ptr<mesh_t> getMesh(const immediate_data_t &data);
+  static std::shared_ptr<CGAL_HybridMesh> getMesh(const immediate_data_t &data);
 
   /*! Returns the nef polyhedron if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  static std::shared_ptr<nef_polyhedron_t> getNefPolyhedron(const immediate_data_t &data);
+  static std::shared_ptr<CGAL_HybridNef> getNefPolyhedron(const immediate_data_t &data);
   
   bbox_t getExactBoundingBox() const;
 

@@ -205,7 +205,7 @@ shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries& chil
       if (it != std::next(children.begin())) operands[0].reset();
 
       auto partToGeom = [&](auto& poly) -> shared_ptr<const Geometry> {
-          auto mesh = make_shared<CGALHybridPolyhedron::mesh_t>();
+          auto mesh = make_shared<CGAL_HybridMesh>();
           CGAL::copy_face_graph(*poly, *mesh);
           CGALUtils::triangulateFaces(*mesh);
           return make_shared<CGALHybridPolyhedron>(mesh);
