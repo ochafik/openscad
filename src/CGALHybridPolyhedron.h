@@ -39,7 +39,7 @@ public:
   typedef CGAL::Point_3<CGAL_HybridKernel3> point_t;
   typedef CGAL::Iso_cuboid_3<CGAL_HybridKernel3> bbox_t;
   typedef CGAL::Surface_mesh<point_t> mesh_t;
-  
+
   // This contains data either as a polyhedron, or as a nef polyhedron.
   //
   // We stick to nef polyhedra in presence of non-manifold geometry or literal
@@ -48,10 +48,10 @@ public:
   typedef boost::variant<std::shared_ptr<CGAL_HybridMesh>, std::shared_ptr<CGAL_HybridNef>> immediate_data_t;
   typedef std::shared_future<immediate_data_t> future_data_t;
   typedef boost::variant<
-    std::shared_ptr<CGAL_HybridMesh>,
-    std::shared_ptr<CGAL_HybridNef>,
-    // immediate_data_t,
-    future_data_t> hybrid_data_t;
+      std::shared_ptr<CGAL_HybridMesh>,
+      std::shared_ptr<CGAL_HybridNef>,
+      // immediate_data_t,
+      future_data_t> hybrid_data_t;
 
   CGALHybridPolyhedron(const shared_ptr<CGAL_HybridNef>& nef);
   CGALHybridPolyhedron(const shared_ptr<CGAL_HybridMesh>& mesh);
@@ -107,14 +107,14 @@ private:
   friend std::shared_ptr<const Geometry> CGALUtils::applyMinkowskiHybrid(
     const Geometry::Geometries& children);
 
-  static size_t numFacets(const immediate_data_t &data);
-  static size_t numVertices(const immediate_data_t &data);
+  static size_t numFacets(const immediate_data_t& data);
+  static size_t numVertices(const immediate_data_t& data);
 
   /*! Runs a binary operation that operates on nef polyhedra, stores the result in
    * the first one and potentially mutates (e.g. corefines) the second. */
   static void nefPolyBinOp(
     const std::string& opName,
-    immediate_data_t &lhs, const immediate_data_t &rhs,
+    immediate_data_t& lhs, const immediate_data_t& rhs,
     const std::function<void(
                           CGAL_HybridNef& destinationNef,
                           CGAL_HybridNef& otherNef)>& operation);
@@ -126,33 +126,33 @@ private:
    * original nef if there was one. */
   static bool meshBinOp(
     const std::string& opName,
-    immediate_data_t &lhs, const immediate_data_t &rhs,
+    immediate_data_t& lhs, const immediate_data_t& rhs,
     const std::function<bool(CGAL_HybridMesh& lhs, CGAL_HybridMesh& rhs, CGAL_HybridMesh& out)>& operation);
 
   void runOperation(
     CGALHybridPolyhedron& other,
-    const std::function<void(immediate_data_t &, immediate_data_t &)> immediateOp);
+    const std::function<void(immediate_data_t&, immediate_data_t&)> immediateOp);
 
-  static shared_ptr<CGAL_HybridNef> convertToNef(const immediate_data_t &data);
-  static shared_ptr<CGAL_HybridMesh> convertToMesh(const immediate_data_t &data);
+  static shared_ptr<CGAL_HybridNef> convertToNef(const immediate_data_t& data);
+  static shared_ptr<CGAL_HybridMesh> convertToMesh(const immediate_data_t& data);
 
-  static bool isManifold(const immediate_data_t &data);
+  static bool isManifold(const immediate_data_t& data);
   static bool sharesAnyVertices(const immediate_data_t lhs, const immediate_data_t rhs);
-  static void foreachVertexUntilTrue(const hybrid_data_t &data, const std::function<bool(const point_t& pt)>& f);
+  static void foreachVertexUntilTrue(const hybrid_data_t& data, const std::function<bool(const point_t& pt)>& f);
 
-  static bool hasImmediateData(const hybrid_data_t &data);
-  static immediate_data_t getImmediateData(const hybrid_data_t &data);
+  static bool hasImmediateData(const hybrid_data_t& data);
+  static immediate_data_t getImmediateData(const hybrid_data_t& data);
 
   static bool canCorefine(const immediate_data_t& lhs, const immediate_data_t& rhs);
 
   /*! Returns the mesh if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  static std::shared_ptr<CGAL_HybridMesh> getMesh(const immediate_data_t &data);
+  static std::shared_ptr<CGAL_HybridMesh> getMesh(const immediate_data_t& data);
 
   /*! Returns the nef polyhedron if that's what's in the current data, or else nullptr.
    * Do NOT make this public. */
-  static std::shared_ptr<CGAL_HybridNef> getNefPolyhedron(const immediate_data_t &data);
-  
+  static std::shared_ptr<CGAL_HybridNef> getNefPolyhedron(const immediate_data_t& data);
+
   bbox_t getExactBoundingBox() const;
 
   hybrid_data_t data;
