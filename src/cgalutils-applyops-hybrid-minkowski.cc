@@ -65,11 +65,12 @@ shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries& chil
         auto hybrid = CGALUtils::getHybridPolyhedronFromGeometry(operands[i]);
         if (!hybrid) throw 0;
 
+        auto immediateData = CGALHybridPolyhedron::getImmediateData(hybrid->data);
         if (ps) CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
-        else if (auto nef = hybrid->getNefPolyhedron()) {
+        else if (auto nef = CGALHybridPolyhedron::getNefPolyhedron(immediateData)) {
           if (nef->is_simple()) CGALUtils::convertNefToPolyhedron(*nef, *poly);
           else throw 0;
-        } else if (auto mesh = hybrid->getMesh())   {
+        } else if (auto mesh = CGALHybridPolyhedron::getMesh(immediateData)) {
           if (CGAL::is_valid_polygon_mesh(*mesh)) CGAL::copy_face_graph(*mesh, *poly);
           else throw 0;
         } else throw 0;
@@ -82,9 +83,9 @@ shared_ptr<const Geometry> applyMinkowskiHybrid(const Geometry::Geometries& chil
           PRINTDB("Minkowski: child %d is nonconvex, decomposing...", i);
           shared_ptr<Hybrid_Nef> decomposed_nef;
 
-          if (auto mesh = hybrid->getMesh()) {
+          if (auto mesh = CGALHybridPolyhedron::getMesh(immediateData)) {
             decomposed_nef = make_shared<Hybrid_Nef>(*mesh);
-          } else if (auto nef = hybrid->getNefPolyhedron()) {
+          } else if (auto nef = CGALHybridPolyhedron::getNefPolyhedron(immediateData)) {
             decomposed_nef = make_shared<Hybrid_Nef>(*nef);
           }
 
