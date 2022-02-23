@@ -188,7 +188,10 @@ int main()
     std::cerr << "CGAL error: " << e.what() << "\n";
   }
 
+  SingletonNumber<CGAL::Gmpq>::values.printStats();
+#ifndef LOCAL_SINGLETON_OPS_CACHE
   SingletonNumber<CGAL::Gmpq>::cache.printStats();
+#endif
   
   return 0;
 }
