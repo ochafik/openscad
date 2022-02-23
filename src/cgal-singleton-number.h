@@ -33,6 +33,13 @@ class SingletonCache {
 
 public:
   SingletonCache() : values_(2), doubleValues_(2) {
+    auto Nstr = getenv("RESERVE_SINGLETONS");
+    auto N = Nstr ? atoi(Nstr) : 30 * 1000 * 1000; // 20M
+    values_.reserve(N);
+    doubleValues_.reserve(N);
+    idsByDoubleValue_.reserve(N);
+
+
     // id=0 has value zero built by FT()
     idsByDoubleValue_.insert(std::make_pair(0.0, 0));
     idsByDoubleValue_.insert(std::make_pair(0.0, 1));
