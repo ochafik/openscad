@@ -10,6 +10,10 @@
 #include <type_traits>
 #include <unordered_map>
 
+#ifndef LOCAL_SINGLETON_OPS_CACHE
+#define LOCAL_SINGLETON_OPS_CACHE 1
+#endif
+
 template <class FT>
 class SingletonNumber;
 
@@ -66,9 +70,15 @@ public:
   template <typename T, std::enable_if_t<std::is_arithmetic<T>::value, bool> = true>
   NumberId getId(T value) {
     if (value == 0) {
+#ifdef DEBUG
+      debugDoubleResolutions_[0]++;
+#endif
       return 0;
     }
     if (value == 1) {
+#ifdef DEBUG
+      debugDoubleResolutions_[1]++;
+#endif
       return 1;
     }
     return getId(FT(value));
@@ -258,7 +268,7 @@ public:
   template <typename T, std::enable_if_t<(std::is_arithmetic<T>::value || std::is_assignable<FT, T>::value), bool> = true>
 
 
-#ifdef LOCAL_SINGLETON_OPS_CACHE
+#if LOCAL_SINGLETON_OPS_CACHE
   mutable LocalOperationsCache<FT> cache;
 
   // Cache is a boost optional
@@ -628,7 +638,7 @@ SINGLETON_NUMBER_BINARY_BOOL_OP_FN(operator>=, >=)
 template<typename FT>
 SingletonCache<FT> SingletonNumber<FT>::values; // TODO define somewhere else?
 
-#ifndef LOCAL_SINGLETON_OPS_CACHE
+#if !LOCAL_SINGLETON_OPS_CACHE
 template<typename FT>
 GlobalOperationsCache<FT> SingletonNumber<FT>::cache; // TODO define somewhere else?
 #endif

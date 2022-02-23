@@ -189,7 +189,7 @@ int main()
   }
 
   SingletonNumber<CGAL::Gmpq>::values.printStats();
-#ifndef LOCAL_SINGLETON_OPS_CACHE
+#if !LOCAL_SINGLETON_OPS_CACHE
   SingletonNumber<CGAL::Gmpq>::cache.printStats();
 #endif
   

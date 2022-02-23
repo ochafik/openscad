@@ -1234,7 +1234,7 @@ int main(int argc, char **argv)
   Builtins::instance(true);
 
   NT3::values.printStats();
-#ifndef LOCAL_SINGLETON_OPS_CACHE
+#if !LOCAL_SINGLETON_OPS_CACHE
   NT3::cache.printStats();
 #endif
 
