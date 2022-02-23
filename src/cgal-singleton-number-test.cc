@@ -21,10 +21,10 @@ extern std::string example1; // see bottom of file
 extern std::string example2;
 
 typedef SingletonNumber<CGAL::Gmpq> FT;
-// typedef CGAL::Cartesian<FT> K;
+typedef CGAL::Cartesian<FT> K;
 // typedef CGAL::Cartesian<CGAL::Gmpq> K;
 // typedef CGAL::Simple_cartesian<double> K;
-typedef CGAL::Epeck K;
+// typedef CGAL::Epeck K;
 
 // TODO(ochafik): Experiment with this:
 // typedef CGAL::Filtered_kernel<CGAL::Simple_cartesian<CGAL::Lazy_exact_nt<FT>>> K;

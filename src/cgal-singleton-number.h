@@ -40,11 +40,14 @@ class SingletonCache {
 #endif
 
 public:
-  SingletonCache() : values_(1), doubleValues_(1) {
+  SingletonCache() : values_(2), doubleValues_(2) {
     // id=0 has value zero built by FT()
     idsByDoubleValue_.insert(std::make_pair(0.0, 0));
+    idsByDoubleValue_.insert(std::make_pair(0.0, 1));
     assert(values_[0] == FT(0.0));
     assert(doubleValues_[0] == 0.0);
+    values_[1] = FT(1.0);
+    doubleValues_[1] = 1.0;
   }
 
 
@@ -137,7 +140,6 @@ public:
 #endif
 
     auto newId = values_.size();
-    if (!newId) throw 0;
     idsByDoubleValue_.insert(it, std::make_pair(doubleValue, newId));
     values_.push_back(value);
     doubleValues_.push_back(doubleValue);
@@ -172,9 +174,9 @@ public:
   static SingletonCache<FT> cache;
 
   template <typename T, std::enable_if_t<std::is_arithmetic<T>::value, bool> = true>
-  SingletonNumber(const T& value) : id_(value == 0 ? 0 : cache.getId(FT(value))) {} // static_cast<double>(value)?
+  SingletonNumber(const T& value) : id_(value == 0 ? 0 : value == 1 ? 1 : cache.getId(FT(value))) {} // static_cast<double>(value)?
 
-  SingletonNumber(double value) : id_(value == 0 ? 0 : cache.getId(FT(value))) {}
+  SingletonNumber(double value) : id_(value == 0 ? 0 : value == 1 ? 1 : cache.getId(FT(value))) {}
   SingletonNumber(const FT& value) : id_(cache.getId(value)) {}
   SingletonNumber(const Type& other) : id_(other.id_) {}
   SingletonNumber() : id_(0) {} //cache.getId(FT(0.0))) {}
@@ -188,6 +190,10 @@ public:
   
   bool isZero() const {
     return id_ == 0;
+  }
+  
+  bool isOne() const {
+    return id_ == 1;
   }
 
   Type &operator=(const Type& other) {
@@ -272,6 +278,9 @@ public:
     if (isZero() != other.isZero()) {
       return false;
     }
+    if (isOne() != other.isOne()) {
+      return false;
+    }
     struct Op {
       bool operator()(const FT &lhs, const FT& rhs) {
         return lhs == rhs;
@@ -284,6 +293,11 @@ public:
     if (x == 0) {
       return isZero();
     } else if (isZero()) {
+      return false;
+    }
+    if (x == 1) {
+      return isOne();
+    } else if (isOne()) {
       return false;
     }
     return *this == Type(x);
@@ -305,6 +319,9 @@ public:
     if (x == 0 && isZero()) {
       return false;
     }
+    // if (x == 1 && isOne()) {
+    //   return false;
+    // }
     return *this < Type(x);
   }
 
@@ -332,6 +349,9 @@ public:
     if (x == 0 && isZero()) {
       return false;
     }
+    // if (x == 1 && isOne()) {
+    //   return false;
+    // }
     return *this > Type(x);
   }
 
@@ -351,6 +371,11 @@ public:
     if (x == 0) {
       return !isZero();
     } else if (isZero()) {
+      return false;
+    }
+    if (x == 1) {
+      return !isOne();
+    } else if (isOne()) {
       return false;
     }
     return !(*this == Type(x));
@@ -435,6 +460,12 @@ public:
     if (other.isZero()) {
       return other;
     }
+    if (isOne()) {
+      return other;
+    }
+    if (other.isOne()) {
+      return *this;
+    }
     struct Op {
       FT operator()(const FT &lhs, const FT& rhs) {
         return lhs * rhs;
@@ -462,6 +493,9 @@ public:
     if (other.isZero()) {
       raise(SIGFPE); // Throw a floating point exception.
       throw 0; // We won't reach this point.
+    }
+    if (other.isOne()) {
+      return *this;
     }
     struct Op {
       FT operator()(const FT &lhs, const FT& rhs) {
