@@ -258,7 +258,9 @@ void convertNefToPolyhedron(
 }
 
 template void convertNefToPolyhedron(const CGAL_Nef_polyhedron3& nef, CGAL_Polyhedron& polyhedron);
+#ifndef UNIFIED_KERNEL
 template void convertNefToPolyhedron(const CGAL::Nef_polyhedron_3<CGAL_HybridKernel3>& nef, CGAL::Polyhedron_3<CGAL_HybridKernel3>& polyhedron);
+#endif
 
 template <typename Polyhedron>
 bool createPolyhedronFromPolySet(const PolySet& ps, Polyhedron& p)
