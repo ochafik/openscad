@@ -1233,5 +1233,8 @@ int main(int argc, char **argv)
 
   Builtins::instance(true);
 
+  // SingletonNumber<CGAL::Gmpq>::cache.printStats();
+  NT3::cache.printStats();
+
   return rc;
 }

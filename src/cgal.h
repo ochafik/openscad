@@ -35,6 +35,8 @@
 #include <CGAL/assertions_behaviour.h>
 #include <CGAL/exceptions.h>
 
+#include <cgal-singleton-number.h>
+
 typedef CGAL::Gmpq NT2;
 typedef CGAL::Extended_cartesian<NT2> CGAL_Kernel2;
 typedef CGAL::Nef_polyhedron_2<CGAL_Kernel2> CGAL_Nef_polyhedron2;
@@ -44,7 +46,9 @@ typedef CGAL::Exact_predicates_exact_constructions_kernel CGAL_ExactKernel2;
 typedef CGAL::Polygon_2<CGAL_ExactKernel2> CGAL_Poly2;
 typedef CGAL::Polygon_with_holes_2<CGAL_ExactKernel2> CGAL_Poly2h;
 
-typedef CGAL::Gmpq NT3;
+// typedef CGAL::Gmpq NT3;
+typedef SingletonNumber<CGAL::Gmpq> NT3;
+
 typedef CGAL::Cartesian<NT3> CGAL_Kernel3;
 //typedef CGAL::Exact_predicates_exact_constructions_kernel::FT NT3;
 //typedef CGAL::Exact_predicates_exact_constructions_kernel CGAL_Kernel3;
