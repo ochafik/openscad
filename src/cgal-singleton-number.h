@@ -18,6 +18,32 @@ template <class FT>
 class SingletonNumber;
 
 template <class FT>
+struct LocalOperationsCache {
+  typedef size_t NumberId;
+  
+  typedef boost::optional<NumberId> UnaryNumericOpCache;
+  typedef boost::container::flat_map<NumberId, NumberId> BinaryNumericOpCache;
+  typedef boost::container::flat_map<NumberId, bool> BinaryBooleanOpCache;
+  // TODO(ochafik): Used flat_map up to N entries then switch to unordered_map
+  // typedef boost::variant<boost::container::flat_map<NumberId, NumberId>, std::unordered_map<NumberId, NumberId> > BinaryNumericOpCache;
+  // typedef boost::variant<boost::container::flat_map<NumberId, bool>, std::unordered_map<NumberId, bool>  > BinaryBooleanOpCache;
+
+  UnaryNumericOpCache unaryMinusOpsCache;
+  UnaryNumericOpCache sqrtOpsCache;
+
+  BinaryNumericOpCache plusOpsCache;
+  BinaryNumericOpCache minusOpsCache;
+  BinaryNumericOpCache timesOpsCache;
+  BinaryNumericOpCache divideOpsCache;
+  BinaryNumericOpCache minOpsCache;
+  BinaryNumericOpCache maxOpsCache;
+
+  BinaryBooleanOpCache equalOpsCache;
+  BinaryBooleanOpCache lessOpsCache;
+  BinaryBooleanOpCache greaterOpsCache;
+};
+
+template <class FT>
 class SingletonCache {
   typedef size_t NumberId;
 
@@ -26,23 +52,34 @@ class SingletonCache {
   std::vector<FT> values_;
   std::vector<double> doubleValues_;
   std::unordered_multimap<double, NumberId> idsByDoubleValue_;
+#if LOCAL_SINGLETON_OPS_CACHE
+  std::vector<LocalOperationsCache<FT>> caches_;
+#endif
 
 #ifdef DEBUG
   std::unordered_map<double, size_t> debugDoubleResolutions_;
 #endif
 
 public:
-  SingletonCache() : values_(2), doubleValues_(2) {
+  SingletonCache() : 
+#if LOCAL_SINGLETON_OPS_CACHE
+      caches_(2),
+#endif
+      values_(2),
+      doubleValues_(2)
+  {
     auto Nstr = getenv("RESERVE_SINGLETONS");
-    auto N = Nstr ? atoi(Nstr) : 30 * 1000 * 1000; // 20M
+    auto N = Nstr ? atoi(Nstr) : 10 * 1000 * 1000; // 10M
     values_.reserve(N);
     doubleValues_.reserve(N);
     idsByDoubleValue_.reserve(N);
+#if LOCAL_SINGLETON_OPS_CACHE
+    caches_.reserve(N);
+#endif
 
-
-    // id=0 has value zero built by FT()
     idsByDoubleValue_.insert(std::make_pair(0.0, 0));
     idsByDoubleValue_.insert(std::make_pair(0.0, 1));
+    // id=0 has value zero built by FT()
     assert(values_[0] == FT(0.0));
     assert(doubleValues_[0] == 0.0);
     values_[1] = FT(1.0);
@@ -132,6 +169,9 @@ public:
     idsByDoubleValue_.insert(it, std::make_pair(doubleValue, newId));
     values_.push_back(value);
     doubleValues_.push_back(doubleValue);
+#if LOCAL_SINGLETON_OPS_CACHE
+    caches_.resize(caches_.size() + 1);
+#endif
     return newId;
   }
 
@@ -160,6 +200,7 @@ class GlobalOperationsCache {
   typedef std::unordered_map<NumberId, NumberId> UnaryNumericOpCache;
   typedef std::unordered_map<NumberPair, NumberId, NumberPairHash> BinaryNumericOpCache;
   typedef std::unordered_map<NumberPair, bool, NumberPairHash> BinaryBooleanOpCache;
+
 
   friend class SingletonNumber<FT>;
 
@@ -196,32 +237,6 @@ public:
     std::cout << "lessOpsCache: " << lessOpsCache.size() << "\n";
     std::cout << "greaterOpsCache: " << greaterOpsCache.size() << "\n";
   }
-};
-
-template <class FT>
-struct LocalOperationsCache {
-  typedef size_t NumberId;
-  
-  typedef boost::optional<NumberId> UnaryNumericOpCache;
-  typedef boost::container::flat_map<NumberId, NumberId> BinaryNumericOpCache;
-  typedef boost::container::flat_map<NumberId, bool> BinaryBooleanOpCache;
-  // TODO(ochafik): Used flat_map up to N entries then switch to unordered_map
-  // typedef boost::variant<boost::container::flat_map<NumberId, NumberId>, std::unordered_map<NumberId, NumberId> > BinaryNumericOpCache;
-  // typedef boost::variant<boost::container::flat_map<NumberId, bool>, std::unordered_map<NumberId, bool>  > BinaryBooleanOpCache;
-
-  UnaryNumericOpCache unaryMinusOpsCache;
-  UnaryNumericOpCache sqrtOpsCache;
-
-  BinaryNumericOpCache plusOpsCache;
-  BinaryNumericOpCache minusOpsCache;
-  BinaryNumericOpCache timesOpsCache;
-  BinaryNumericOpCache divideOpsCache;
-  BinaryNumericOpCache minOpsCache;
-  BinaryNumericOpCache maxOpsCache;
-
-  BinaryBooleanOpCache equalOpsCache;
-  BinaryBooleanOpCache lessOpsCache;
-  BinaryBooleanOpCache greaterOpsCache;
 };
 
 // template <typename FT>
@@ -276,7 +291,10 @@ public:
 
 
 #if LOCAL_SINGLETON_OPS_CACHE
-  mutable LocalOperationsCache<FT> cache;
+
+  LocalOperationsCache<FT> &getCache() const {
+    return values.caches_[id_];
+  };
 
   // Cache is a boost optional
   template <class Operation, class CacheType>
@@ -302,7 +320,12 @@ public:
     return result;
   }
 #else
+
   static GlobalOperationsCache<FT> cache;
+
+  GlobalOperationsCache<FT> &getCache() const {
+    return cache;
+  };
 
   template <class Operation, class CacheType>
   auto getCachedUnaryOp(CacheType &cache, Operation op) const {
@@ -360,7 +383,7 @@ public:
         return -operand;
       }
     };
-    return Type(getCachedUnaryOp(cache.unaryMinusOpsCache, UnaryNumericOp<Op>()), false);
+    return Type(getCachedUnaryOp(getCache().unaryMinusOpsCache, UnaryNumericOp<Op>()), false);
   }
 
   Type sqrt() const {
@@ -369,7 +392,7 @@ public:
         return std::sqrt(operand);
       }
     };
-    return Type(getCachedUnaryOp(cache.sqrtOpsCache, UnaryNumericOp<Op>()), false);
+    return Type(getCachedUnaryOp(getCache().sqrtOpsCache, UnaryNumericOp<Op>()), false);
   }
 
   bool operator==(const Type& other) const {
@@ -387,7 +410,7 @@ public:
         return lhs == rhs;
       }
     };
-    return getCachedBinaryOp(other.id_, cache.equalOpsCache, BinaryBooleanOp<Op>());
+    return getCachedBinaryOp(other.id_, getCache().equalOpsCache, BinaryBooleanOp<Op>());
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) bool operator==(const T& x) const {
     // Fast track to avoid resolving x's id.
@@ -413,7 +436,7 @@ public:
         return lhs < rhs;
       }
     };
-    return getCachedBinaryOp(other.id_, cache.lessOpsCache, BinaryBooleanOp<Op>());
+    return getCachedBinaryOp(other.id_, getCache().lessOpsCache, BinaryBooleanOp<Op>());
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) bool operator<(const T& x) const {
     // Fast track to avoid resolving x's id.
@@ -443,7 +466,7 @@ public:
         return lhs > rhs;
       }
     };
-    return getCachedBinaryOp(other.id_, cache.greaterOpsCache, BinaryBooleanOp<Op>());
+    return getCachedBinaryOp(other.id_, getCache().greaterOpsCache, BinaryBooleanOp<Op>());
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) bool operator>(const T& x) const {
     // Fast track to avoid resolving x's id.
@@ -488,7 +511,7 @@ public:
         return std::min(lhs, rhs);
       }
     };
-    return Type(getCachedBinaryOp(other.id_, cache.minOpsCache, BinaryNumericOp<Op>()), false);
+    return Type(getCachedBinaryOp(other.id_, getCache().minOpsCache, BinaryNumericOp<Op>()), false);
   }
 
   Type max(const Type& other) const {
@@ -497,7 +520,7 @@ public:
         return std::max(lhs, rhs);
       }
     };
-    return Type(getCachedBinaryOp(other.id_, cache.maxOpsCache, BinaryNumericOp<Op>()), false);
+    return Type(getCachedBinaryOp(other.id_, getCache().maxOpsCache, BinaryNumericOp<Op>()), false);
   }
 
   Type operator+(const Type& other) const {
@@ -512,7 +535,7 @@ public:
         return lhs + rhs;
       }
     };
-    return Type(getCachedBinaryOp(other.id_, cache.plusOpsCache, BinaryNumericOp<Op>()), false);
+    return Type(getCachedBinaryOp(other.id_, getCache().plusOpsCache, BinaryNumericOp<Op>()), false);
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) SingletonNumber<FT> operator+(const T& x) const {
     if (x == 0) {
@@ -539,7 +562,7 @@ public:
         return lhs - rhs;
       }
     };
-    return Type(getCachedBinaryOp(other.id_, cache.minusOpsCache, BinaryNumericOp<Op>()), false);
+    return Type(getCachedBinaryOp(other.id_, getCache().minusOpsCache, BinaryNumericOp<Op>()), false);
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) SingletonNumber<FT> operator-(const T& x) const {
     if (x == 0) {
@@ -572,7 +595,7 @@ public:
         return lhs * rhs;
       }
     };
-    return Type(getCachedBinaryOp(other.id_, cache.timesOpsCache, BinaryNumericOp<Op>()), false);
+    return Type(getCachedBinaryOp(other.id_, getCache().timesOpsCache, BinaryNumericOp<Op>()), false);
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) SingletonNumber<FT> operator*(const T& x) const {
     if (x == 0) {
@@ -603,7 +626,7 @@ public:
         return lhs / rhs;
       }
     };
-    return Type(getCachedBinaryOp(other.id_, cache.divideOpsCache, BinaryNumericOp<Op>()), false);
+    return Type(getCachedBinaryOp(other.id_, getCache().divideOpsCache, BinaryNumericOp<Op>()), false);
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) SingletonNumber<FT> operator/(const T& x) const {
     if (x == 0) {

@@ -2,8 +2,18 @@
 g++ -std=c++14 \
 	-DDEBUG=1 -O0 -g \
   -DCGAL_USE_GMPXX=1 -lgmp -lmpfr \
-	-o cgal-singleton-number-test src/cgal-singleton-number-test.cc && \
-  ./cgal-singleton-number-test
+	-o test src/cgal-singleton-number-test.cc && \
+  ./test
+
+g++ -std=c++14 \
+  -DNDEBUG=1 \
+  -DCGAL_USE_GMPXX=1 \
+  -O3 \
+  -lgmp -lmpfr \
+  -o test \
+  src/cgal-singleton-number-test.cc \
+  -DLOCAL_SINGLETON_OPS_CACHE=1 && \
+hyperfine --warmup 3 -L kernel g,sg,e './test {kernel}'
 */
 #include <CGAL/Gmpq.h>
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
@@ -20,138 +30,132 @@ g++ -std=c++14 \
 extern std::string example1; // see bottom of file
 extern std::string example2;
 
-typedef SingletonNumber<CGAL::Gmpq> FT;
-typedef CGAL::Cartesian<FT> K;
-// typedef CGAL::Cartesian<CGAL::Gmpq> K;
-// typedef CGAL::Simple_cartesian<double> K;
-// typedef CGAL::Epeck K;
+template <class FT>
+int runTests() {
+  bool b;
+  FT x(1), y(2), z;
 
-// TODO(ochafik): Experiment with this:
-// typedef CGAL::Filtered_kernel<CGAL::Simple_cartesian<CGAL::Lazy_exact_nt<FT>>> K;
+  auto expect = [&](auto actual, auto expected) {
+    if ((actual != expected) || !(actual == expected)) {
+      std::cout << "actual == " << CGAL::to_double(actual) << " (!= expected " << expected << ")\n";
+      assert(z == expected);
+    }
+  };
+  auto expectBool = [&](bool actual, bool expected) {
+    if (actual != expected) {
+      std::cout << "actual == " << (actual ? "true" : "false") << " (!= expected " << (expected ? "true" : "false") << ")\n";
+      assert(z == expected);
+    }
+  };
 
-typedef CGAL::Surface_mesh<K::Point_3> Mesh;
-typedef CGAL::Polyhedron_3<K> Poly;
-typedef CGAL::Nef_polyhedron_3<K> Nef;
+  //
+  // Plus
+  //
+  expect(FT(0) + 1, 1);
+  expect(2 + FT(0), 2);
+  expect(FT(10) + 0, 10);
+  expect(0 + FT(11), 11);
+  
+  expect(FT(2) + 3, 5);
+  expect(2 + FT(4), 6);
+  expect(FT(2) + FT(5), 7);
 
-int main()
+  //
+  // Minus
+  //
+
+  expect(FT(0) - 1, -1);
+  expect(2 - FT(0), 2);
+  expect(FT(20) - 0, 20);
+  expect(0 - FT(20), -20);
+  
+  expect(FT(2) + 3, 5);
+  expect(2 + FT(4), 6);
+  expect(FT(2) + FT(5), 7);
+  
+  // Zero equality an unary minus
+
+  expect(FT(0), 0);
+  expect(FT(-0), 0);
+  expect(FT(0), FT(-0));
+
+  expect(FT(1) - FT(1), 0);
+  expect(FT(0) - FT(1), FT(-1));
+  expect(-FT(2), -2);
+  expect(-FT(0), 0);
+
+  //
+  // Multiply
+  //
+  expect(FT(0) * 2, 0);
+  expect(2 * FT(0), 0);
+
+  expect(0 * FT(2), 0);
+  expect(FT(2) * 0, 0);
+  
+  expect(FT(2) * 3, 6);
+  expect(2 * FT(4), 8);
+  expect(FT(2) * FT(5), 10);
+
+  //
+  // Divide
+  //
+  expect(FT(0) / 2, 0);
+  expect(0 / FT(2), 0);
+  expect(0 / FT(0), 0);
+
+  expect(4 / FT(2), 2);
+  expect(FT(9) / 3, 3);
+  expect(FT(12) / FT(3), 4);
+
+  expect(FT(1) / 3, CGAL::Gmpq(1, 3));
+  expect(FT(1) / FT(3), CGAL::Gmpq(1, 3));
+  expect(1 / FT(3), CGAL::Gmpq(1, 3));
+
+  // CGAL::Gmpq(1, 0) / CGAL::Gmpq(0, 1);
+  // FT(1) / FT(0); 
+
+  //
+  // Less
+  //
+  expectBool(FT(0) < 2, true);
+  expectBool(FT(0) < -1, false);
+  expectBool(FT(0) < 0, false);
+  expectBool(FT(2) < 3, true);
+  expectBool(FT(2) < 0, false);
+  expectBool(FT(-1) < 0, true);
+  expectBool(FT(3) < 3, false);
+  expectBool(FT(10) < FT(11), true);
+  expectBool(FT(11) < FT(10), false);
+
+  //
+  // More
+  //
+  expectBool(FT(0) > 2, false);
+  expectBool(FT(0) > -1, true);
+  expectBool(FT(0) > 0, false);
+  expectBool(FT(3) > 2, true);
+  expectBool(FT(2) > 0, true);
+  expectBool(FT(2) > 3, false);
+  expectBool(FT(3) > 3, false);
+  expectBool(FT(11) > FT(10), true);
+  expectBool(FT(10) > FT(11), false);
+  
+  // std::cout << SingletonNumber<CGAL::Gmpq>::cache.values_.size() << " values\n";
+  // for (auto &value : SingletonNumber<CGAL::Gmpq>::cache.values_) {
+  //   std::cout << value << "\n";
+  // }
+  return 0;
+}
+
+template <class K>
+int doMain()
 {  
+  typedef CGAL::Surface_mesh<typename K::Point_3> Mesh;
+  typedef CGAL::Polyhedron_3<K> Poly;
+  typedef CGAL::Nef_polyhedron_3<K> Nef;
+
   try {
-#ifdef TEST
-    bool b;
-    FT x(1), y(2), z;
-
-    auto expect = [&](auto actual, auto expected) {
-      if ((actual != expected) || !(actual == expected)) {
-        std::cout << "actual == " << CGAL::to_double(actual) << " (!= expected " << expected << ")\n";
-        assert(z == expected);
-      }
-    };
-    auto expectBool = [&](bool actual, bool expected) {
-      if (actual != expected) {
-        std::cout << "actual == " << (actual ? "true" : "false") << " (!= expected " << (expected ? "true" : "false") << ")\n";
-        assert(z == expected);
-      }
-    };
-
-    //
-    // Plus
-    //
-    expect(FT(0) + 1, 1);
-    expect(2 + FT(0), 2);
-    expect(FT(10) + 0, 10);
-    expect(0 + FT(11), 11);
-    
-    expect(FT(2) + 3, 5);
-    expect(2 + FT(4), 6);
-    expect(FT(2) + FT(5), 7);
-
-    //
-    // Minus
-    //
-
-    expect(FT(0) - 1, -1);
-    expect(2 - FT(0), 2);
-    expect(FT(20) - 0, 20);
-    expect(0 - FT(20), -20);
-    
-    expect(FT(2) + 3, 5);
-    expect(2 + FT(4), 6);
-    expect(FT(2) + FT(5), 7);
-    
-    // Zero equality an unary minus
-
-    expect(FT(0), 0);
-    expect(FT(-0), 0);
-    expect(FT(0), FT(-0));
-
-    expect(FT(1) - FT(1), 0);
-    expect(FT(0) - FT(1), FT(-1));
-    expect(-FT(2), -2);
-    expect(-FT(0), 0);
-
-    //
-    // Multiply
-    //
-    expect(FT(0) * 2, 0);
-    expect(2 * FT(0), 0);
-
-    expect(0 * FT(2), 0);
-    expect(FT(2) * 0, 0);
-    
-    expect(FT(2) * 3, 6);
-    expect(2 * FT(4), 8);
-    expect(FT(2) * FT(5), 10);
-
-    //
-    // Divide
-    //
-    expect(FT(0) / 2, 0);
-    expect(0 / FT(2), 0);
-    expect(0 / FT(0), 0);
-
-    expect(4 / FT(2), 2);
-    expect(FT(9) / 3, 3);
-    expect(FT(12) / FT(3), 4);
-
-    expect(FT(1) / 3, CGAL::Gmpq(1, 3));
-    expect(FT(1) / FT(3), CGAL::Gmpq(1, 3));
-    expect(1 / FT(3), CGAL::Gmpq(1, 3));
-
-    // CGAL::Gmpq(1, 0) / CGAL::Gmpq(0, 1);
-    // FT(1) / FT(0); 
-
-    //
-    // Less
-    //
-    expectBool(FT(0) < 2, true);
-    expectBool(FT(0) < -1, false);
-    expectBool(FT(0) < 0, false);
-    expectBool(FT(2) < 3, true);
-    expectBool(FT(2) < 0, false);
-    expectBool(FT(-1) < 0, true);
-    expectBool(FT(3) < 3, false);
-    expectBool(FT(10) < FT(11), true);
-    expectBool(FT(11) < FT(10), false);
-
-    //
-    // More
-    //
-    expectBool(FT(0) > 2, false);
-    expectBool(FT(0) > -1, true);
-    expectBool(FT(0) > 0, false);
-    expectBool(FT(3) > 2, true);
-    expectBool(FT(2) > 0, true);
-    expectBool(FT(2) > 3, false);
-    expectBool(FT(3) > 3, false);
-    expectBool(FT(11) > FT(10), true);
-    expectBool(FT(10) > FT(11), false);
-
-    
-    // std::cout << SingletonNumber<CGAL::Gmpq>::cache.values_.size() << " values\n";
-    // for (auto &value : SingletonNumber<CGAL::Gmpq>::cache.values_) {
-    //   std::cout << value << "\n";
-    // }
-#else
 
     // Nef nef1, nef2;
     Poly poly1, poly2;
@@ -182,8 +186,6 @@ int main()
     
     Nef nef1(poly1), nef2(poly2);
     nef1 += nef2;
-    
-#endif
   } catch (CGAL::Failure_exception& e) {
     std::cerr << "CGAL error: " << e.what() << "\n";
   }
@@ -194,6 +196,33 @@ int main()
 #endif
   
   return 0;
+}
+
+int main(int argc, char *argv[]) {
+  std::string k(argc == 2 ? argv[1] : "sg");
+
+  if (k == "t") {
+    return runTests<SingletonNumber<CGAL::Gmpq>>();
+  }
+  if (k == "sg") {
+    // typedef SingletonNumber<CGAL::Gmpq> FT;
+    // typedef CGAL::Cartesian<FT> K;
+    return doMain<CGAL::Cartesian<SingletonNumber<CGAL::Gmpq>>>();
+  }
+  if (k == "g") {
+    return doMain<CGAL::Cartesian<CGAL::Gmpq>>();
+  }
+  if (k == "e") {
+    return doMain<CGAL::Epeck>();
+  }
+  // typedef CGAL::Cartesian<CGAL::Gmpq> K;
+  // typedef CGAL::Simple_cartesian<double> K;
+  // typedef CGAL::Epeck K;
+
+  // TODO(ochafik): Experiment with this:
+  // typedef CGAL::Filtered_kernel<CGAL::Simple_cartesian<FT>> K;
+  // typedef CGAL::Filtered_kernel<CGAL::Simple_cartesian<CGAL::Lazy_exact_nt<FT>>> K;
+
 }
 
 
