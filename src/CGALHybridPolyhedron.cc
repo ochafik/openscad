@@ -88,10 +88,25 @@ bool CGALHybridPolyhedron::isManifold() const
 {
   if (auto mesh = getMesh()) {
     // Note: haven't tried mesh->is_valid() but it could be too expensive.
-    // TODO: use is_valid_polygon_mesh and remember
-    return CGAL::is_closed(*mesh);
+    auto isValid = CGAL::is_valid_polygon_mesh(*mesh);
+    return isValid;
   } else if (auto nef = getNefPolyhedron()) {
     return nef->is_simple();
+  }
+  assert(!"Bad hybrid polyhedron state");
+  return false;
+}
+
+bool CGALHybridPolyhedron::isClosed() const
+{
+  if (auto mesh = getMesh()) {
+    // Note: haven't tried mesh->is_valid() but it could be too expensive.
+    // TODO: use is_valid_polygon_mesh and remember
+    auto isClosed = CGAL::is_closed(*mesh);
+    return isClosed;
+  } else if (auto nef = getNefPolyhedron()) {
+    // Assume nef is closed if valid.
+    return nef->is_valid();
   }
   assert(!"Bad hybrid polyhedron state");
   return false;
@@ -185,6 +200,8 @@ bool CGALHybridPolyhedron::canCorefineWith(const CGALHybridPolyhedron& other) co
     reasonWontCorefine = "operands share some vertices";
   } else if (!isManifold() || !other.isManifold()) {
     reasonWontCorefine = "non manifoldness detected";
+  } else if (!isClosed() || !other.isClosed()) {
+    reasonWontCorefine = "unclosed mesh detected";
   }
   if (reasonWontCorefine) {
     LOG(message_group::None, Location::NONE, "",
