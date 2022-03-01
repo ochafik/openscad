@@ -48,6 +48,7 @@ public:
   size_t numFacets() const override;
   size_t numVertices() const;
   bool isManifold() const;
+  bool isClosed() const;
   bool isValid() const;
   void clear();
 
