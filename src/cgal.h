@@ -35,6 +35,7 @@
 #include <CGAL/assertions_behaviour.h>
 #include <CGAL/exceptions.h>
 
+#include <cgal-filtered-number.h>
 #include <cgal-singleton-number.h>
 
 typedef CGAL::Gmpq NT2;
@@ -46,8 +47,13 @@ typedef CGAL::Exact_predicates_exact_constructions_kernel CGAL_ExactKernel2;
 typedef CGAL::Polygon_2<CGAL_ExactKernel2> CGAL_Poly2;
 typedef CGAL::Polygon_with_holes_2<CGAL_ExactKernel2> CGAL_Poly2h;
 
-// typedef CGAL::Gmpq NT3;
+#if 0
+typedef CGAL::Gmpq NT3;
+#elif 1
+typedef FilteredNumber<CGAL::Gmpq> NT3;
+#else
 typedef SingletonNumber<CGAL::Gmpq> NT3;
+#endif
 
 typedef CGAL::Cartesian<NT3> CGAL_Kernel3;
 //typedef CGAL::Exact_predicates_exact_constructions_kernel::FT NT3;

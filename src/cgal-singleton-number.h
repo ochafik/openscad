@@ -755,6 +755,24 @@ namespace CGAL {
     };
   };
 
+  template <class FT>
+  class Real_embeddable_traits<Lazy_exact_nt<internal::Exact_field_selector<FT>>>
+      : public Real_embeddable_traits<FT>
+  {};
+
+  template <class FT>
+  class Real_embeddable_traits<internal::Exact_field_selector<FT>>
+      : public Real_embeddable_traits<FT>
+  {};
+
+  // class Real_embeddable_traits<SingletonNumber<CGAL::Gmpq>>
+  //     : Real_embeddable_traits2<CGAL::Gmpq> {}
+
+  // template <class FT>
+  // class Real_embeddable_traits<SingletonNumber<FT>>
+  //     : public INTERN_RET::Real_embeddable_traits_base<SingletonNumber<FT>, CGAL::Tag_true>
+  // {
+
   template <>
   class Fraction_traits< SingletonNumber<CGAL::Gmpq> > {
   public:
