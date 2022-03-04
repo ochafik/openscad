@@ -629,9 +629,6 @@ public:
     return Type(getCachedBinaryOp(other.id_, getCache().divideOpsCache, BinaryNumericOp<Op>()), false);
   }
   SINGLETON_NUMBER_OP_TEMPLATE(T) SingletonNumber<FT> operator/(const T& x) const {
-    if (x == 0) {
-      return Type(0);
-    }
     return *this / Type(x);
   }
   SingletonNumber<FT>& operator/=(const Type& x) {
