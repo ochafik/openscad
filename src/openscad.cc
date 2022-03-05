@@ -1233,10 +1233,10 @@ int main(int argc, char **argv)
 
   Builtins::instance(true);
 
-  NT3::values.printStats();
-#if !LOCAL_SINGLETON_OPS_CACHE
-  NT3::cache.printStats();
-#endif
+//   NT3::values.printStats();
+// #if !LOCAL_SINGLETON_OPS_CACHE
+//   NT3::cache.printStats();
+// #endif
 
   return rc;
 }
