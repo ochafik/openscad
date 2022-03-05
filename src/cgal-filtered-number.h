@@ -12,7 +12,7 @@
 #include <boost/variant.hpp>
 
 #ifndef LAZY_FILTERED_NUMBER
-#define LAZY_FILTERED_NUMBER 1
+#define LAZY_FILTERED_NUMBER 0
 #endif
 
 #define FILTERED_NUMBER_OP_TEMPLATE(T) \
