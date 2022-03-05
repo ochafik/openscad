@@ -80,4 +80,18 @@ CGAL::Epick::FT KernelConverter<CGAL::Cartesian<SingletonNumber<CGAL::Gmpq>>, CG
   return CGAL::to_double(n);
 }
 
+template <>
+FilteredNumber<CGAL::Gmpq> KernelConverter<CGAL::Epick, CGAL::Cartesian<FilteredNumber<CGAL::Gmpq>>>::operator()(
+  const double& n) const
+{
+  return FilteredNumber<CGAL::Gmpq>(n);
+}
+
+template <>
+CGAL::Epick::FT KernelConverter<CGAL::Cartesian<FilteredNumber<CGAL::Gmpq>>, CGAL::Epick>::operator()(
+  const CGAL::Cartesian<FilteredNumber<CGAL::Gmpq>>::FT& n) const
+{
+  return CGAL::to_double(n);
+}
+
 } // namespace CGALUtils
