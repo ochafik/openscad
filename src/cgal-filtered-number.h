@@ -9,6 +9,11 @@
 #include <iostream>
 #include <type_traits>
 #include <unordered_map>
+#include <boost/variant.hpp>
+
+#ifndef LAZY_FILTERED_NUMBER
+#define LAZY_FILTERED_NUMBER 1
+#endif
 
 #define FILTERED_NUMBER_OP_TEMPLATE(T) \
   template <typename T, std::enable_if_t<(std::is_arithmetic<T>::value || std::is_assignable<FT, T>::value), bool> = true>
@@ -18,8 +23,13 @@ const double EPSILON = 0.00001;
 template <class FT>
 class FilteredNumber {
   typedef FilteredNumber<FT> Type;
+  typedef std::function<FT()> ValueGetter;
 
-  FT value_;
+#if LAZY_FILTERED_NUMBER
+  mutable boost::variant<FT, ValueGetter> value_;
+#else
+  mutable FT value_;
+#endif
   double lower_, upper_;
   
   enum IntervalComparison {
@@ -46,17 +56,23 @@ class FilteredNumber {
     return IntervalComparison::WITHIN_INTERVAL;
   }
 
-  // The bool is just here to avoid any implicit usage & conflict with other ctors.
-  FilteredNumber(const FT& value, double lower, double upper) : value_(value), lower_(lower), upper_(upper) {
+  FilteredNumber(
+#if LAZY_FILTERED_NUMBER
+      const boost::variant<FT, ValueGetter>& value,
+#else
+      const FT& value,
+#endif
+      double lower, double upper) : value_(value), lower_(lower), upper_(upper) {
     assert(lower_ < upper_);
-    assert(lower_ < CGAL::to_double(value));
-    assert(upper_ > CGAL::to_double(value));
+    assert(lower_ < exact());
+    assert(upper_ > exact());
   }
+
+  // The bool is just here to avoid any implicit usage & conflict with other ctors.
   FilteredNumber(const FT& value, double doubleValue, double delta, bool) : FilteredNumber(value, doubleValue - delta, doubleValue + delta) {}
   
 public:
 
-  // FilteredNumber(double value) : FilteredNumber(FT(value), value, value) {}
   FilteredNumber(double value) : FilteredNumber(FT(value), value, EPSILON, false) {}
   FilteredNumber(const FT& value) : FilteredNumber(value, CGAL::to_double(value), EPSILON, false) {}
 
@@ -66,42 +82,65 @@ public:
   FilteredNumber(const Type& other) : FilteredNumber(other.value_, other.lower_, other.upper_) {}
   FilteredNumber() : FilteredNumber(0.0) {}
 
-  const FT& underlyingValue() const {
+  const FT& exact() const {
+#if LAZY_FILTERED_NUMBER
+    if (auto pValue = boost::get<FT>(&value_)) {
+      return *pValue;
+    }
+    if (auto pGetter = boost::get<ValueGetter>(&value_)) {
+      value_ = (*pGetter)();
+      return *boost::get<FT>(&value_);
+      // return value_.emplace((*pGetter)()); // std::variant @ C++17
+    }
+    throw 0;
+#else
     return value_;
+#endif
   }
   explicit operator double() const {
-    return CGAL::to_double(value_);
+    return CGAL::to_double(exact());
   }
-  double lowerBound() const { return lower_; }
-  double upperBound() const { return upper_; }
+  std::pair<double, double> interval() const {
+    return std::make_pair(lower_, upper_);
+  }
   
-  Type &operator=(const Type& other) {
-    value_ = other.value_;
-    lower_ = other.lower_;
-    upper_ = other.upper_;
-    return *this;
-  }
-
   Type operator-() const {
-    return Type(-value_, -upper_, -lower_);
+    auto a = exact();
+    return Type(
+#if LAZY_FILTERED_NUMBER
+      [=]() { return -a; },
+#else
+      -a,
+#endif
+      -upper_,
+      -lower_);
   }
 
   Type sqrt() const {
-    return Type(std::sqrt(value_));
+    auto a = exact();
+    // Are two double sqrt faster than a single exact one?
+    return Type(
+#if LAZY_FILTERED_NUMBER
+      [=]() { return std::sqrt(a); },
+#else
+      std::sqrt(a),
+#endif
+      std::sqrt(lower_) - EPSILON,
+      std::sqrt(upper_) + EPSILON);
   }
 
   bool operator==(const Type& other) const {
     if (compareTo(other) != IntervalComparison::WITHIN_INTERVAL) {
       return false;
     }
-    return value_ == other.value_;
+    return exact() == other.exact();
   }
 
   FILTERED_NUMBER_OP_TEMPLATE(T) bool operator==(const T& x) const {
     if (compareTo(x) != IntervalComparison::WITHIN_INTERVAL) {
       return false;
     }
-    return value_ == x;
+    return exact() == x;
   }
 
   bool operator<(const Type& other) const {
@@ -111,7 +150,7 @@ public:
       case LARGER:
         return false;
       default:
-        return value_ < other.value_;
+        return exact() < other.exact();
     }
   }
   FILTERED_NUMBER_OP_TEMPLATE(T) bool operator<(const T& x) const {
@@ -121,7 +160,7 @@ public:
       case LARGER:
         return false;
       default:
-        return value_ < x;
+        return exact() < x;
     }
   }
 
@@ -140,7 +179,7 @@ public:
       case LARGER:
         return true;
       default:
-        return value_ > other.value_;
+        return exact() > other.exact();
     }
   }
   FILTERED_NUMBER_OP_TEMPLATE(T) bool operator>(const T& x) const {
@@ -150,7 +189,7 @@ public:
       case LARGER:
         return true;
       default:
-        return value_ > x;
+        return exact() > x;
     }
   }
 
@@ -169,7 +208,7 @@ public:
     if (compareTo(x) != IntervalComparison::WITHIN_INTERVAL) {
       return true;
     }
-    return value_ != x;
+    return exact() != x;
   }
 
   Type min(const Type& other) const {
@@ -179,7 +218,7 @@ public:
       case LARGER:
         return other;
       default:
-        return value_ < other.value_ ? *this : other;
+        return exact() < other.exact() ? *this : other;
     }
   }
 
@@ -190,12 +229,20 @@ public:
       case LARGER:
         return *this;
       default:
-        return value_ > other.value_ ? *this : other;
+        return exact() > other.exact() ? *this : other;
     }
   }
 
   Type operator+(const Type& other) const {
-    return Type(value_ + other.value_, lower_ + other.lower_, upper_ + other.upper_);
+    auto lhs = exact(), rhs = other.exact();
+    return Type(
+#if LAZY_FILTERED_NUMBER
+      [=]() { return lhs + rhs; },
+#else
+      lhs + rhs,
+#endif
+      lower_ + other.lower_,
+      upper_ + other.upper_);
   }
   FILTERED_NUMBER_OP_TEMPLATE(T) FilteredNumber<FT> operator+(const T& x) const {
     if (x == 0) {
@@ -211,7 +258,15 @@ public:
   }
 
   Type operator-(const Type& other) const {
-    return Type(value_ - other.value_, lower_ - other.upper_, upper_ - other.lower_);
+    auto lhs = exact(), rhs = other.exact();
+    return Type(
+#if LAZY_FILTERED_NUMBER
+      [=]() { return lhs - rhs; },
+#else
+      lhs - rhs,
+#endif
+      lower_ - other.upper_,
+      upper_ - other.lower_);
   }
   FILTERED_NUMBER_OP_TEMPLATE(T) FilteredNumber<FT> operator-(const T& x) const {
     if (x == 0) {
@@ -227,21 +282,29 @@ public:
   }
 
   Type operator*(const Type& other) const {
-    // if (lower_ == 0 && upper_ == 0) {
-    //   return *this;
-    // }
-    // if (other.lower_ == 0 && other.upper_ == 0) {
-    //   return other;
-    // }
-
+    auto lhs = exact(), rhs = other.exact();
     auto ll = lower_ * other.lower_;
     auto uu = upper_ * other.upper_;
+
+    double newLower, newUpper;
     if (lower_ >= 0 && other.lower_ >= 0) {
-      return Type(value_ * other.value_, ll, uu); // Avoid compounding interval errors  
+      newLower = ll;
+      newUpper = uu;
+    } else {
+      auto lu = lower_ * other.upper_;
+      auto ul = upper_ * other.lower_;
+      newLower = std::min({ll, uu, lu, ul});
+      newUpper = std::max({ll, uu, lu, ul});
     }
-    auto lu = lower_ * other.upper_;
-    auto ul = upper_ * other.lower_;
-    return Type(value_ * other.value_); // Avoid compounding interval errors
+
+    return Type(
+#if LAZY_FILTERED_NUMBER
+      [=]() { return lhs * rhs; },
+#else
+      lhs * rhs,
+#endif
+      newLower,
+      newUpper);
   }
   FILTERED_NUMBER_OP_TEMPLATE(T) FilteredNumber<FT> operator*(const T& x) const {
     if (x == 0) {
@@ -264,7 +327,9 @@ public:
     //   raise(SIGFPE); // Throw a floating point exception.
     //   throw 0; // We won't reach this point.
     // }
-    return Type(value_ / other.value_); // Avoid compounding interval errors
+    auto lhs = exact(), rhs = other.exact();
+    // return Type([=]() { return lhs / rhs; }, ....division interval calcs here...);
+    return Type(lhs / rhs);
   }
   FILTERED_NUMBER_OP_TEMPLATE(T) FilteredNumber<FT> operator/(const T& x) const {
     return *this / Type(x);
@@ -302,12 +367,12 @@ FILTERED_NUMBER_BINARY_BOOL_OP_FN(operator>=, >=)
 
 template <class FT>
 std::ostream& operator<<(std::ostream& out, const FilteredNumber<FT>& n) {
-  out << n.underlyingValue();
+  out << n.exact();
   return out;
 }
 template <class FT>
 std::istream& operator>>(std::istream& in, FilteredNumber<FT>& n) {
-  in >> n.underlyingValue();
+  in >> n.exact();
   return in;
 }
 
@@ -398,13 +463,13 @@ namespace CGAL {
 
     struct Is_finite: public CGAL::cpp98::unary_function<Type,Boolean>{
       inline Boolean operator()(const Type &x) const {
-        return Underlying_traits::Is_finite()(x.underlyingValue());
+        return Underlying_traits::Is_finite()(x.exact());
       }
     };
 
     // struct Abs: public CGAL::cpp98::unary_function<Type,Type>{
     //   inline Type operator()(const Type &x) const {
-    //     return Underlying_traits::Abs()(x.underlyingValue());
+    //     return Underlying_traits::Abs()(x.exact());
     //   }
     // };
 
@@ -412,10 +477,18 @@ namespace CGAL {
       inline std::pair<double,double> operator()(const Type &x) const {
         typename Underlying_traits::To_interval to_interval;
 
-        return std::make_pair(x.lowerBound(), x.upperBound());
+        return x.interval();
       }
     };
   };
+
+  namespace internal {
+    
+    template <class T>
+    struct Exact_field_selector<FilteredNumber<T>>
+    { typedef T  Type; };
+  
+  } // namespace internal
 
   // template <class FT>
   // class Real_embeddable_traits<Lazy_exact_nt<internal::Exact_field_selector<FT>>>
@@ -450,8 +523,8 @@ namespace CGAL {
           typedef Gmpz& third_argument_type;
           void operator () (const FilteredNumber<CGAL::Gmpq>& rat, Gmpz& num,Gmpz& den) {
             // TODO(ochafik): compose proper singleton num and denom, and their transition to a singleton rational.
-              num = rat.underlyingValue().numerator();
-              den = rat.underlyingValue().denominator();
+              num = rat.exact().numerator();
+              den = rat.exact().denominator();
           }
       };
       class Compose {
