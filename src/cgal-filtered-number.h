@@ -18,10 +18,16 @@
 #define FILTERED_NUMBER_OP_TEMPLATE(T) \
   template <typename T, std::enable_if_t<(std::is_arithmetic<T>::value || std::is_assignable<FT, T>::value), bool> = true>
 
-const double EPSILON = 0.00001;
+#ifndef FILTERED_NUMBER_INTERVAL_TYPE
+#define FILTERED_NUMBER_INTERVAL_TYPE double
+#endif
+
+// const FILTERED_NUMBER_INTERVAL_TYPE EPSILON = 2e-20;
+const FILTERED_NUMBER_INTERVAL_TYPE EPSILON = 0.00001;
 
 template <class FT>
 class FilteredNumber {
+  typedef FILTERED_NUMBER_INTERVAL_TYPE BoundsType;
   typedef FilteredNumber<FT> Type;
   typedef std::function<FT()> ValueGetter;
 
@@ -30,7 +36,7 @@ class FilteredNumber {
 #else
   mutable FT value_;
 #endif
-  double lower_, upper_;
+  BoundsType lower_, upper_;
   
   enum IntervalComparison {
     SMALLER, LARGER, WITHIN_INTERVAL
@@ -62,22 +68,24 @@ class FilteredNumber {
 #else
       const FT& value,
 #endif
-      double lower, double upper) : value_(value), lower_(lower), upper_(upper) {
-    assert(lower_ < upper_);
-    assert(lower_ < exact());
-    assert(upper_ > exact());
+      BoundsType lower, BoundsType upper) : value_(value), lower_(lower), upper_(upper) {
+    // assert(lower_ < upper_);
+    // assert(lower_ < exact());
+    // assert(upper_ > exact());
   }
 
   // The bool is just here to avoid any implicit usage & conflict with other ctors.
-  FilteredNumber(const FT& value, double doubleValue, double delta, bool) : FilteredNumber(value, doubleValue - delta, doubleValue + delta) {}
+  FilteredNumber(const FT& value, BoundsType doubleValue, BoundsType delta, bool)
+    : FilteredNumber(value, doubleValue - delta, doubleValue + delta) {}
   
 public:
 
-  FilteredNumber(double value) : FilteredNumber(FT(value), value, EPSILON, false) {}
-  FilteredNumber(const FT& value) : FilteredNumber(value, CGAL::to_double(value), EPSILON, false) {}
+  FilteredNumber(double value) : FilteredNumber(FT(value), static_cast<BoundsType>(value), EPSILON, false) {}
+  FilteredNumber(const FT& value) : FilteredNumber(value, static_cast<BoundsType>(CGAL::to_double(value)), EPSILON, false) {}
 
   template <typename T, std::enable_if_t<std::is_arithmetic<T>::value, bool> = true>
-  FilteredNumber(const T& value) : FilteredNumber(static_cast<double>(value)) {} // static_cast<double>(value)?
+  FilteredNumber(T value) : FilteredNumber(FT(value), static_cast<BoundsType>(value), EPSILON, false) {}
+  // FilteredNumber(const T& value) : FilteredNumber(static_cast<double>(value)) {} // static_cast<double>(value)?
 
   FilteredNumber(const Type& other) : FilteredNumber(other.value_, other.lower_, other.upper_) {}
   FilteredNumber() : FilteredNumber(0.0) {}
@@ -125,7 +133,7 @@ public:
 #else
       std::sqrt(a),
 #endif
-      std::sqrt(lower_) - EPSILON,
+      std::max(0, std::sqrt(std::max(lower_, 0)) - EPSILON),
       std::sqrt(upper_) + EPSILON);
   }
 

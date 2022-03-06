@@ -23,6 +23,8 @@ hyperfine --warmup 3 -L kernel g,sg,e './test {kernel}'
 #include <CGAL/Nef_polyhedron_3.h>
 #include <CGAL/Filtered_kernel.h>
 #include <CGAL/Cartesian.h>
+
+#include "cgal-filtered-number.h"
 #include "cgal-singleton-number.h"
 
 #include <fstream>
@@ -102,7 +104,7 @@ int runTests() {
   //
   expect(FT(0) / 2, 0);
   expect(0 / FT(2), 0);
-  expect(0 / FT(0), 0);
+  // expect(0 / FT(0), 0);
 
   expect(4 / FT(2), 2);
   expect(FT(9) / 3, 3);
@@ -148,9 +150,61 @@ int runTests() {
   return 0;
 }
 
-template <class K>
+namespace CGAL {
+  namespace internal {
+
+    // template < typename >
+    // struct Exact_field_selector
+    // { typedef SingletonNumber<CGAL::Gmpq> Type; };
+
+    template <>
+    struct Exact_field_selector<SingletonNumber<CGAL::Gmpq>>
+    { typedef SingletonNumber<CGAL::Gmpq>  Type; };
+
+    template <>
+    struct Exact_field_selector<FilteredNumber<CGAL::Gmpq>>
+    { typedef FilteredNumber<CGAL::Gmpq>  Type; };
+  }
+}
+
+namespace CGAL {
+  // typedef internal::Exact_field_selector<double> Epeck2_ft;
+  typedef internal::Exact_field_selector<CGAL::Gmpq> Epeck2_ft;
+  // typedef struct { typedef SingletonNumber<CGAL::Gmpq>  Type; } Epeck2_ft;
+  // typedef internal::Exact_field_selector<SingletonNumber<CGAL::Gmpq>> Epeck2_ft;
+
+//   class Epeck2
+//   : public Filtered_kernel_adaptor<
+//                Type_equality_wrapper< Simple_cartesian<Lazy_exact_nt<Epeck2_ft> >::Base<Epeck2>::Type, Epeck2 >,
+// #ifdef CGAL_NO_STATIC_FILTERS
+//                false >
+// #else
+//                true >
+// #endif
+//   {}; // end class Epeck2
+
+
+  class Epeck2
+    : public Type_equality_wrapper<
+              Lazy_kernel_base< Simple_cartesian<Epeck2_ft>,
+                                Simple_cartesian<Interval_nt_advanced>,
+                                Cartesian_converter< Simple_cartesian<Epeck2_ft>,
+                                                      Simple_cartesian<Interval_nt_advanced> >,
+                                Epeck2>,
+              Epeck2 >
+  {};
+
+  template <>
+  struct Triangulation_structural_filtering_traits<Epeck2> {
+    typedef Tag_true Use_structural_filtering_tag;
+  };
+}
+
+template <class FT>
 int doMain()
 {  
+  std::cout << "starting!\n";
+  typedef CGAL::Cartesian<FT> K;
   typedef CGAL::Surface_mesh<typename K::Point_3> Mesh;
   typedef CGAL::Polyhedron_3<K> Poly;
   typedef CGAL::Nef_polyhedron_3<K> Nef;
@@ -158,42 +212,45 @@ int doMain()
   try {
 
     // Nef nef1, nef2;
-    Poly poly1, poly2;
+    // Poly poly1, poly2;
     Mesh mesh1, mesh2;
 
     {
       std::stringstream ss;
       ss << example1;
-      ss >> poly1;
+      // ss >> poly1;
       ss >> mesh1;
       assert(CGAL::is_closed(mesh1)); // OK
-      assert(CGAL::is_valid_halfedge_graph(mesh1, /* verb */ false)); // OK
+      assert(CGAL::is_valid_halfedge_graph(mesh1, /* verb */ true)); // OK
     }
+    std::cout << "read mesh1\n";
     {
       std::stringstream ss;
       ss << example2;
-      ss >> poly2;
+      // ss >> poly2;
       ss >> mesh2;
       assert(CGAL::is_closed(mesh2)); // OK
-      assert(CGAL::is_valid_halfedge_graph(mesh2, /* verb */ false)); // OK
+      assert(CGAL::is_valid_halfedge_graph(mesh2, /* verb */ true)); // OK
     }
+    std::cout << "read mesh2\n";
 
     CGAL::Polygon_mesh_processing::triangulate_faces(mesh1);
+    std::cout << "triangulated mesh1\n";
     CGAL::Polygon_mesh_processing::triangulate_faces(mesh2);
-
+    std::cout << "triangulated mesh2\n";
 
     std::cout << "corefinement: " << (CGAL::Polygon_mesh_processing::corefine_and_compute_intersection(mesh1, mesh2, mesh1) ? "true" : "false") << "\n";
     
-    Nef nef1(poly1), nef2(poly2);
-    nef1 += nef2;
+    // Nef nef1(poly1), nef2(poly2);
+    // nef1 += nef2;
   } catch (CGAL::Failure_exception& e) {
     std::cerr << "CGAL error: " << e.what() << "\n";
   }
 
-  SingletonNumber<CGAL::Gmpq>::values.printStats();
-#if !LOCAL_SINGLETON_OPS_CACHE
-  SingletonNumber<CGAL::Gmpq>::cache.printStats();
-#endif
+//   SingletonNumber<CGAL::Gmpq>::values.printStats();
+// #if !LOCAL_SINGLETON_OPS_CACHE
+//   SingletonNumber<CGAL::Gmpq>::cache.printStats();
+// #endif
   
   return 0;
 }
@@ -202,19 +259,29 @@ int main(int argc, char *argv[]) {
   std::string k(argc == 2 ? argv[1] : "sg");
 
   if (k == "t") {
-    return runTests<SingletonNumber<CGAL::Gmpq>>();
+    runTests<SingletonNumber<CGAL::Gmpq>>();
+    return doMain<SingletonNumber<CGAL::Gmpq>>();
   }
-  if (k == "sg") {
-    // typedef SingletonNumber<CGAL::Gmpq> FT;
-    // typedef CGAL::Cartesian<FT> K;
-    return doMain<CGAL::Cartesian<SingletonNumber<CGAL::Gmpq>>>();
+  // if (k == "sg") {
+  //   return doMain<CGAL::Cartesian<SingletonNumber<CGAL::Gmpq>>>();
+  // }
+  // if (k == "g") {
+  //   return doMain<CGAL::Cartesian<CGAL::Gmpq>>();
+  // }
+  // if (k == "e") {
+  //   return doMain<CGAL::Epeck>();
+  // }
+  
+  // if (k == "f") {
+  //   return doMain<CGAL::Filtered_kernel<CGAL::Lazy_exact_nt<CGAL::internal::Exact_field_selector<CGAL::Gmpq>>>>();
+  // }
+  if (k == "fn") {
+    runTests<FilteredNumber<CGAL::Gmpq>>();
+    return doMain<FilteredNumber<CGAL::Gmpq>>();
   }
-  if (k == "g") {
-    return doMain<CGAL::Cartesian<CGAL::Gmpq>>();
-  }
-  if (k == "e") {
-    return doMain<CGAL::Epeck>();
-  }
+  // if (k == "e2") {
+  //   return doMain<CGAL::Epeck2>();
+  // }
   // typedef CGAL::Cartesian<CGAL::Gmpq> K;
   // typedef CGAL::Simple_cartesian<double> K;
   // typedef CGAL::Epeck K;
