@@ -7,19 +7,25 @@ namespace CGALUtils {
 template <typename K>
 void inPlaceNefUnion(CGAL::Nef_polyhedron_3<K>& lhs, const CGAL::Nef_polyhedron_3<K>& rhs)
 {
-  lhs += rhs;
+  auto tmp = lhs + rhs;
+  lhs = tmp;
+  // lhs += rhs;
 }
 
 template <typename K>
 void inPlaceNefDifference(CGAL::Nef_polyhedron_3<K>& lhs, const CGAL::Nef_polyhedron_3<K>& rhs)
 {
-  lhs -= rhs;
+  auto tmp = lhs - rhs;
+  lhs = tmp;
+  // lhs -= rhs;
 }
 
 template <typename K>
 void inPlaceNefIntersection(CGAL::Nef_polyhedron_3<K>& lhs, const CGAL::Nef_polyhedron_3<K>& rhs)
 {
-  lhs *= rhs;
+  auto tmp = lhs * rhs;
+  lhs = tmp;
+  // lhs *= rhs;
 }
 
 template void inPlaceNefUnion(CGAL::Nef_polyhedron_3<CGAL_HybridKernel3>& lhs,

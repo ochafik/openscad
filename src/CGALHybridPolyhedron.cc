@@ -9,6 +9,31 @@
 #include <sstream>
 #include <stdio.h>
 
+#if FAST_CSG_KERNEL_IS_LAZY
+
+void forceExact(CGAL_HybridKernel3::Point_3& pt) {
+  CGAL::exact(pt.x());
+  CGAL::exact(pt.y());
+  CGAL::exact(pt.z());
+}
+
+void forceExact(CGAL_HybridMesh& mesh) {
+  for (auto v : mesh.vertices()) {
+    forceExact(mesh.point(v));
+  }
+}
+
+void forceExact(CGAL_HybridNef& nef) {
+  // Note: nef.snc() offers mutable vertex iterators but is protected.
+  CGAL_HybridNef::Vertex_const_iterator vi;
+  CGAL_forall_vertices(vi, nef) {
+    // This const cast is made more palatable by the 3GB of RAM it drops
+    // from the model in https://github.com/openscad/openscad/issues/4150
+    forceExact(*const_cast<CGAL_HybridKernel3::Point_3*>(&vi->point()));
+  }
+}
+
+#endif // FAST_CSG_KERNEL_IS_LAZY
 
 CGALHybridPolyhedron::CGALHybridPolyhedron(const shared_ptr<CGAL_HybridNef>& nef)
 {
@@ -207,6 +232,8 @@ void CGALHybridPolyhedron::minkowski(CGALHybridPolyhedron& other)
 void CGALHybridPolyhedron::transform(const Transform3d& mat)
 {
   auto det = mat.matrix().determinant();
+  auto needsExact = Feature::ExperimentalFastCsgExact.is_enabled() ||
+    Feature::ExperimentalFastCsgExactCorefinementCallback.is_enabled();
   if (det == 0) {
     LOG(message_group::Warning, Location::NONE, "", "Scaling a 3D object with 0 - removing object");
     clear();
@@ -215,12 +242,25 @@ void CGALHybridPolyhedron::transform(const Transform3d& mat)
 
     if (auto mesh = getMesh()) {
       CGALUtils::transform(*mesh, mat);
-      CGALUtils::cleanupMesh(*mesh, /* is_corefinement_result */ false);
+
       if (det < 0) {
         CGALUtils::reverseFaceOrientations(*mesh);
       }
+
+      mesh->collect_garbage();
+#if FAST_CSG_KERNEL_IS_LAZY
+      if (needsExact) {
+        forceExact(*mesh);
+      }
+#endif
     } else if (auto nef = getNefPolyhedron()) {
       CGALUtils::transform(*nef, mat);
+
+#if FAST_CSG_KERNEL_IS_LAZY
+      if (needsExact) {
+        forceExact(*nef);
+      }
+#endif
     } else {
       assert(!"Bad hybrid polyhedron state");
     }
@@ -322,6 +362,13 @@ void CGALHybridPolyhedron::nefPolyBinOp(
 
   operation(lhs, rhs);
 
+#if FAST_CSG_KERNEL_IS_LAZY
+  if (Feature::ExperimentalFastCsgExact.is_enabled() ||
+    Feature::ExperimentalFastCsgExactCorefinementCallback.is_enabled()) {
+    forceExact(lhs);
+  }
+#endif
+
   if (Feature::ExperimentalFastCsgDebug.is_enabled()) {
     if (!lhs.is_simple()) {
       LOG(message_group::Warning, Location::NONE, "",
@@ -365,7 +412,15 @@ bool CGALHybridPolyhedron::meshBinOp(
     }
 
     if ((success = operation(lhs, rhs, lhs))) {
-      CGALUtils::cleanupMesh(lhs, /* is_corefinement_result */ true);
+      lhs.collect_garbage();
+
+  #if FAST_CSG_KERNEL_IS_LAZY
+      // Only force to exact if it hasn't already been done in corefinement callbacks.
+      if (Feature::ExperimentalFastCsgExact.is_enabled() &&
+          !Feature::ExperimentalFastCsgExactCorefinementCallback.is_enabled()) {
+        forceExact(lhs);
+      }
+  #endif
 
       if (debug) {
         remove(lhsDebugDumpFile.c_str());
@@ -424,7 +479,7 @@ std::shared_ptr<CGAL_HybridMesh> CGALHybridPolyhedron::convertToMesh()
   } else if (auto nef = getNefPolyhedron()) {
     auto mesh = make_shared<CGAL_HybridMesh>();
     CGALUtils::convertNefPolyhedronToTriangleMesh(*nef, *mesh);
-    CGALUtils::cleanupMesh(*mesh, /* is_corefinement_result */ false);
+    // There is no garbage to collect nor any number to force to exact here.
     data = mesh;
     return mesh;
   } else {
