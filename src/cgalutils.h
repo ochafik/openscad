@@ -14,12 +14,12 @@ typedef std::vector<PolygonK> PolyholeK;
 
 class CGALHybridPolyhedron;
 
-namespace CGAL {
-inline std::size_t hash_value(const CGAL_HybridKernel3::FT& x) {
-  std::hash<double> dh;
-  return dh(CGAL::to_double(x));
-}
-}
+// namespace CGAL {
+// inline std::size_t hash_value(const CGAL_HybridKernel3::FT& x) {
+//   std::hash<double> dh;
+//   return dh(CGAL::to_double(x));
+// }
+// }
 
 namespace /* anonymous */ {
 template <typename Result, typename V>

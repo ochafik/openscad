@@ -47,12 +47,24 @@ typedef CGAL::Cartesian<NT3> CGAL_Kernel3, CGAL_HybridKernel3, CGAL_HullKernel;
 // TODO(ochafik): Ditch Epick altogether. Need some template specialization for cgalutils-tess.cc to compile.
 typedef CGAL::Epick CGAL_InexactKernel;
 
+
+// typedef FilteredNumber<CGAL::Epeck_ft> NT2, NT3;
+//   #define FAST_CSG_KERNEL_IS_SAME_AS_NEF 1
+// typedef CGAL::Epeck CGAL_ExactKernel2;
+// typedef CGAL::Epeck CGAL_Kernel2;
+// typedef CGAL::Epeck CGAL_Kernel3, CGAL_HybridKernel3, CGAL_HullKernel;
+// // TODO(ochafik): Ditch Epick altogether. Need some template specialization for cgalutils-tess.cc to compile.
+// typedef CGAL::Epick CGAL_InexactKernel;
+
 #else
   #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 
 typedef CGAL::Gmpq NT2, NT3;
 
+#ifndef CGAL_HAS_NO_INTERVAL_SUPPORT
   #define FAST_CSG_KERNEL_IS_LAZY 1
+#endif
+
 typedef CGAL::Exact_predicates_exact_constructions_kernel CGAL_ExactKernel2;
 typedef CGAL::Extended_cartesian<NT2> CGAL_Kernel2;
 typedef CGAL::Cartesian<NT3> CGAL_Kernel3;
@@ -86,5 +98,13 @@ typedef CGAL::Iso_rectangle_2<CGAL::Simple_cartesian<NT2>> CGAL_Iso_rectangle_2e
 typedef CGAL::Point_3<CGAL_HybridKernel3> CGAL_HybridPoint;
 typedef CGAL::Nef_polyhedron_3<CGAL_HybridKernel3> CGAL_HybridNef;
 typedef CGAL::Surface_mesh<CGAL_HybridPoint> CGAL_HybridMesh;
+
+
+// namespace CGAL {
+inline std::size_t hash_value(const CGAL_HybridKernel3::FT& x) {
+  std::hash<double> dh;
+  return dh(CGAL::to_double(x));
+}
+// }
 
 #endif /* ENABLE_CGAL */

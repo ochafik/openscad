@@ -44,7 +44,11 @@ template <>
 CGAL::Gmpq KernelConverter<CGAL::Epeck, CGAL::Cartesian<CGAL::Gmpq>>::operator()(
   const CGAL::Epeck::FT& n) const
 {
+#ifndef CGAL_HAS_NO_INTERVAL_SUPPORT
   auto& e = n.exact();
+#else
+  auto &e = n;
+#endif
   return CGAL::Gmpq(CGAL::Gmpz(e.get_num().get_mpz_t()), CGAL::Gmpz(e.get_den().get_mpz_t()));
 }
 
