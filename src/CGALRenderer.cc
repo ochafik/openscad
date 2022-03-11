@@ -37,6 +37,7 @@
 #include "feature.h"
 
 #include "CGALRenderer.h"
+#include "CGAL_Nef_polyhedron.h"
 #include "CGALHybridPolyhedron.h"
 
 //#include "Preferences.h"
@@ -70,11 +71,13 @@ void CGALRenderer::addGeometry(const shared_ptr<const Geometry>& geom)
       this->nefPolyhedrons.push_back(new_N);
     }
   } else if (const auto hybrid = dynamic_pointer_cast<const CGALHybridPolyhedron>(geom)) {
-    // TODO(ochafik): Implement rendering of CGAL_HybridMesh (CGAL::Surface_mesh) instead.
-    this->polysets.push_back(hybrid->toPolySet());
+    this->hybridPolyhedrons.push_back(hybrid);
   }
 
-  if (!this->nefPolyhedrons.empty() && this->polyhedrons.empty()) createPolyhedrons();
+  if ((!this->nefPolyhedrons.empty() || !this->hybridPolyhedrons.empty())
+      && this->polyhedrons.empty()) {
+    createPolyhedrons();
+  }
 }
 
 CGALRenderer::~CGALRenderer()
@@ -96,6 +99,16 @@ void CGALRenderer::createPolyhedrons()
     for (const auto& N : this->nefPolyhedrons) {
       auto p = new CGAL_OGL_Polyhedron(*this->colorscheme);
       CGAL::OGL::Nef3_Converter<CGAL_Nef_polyhedron3>::convert_to_OGLPolyhedron(*N->p3, p);
+      // CGAL_NEF3_MARKED_FACET_COLOR <- CGAL_FACE_BACK_COLOR
+      // CGAL_NEF3_UNMARKED_FACET_COLOR <- CGAL_FACE_FRONT_COLOR
+      p->init();
+      this->polyhedrons.push_back(shared_ptr<CGAL_OGL_Polyhedron>(p));
+    }
+    for (const auto& hybrid : this->hybridPolyhedrons) {
+      auto mesh = hybrid->convertToMesh();
+
+      auto p = new CGAL_OGL_Polyhedron(*this->colorscheme);
+      CGAL::OGL::Surface_mesh_Converter<CGAL_HybridMesh>::convert_to_OGLPolyhedron(*mesh, p);
       // CGAL_NEF3_MARKED_FACET_COLOR <- CGAL_FACE_BACK_COLOR
       // CGAL_NEF3_UNMARKED_FACET_COLOR <- CGAL_FACE_FRONT_COLOR
       p->init();

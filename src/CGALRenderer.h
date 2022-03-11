@@ -5,7 +5,6 @@
 #include "VBORenderer.h"
 #include "CGAL_OGL_Polyhedron.h"
 #include "CGAL_OGL_VBOPolyhedron.h"
-#include "CGAL_Nef_polyhedron.h"
 
 class CGALRenderer : public VBORenderer
 {
@@ -26,7 +25,8 @@ private:
 
   std::list<shared_ptr<class CGAL_OGL_Polyhedron>> polyhedrons;
   std::list<shared_ptr<const class PolySet>> polysets;
-  std::list<shared_ptr<const CGAL_Nef_polyhedron>> nefPolyhedrons;
+  std::list<shared_ptr<const class CGAL_Nef_polyhedron>> nefPolyhedrons;
+  std::list<shared_ptr<const class CGALHybridPolyhedron>> hybridPolyhedrons;
 
   VertexStates polyset_states;
   GLuint polyset_vertices_vbo;

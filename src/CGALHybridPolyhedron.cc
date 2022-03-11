@@ -215,6 +215,9 @@ void CGALHybridPolyhedron::transform(const Transform3d& mat)
 
     if (auto mesh = getMesh()) {
       CGALUtils::transform(*mesh, mat);
+
+      CGALUtils::orientToBoundAVolume(*mesh);
+      
       CGALUtils::cleanupMesh(*mesh, /* is_corefinement_result */ false);
       if (det < 0) {
         CGALUtils::reverseFaceOrientations(*mesh);
@@ -426,6 +429,21 @@ std::shared_ptr<CGAL_HybridMesh> CGALHybridPolyhedron::convertToMesh()
     CGALUtils::convertNefPolyhedronToTriangleMesh(*nef, *mesh);
     CGALUtils::cleanupMesh(*mesh, /* is_corefinement_result */ false);
     data = mesh;
+    return mesh;
+  } else {
+    throw "Bad data state";
+  }
+}
+
+std::shared_ptr<const CGAL_HybridMesh> CGALHybridPolyhedron::convertToMesh() const
+{
+  if (auto mesh = getMesh()) {
+    return mesh;
+  } else if (auto nef = getNefPolyhedron()) {
+    SCOPED_PERFORMANCE_TIMER("nef -> mesh");
+    auto mesh = make_shared<CGAL_HybridMesh>();
+    CGALUtils::convertNefPolyhedronToTriangleMesh(*nef, *mesh);
+    CGALUtils::cleanupMesh(*mesh, /* is_corefinement_result */ false);
     return mesh;
   } else {
     throw "Bad data state";

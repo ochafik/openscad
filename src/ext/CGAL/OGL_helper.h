@@ -772,6 +772,163 @@ namespace OGL {
     
   }; // Nef3_Converter
 
+  template<typename TriangleMesh>
+  class Surface_mesh_Converter { 
+    typedef boost::graph_traits<TriangleMesh> GT;
+    typedef typename GT::face_descriptor face_descriptor;
+    typedef typename GT::halfedge_descriptor halfedge_descriptor;
+    typedef typename GT::edge_descriptor edge_descriptor;
+    typedef typename GT::vertex_descriptor vertex_descriptor;
+    
+    public:
+    
+    typedef typename TriangleMesh::Point Point_3;
+    typedef typename CGAL::Kernel_traits<Point_3>::Kernel Kernel;
+    typedef typename CGAL::Vector_3<Kernel> Vector_3;
+    typedef typename CGAL::Segment_3<Kernel> Segment_3;
+    typedef typename CGAL::Plane_3<Kernel> Plane_3;
+    // typedef typename SNC_structure::Mark Mark;
+    // typedef typename SNC_structure::SHalfedge_around_facet_const_circulator 
+      // SHalfedge_around_facet_const_circulator;
+    
+  private:
+    static OGL::Double_point double_point(const Point_3& p)
+      { return OGL::Double_point(CGAL::to_double(p.x()),
+				 CGAL::to_double(p.y()),
+				 CGAL::to_double(p.z())); }
+    
+    static OGL::Double_segment double_segment(const Segment_3& s)
+      { return OGL::Double_segment(double_point(s.source()),
+				   double_point(s.target())); }
+    
+    static void draw(vertex_descriptor v, const TriangleMesh& tm, 
+		     CGAL::OGL::Polyhedron& P) { 
+      Point_3 bp = tm.point(v);
+      //    CGAL_NEF_TRACEN("vertex " << bp);
+      P.push_back(double_point(bp), /* mark= */ false); // v->mark()); 
+    }
+    
+    static void draw(halfedge_descriptor e, const TriangleMesh& tm,
+		     CGAL::OGL::Polyhedron& P) { 
+      vertex_descriptor s = tm.source(e);
+      vertex_descriptor t = tm.source(tm.opposite(e));
+      Segment_3 seg(tm.point(s), tm.point(t));
+      //    CGAL_NEF_TRACEN("edge " << seg);
+      P.push_back(double_segment(seg), /* mark= */ false); // e->mark()); 
+    }
+    
+    static bool same_orientation(Plane_3 p1, Plane_3 p2) {
+      if(p1.a() != 0)
+        return CGAL::sign(p1.a()) == CGAL::sign(p2.a());
+      if(p1.b() != 0)
+        return CGAL::sign(p1.b()) == CGAL::sign(p2.b());
+      return CGAL::sign(p1.c()) == CGAL::sign(p2.c());
+    }
+
+    static void draw(face_descriptor f, const TriangleMesh& tm,
+		     CGAL::OGL::Polyhedron& P) { 
+
+      OGL::DFacet g;
+      g.new_facet_cycle();
+	  
+      CGAL::Halfedge_around_face_iterator<TriangleMesh> heIt, heEnd;
+      for (boost::tie(heIt, heEnd) = halfedges_around_face(tm.halfedge(f), tm); heIt != heEnd; ++heIt) {
+        auto he = *heIt;
+        auto &sp = tm.point(tm.source(he));
+        g.push_back_vertex(double_point(sp));
+      }
+
+      // Vector_3 v = f->plane().orthogonal_vector();
+      // g.set_normal(CGAL::to_double(v.x()), 
+		  //  CGAL::to_double(v.y()), 
+		  //  CGAL::to_double(v.z()), 
+		  //  f->mark());
+      P.push_back(g);
+
+  //     if (f->incident_volume()->mark()) return; // Skip halffaces facing solid volume
+  //     OGL::DFacet g;
+  //     Halffacet_cycle_const_iterator fc; // all facet cycles:
+  //     CGAL_forall_facet_cycles_of(fc,f)
+	// if ( fc.is_shalfedge() ) { // non-trivial facet cycle
+	//   g.new_facet_cycle();
+	//   SHalfedge_const_handle h = fc;
+	//   SHalfedge_around_facet_const_circulator hc(h), he(hc);
+	//   CGAL_For_all(hc,he){ // all vertex coordinates in facet cycle
+	//     Point_3 sp = hc->source()->source()->point();
+	//     //	      CGAL_NEF_TRACEN(" ");CGAL_NEF_TRACEN("facet" << sp);
+	//     g.push_back_vertex(double_point(sp));
+	//   }
+	// }
+  //     Vector_3 v = f->plane().orthogonal_vector();
+  //     g.set_normal(CGAL::to_double(v.x()), 
+	// 	   CGAL::to_double(v.y()), 
+	// 	   CGAL::to_double(v.z()), 
+	// 	   f->mark());
+  //     P.push_back(g);
+    }
+    
+    // Returns the bounding box of the finite vertices of the polyhedron.
+    // Returns $[-1,+1]^3$ as bounding box if no finite vertex exists.
+    
+    static Bbox_3  bounded_bbox(const TriangleMesh& tm) {
+      bool first_vertex = true;
+      Bbox_3 bbox( -1.0, -1.0, -1.0, 1.0, 1.0, 1.0);
+
+      for (auto &v : tm.vertices()) {
+        if (v.is_valid()) {//N.is_standard(vi)) {
+          auto &p = tm.point(v);
+          double x = CGAL::to_double(p.hx());
+          double y = CGAL::to_double(p.hy());
+          double z = CGAL::to_double(p.hz());
+          double w = CGAL::to_double(p.hw());
+
+          if(first_vertex) {
+            bbox = Bbox_3(x/w, y/w, z/w, x/w, y/w, z/w);
+            first_vertex = false;
+          } else {
+            bbox = bbox + Bbox_3(x/w, y/w, z/w, x/w, y/w, z/w);
+            first_vertex = false;
+          }
+        }
+      }
+      return bbox;
+    }  
+    
+    // static void set_R(Bbox_3& bbox, const TriangleMesh& tm) {
+    //   if(tm.is_standard_kernel()) return;
+    //   double size = abs(bbox.xmin());
+    //   if(size < bbox.xmax()) size = bbox.xmax();
+    //   if(size < bbox.ymin()) size = bbox.ymin();
+    //   if(size < bbox.ymax()) size = bbox.ymax();
+    //   if(size < bbox.zmin()) size = bbox.zmin();
+    //   if(size < bbox.zmax()) size = bbox.zmax();
+    //   tm.set_size_of_infimaximal_box(size*50);
+    //   //    CGAL_NEF_TRACEN("set infi box size to " << size);
+    //   Vertex_const_iterator vi;
+    //   CGAL_forall_vertices(vi, tm)
+    //   if(tm.is_standard(vi))
+    //     return;
+    //   bbox = Bbox_3(bbox.xmin()*10,bbox.ymin()*10,bbox.zmin()*10,
+    //   bbox.xmax()*10,bbox.ymax()*10,bbox.zmax()*10);
+    // }
+  public:
+    static void convert_to_OGLPolyhedron(const TriangleMesh& mesh, CGAL::OGL::Polyhedron* P) { 
+      Bbox_3 bbox(bounded_bbox(mesh));
+      // set_R(bbox,mesh);
+      P->bbox() = bbox;    
+      for (auto &v : mesh.vertices()) {
+        draw(v, mesh, *P);
+      }
+      for (auto &he : mesh.halfedges()) {
+        draw(he, mesh, *P);
+      }
+      for (auto &f : mesh.faces()) {
+        draw(f, mesh, *P);
+      }
+    }
+    
+  }; // Surface_mesh_converter
+
 } // namespace OGL
 
 } //namespace CGAL

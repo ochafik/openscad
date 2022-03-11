@@ -83,6 +83,8 @@ public:
   std::shared_ptr<CGAL_HybridNef> convertToNef();
   std::shared_ptr<CGAL_HybridMesh> convertToMesh();
 
+  std::shared_ptr<const CGAL_HybridMesh> convertToMesh() const;
+
 private:
   // Old GCC versions used to build releases have object file limitations.
   // This conversion function could have been in the class but it requires knowledge
