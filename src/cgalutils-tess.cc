@@ -103,8 +103,11 @@ bool tessellatePolygonWithHoles(const PolyholeK& polygons,
     // Calculate best guess at face normal using Newell's method
     CGAL::normal_vector_newell_3(polygons.front().begin(), polygons.front().end(), normalvec);
   }
-  double sqrl = normalvec.squared_length();
-  if (sqrl > 0.0) normalvec = normalvec / sqrt(sqrl);
+  // Don't think we need to normalize the normal,
+  // places like Projection_traits_base_3::Projection_to_plan::operator() do their own normalization.
+
+  // double sqrl = normalvec.squared_length();
+  // if (sqrl > 0.0) normalvec = normalvec / sqrt(sqrl);
 
   // Pass the normal vector to the (undocumented)
   // CGAL::Triangulation_2_filtered_projection_traits_3. This
@@ -159,8 +162,8 @@ bool tessellatePolygon(const PolygonK& polygon,
     // Calculate best guess at face normal using Newell's method
     CGAL::normal_vector_newell_3(polygon.begin(), polygon.end(), normalvec);
   }
-  double sqrl = normalvec.squared_length();
-  if (sqrl > 0.0) normalvec = normalvec / sqrt(sqrl);
+  // double sqrl = normalvec.squared_length();
+  // if (sqrl > 0.0) normalvec = normalvec / sqrt(sqrl);
 
   // Pass the normal vector to the (undocumented)
   // CGAL::Triangulation_2_filtered_projection_traits_3. This
