@@ -73,7 +73,7 @@ public:
     {
 public:
       std::unordered_set<face_descriptor> patchFaces;
-      std::unordered_map<PatchId, bool> isPatchIdMap;
+      std::unordered_map<PatchId, bool> patchIdCoplanarityMap;
       std::vector<halfedge_descriptor> borderEdges;
       std::vector<halfedge_descriptor> borderPath;
       std::vector<vertex_descriptor> borderPathVertices;
@@ -81,7 +81,7 @@ public:
 
       void clear() {
         patchFaces.clear();
-        isPatchIdMap.clear();
+        patchIdCoplanarityMap.clear();
         borderEdges.clear();
         borderPath.clear();
         borderPathVertices.clear();
@@ -120,15 +120,18 @@ public:
                 return true;
               }
               auto neighbourId = neighbourIdIt->second;
+              if (neighbourId == id) {
+                return false;
+              }
 
-              auto isPatchIdIt = patch.isPatchIdMap.find(neighbourId);
-              if (isPatchIdIt != patch.isPatchIdMap.end()) {
-                auto isPatchId = isPatchIdIt->second;
-                return !isPatchId;
+              auto patchIdCoplanarityIt = patch.patchIdCoplanarityMap.find(neighbourId);
+              if (patchIdCoplanarityIt != patch.patchIdCoplanarityMap.end()) {
+                auto patchIdCoplanarity = patchIdCoplanarityIt->second;
+                return !patchIdCoplanarity;
               }
 
               auto isCoplanar = isEdgeBetweenCoplanarFaces(he);
-              patch.isPatchIdMap[neighbourId] = isCoplanar;
+              patch.patchIdCoplanarityMap[neighbourId] = isCoplanar;
               return !isCoplanar;
             };
 
@@ -250,7 +253,7 @@ public:
         loopLocalPatchData.clear();
         auto& patch = loopLocalPatchData;
         patch.patchFaces.insert(face);
-        patch.isPatchIdMap[id] = true;
+        patch.patchIdCoplanarityMap[id] = true;
 
         remeshPatch(patch, id);
 
