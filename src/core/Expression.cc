@@ -793,11 +793,11 @@ Value LcEach::evalRecur(Value&& v, const std::shared_ptr<const Context>& context
     return Value(std::move(vec));
   } else if (v.type() == Value::Type::EMBEDDED_VECTOR) {
     EmbeddedVectorType vec(context->session());
-    auto &origVec = v.toEmbeddedVector();
-    vec.reserve(origVec.size());
+    auto &embeddedVec = v.toEmbeddedVector();
+    vec.reserve(embeddedVec.size());
     // Not safe to move values out of a vector, since it's shared_ptr maye be shared with another Value,
     // which should remain constant
-    for (const auto& val : origVec) vec.emplace_back(evalRecur(val.clone(), context) );
+    for (const auto& val : embeddedVec) vec.emplace_back(evalRecur(val.clone(), context) );
     return Value(std::move(vec));
   } else if (v.type() == Value::Type::STRING) {
     EmbeddedVectorType vec(context->session());
