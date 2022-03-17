@@ -334,6 +334,7 @@ Value Vector::evaluate(const std::shared_ptr<const Context>& context) const
     }
   } else {
     VectorType vec(context->session());
+    vec.reserve(this->children.size());
     for (const auto& e : this->children) vec.emplace_back(e->evaluate(context));
     return std::move(vec);
   }
@@ -377,6 +378,7 @@ Value MemberLookup::evaluate(const std::shared_ptr<const Context>& context) cons
   case Value::Type::VECTOR:
     if (this->member.length() > 1 && boost::regex_match(this->member, re_swizzle_validation)) {
       VectorType ret(context->session());
+      ret.reserve(this->member.size());
       for (const char& ch : this->member)
         switch (ch) {
         case 'r': case 'x': ret.emplace_back(v[0]); break;
@@ -781,6 +783,7 @@ Value LcEach::evalRecur(Value&& v, const std::shared_ptr<const Context>& context
       LOG(message_group::Warning, loc, context->documentRoot(), "Bad range parameter in for statement: too many elements (%1$lu)", steps);
     } else {
       EmbeddedVectorType vec(context->session());
+      vec.reserve(range.numValues());
       for (double d : range) vec.emplace_back(d);
       return Value(std::move(vec));
     }
@@ -790,13 +793,17 @@ Value LcEach::evalRecur(Value&& v, const std::shared_ptr<const Context>& context
     return Value(std::move(vec));
   } else if (v.type() == Value::Type::EMBEDDED_VECTOR) {
     EmbeddedVectorType vec(context->session());
+    auto &origVec = v.toEmbeddedVector();
+    vec.reserve(origVec.size());
     // Not safe to move values out of a vector, since it's shared_ptr maye be shared with another Value,
     // which should remain constant
-    for (const auto& val : v.toEmbeddedVector()) vec.emplace_back(evalRecur(val.clone(), context) );
+    for (const auto& val : origVec) vec.emplace_back(evalRecur(val.clone(), context) );
     return Value(std::move(vec));
   } else if (v.type() == Value::Type::STRING) {
     EmbeddedVectorType vec(context->session());
-    for (auto ch : v.toStrUtf8Wrapper()) vec.emplace_back(std::move(ch));
+    auto &wrapper = v.toStrUtf8Wrapper();
+    vec.reserve(wrapper.size());
+    for (auto ch : wrapper) vec.emplace_back(std::move(ch));
     return Value(std::move(vec));
   } else if (v.type() != Value::Type::UNDEFINED) {
     return std::move(v);
@@ -887,6 +894,7 @@ void LcFor::forEach(const AssignmentList& assignments, const Location& loc, cons
 Value LcFor::evaluate(const std::shared_ptr<const Context>& context) const
 {
   EmbeddedVectorType vec(context->session());
+  vec.reserve(this->arguments.size());
   forEach(this->arguments, this->loc, context,
           [&vec, expression = expr.get()] (const std::shared_ptr<const Context>& iterationContext) {
     vec.emplace_back(expression->evaluate(iterationContext));
