@@ -489,6 +489,7 @@ public:
     Value operator>=(const VectorType& v) const;
     class EvaluationSession *evaluation_session() const { return ptr->evaluation_session; }
 
+    void reserve(size_t size);
     void emplace_back(Value&& val);
     void emplace_back(EmbeddedVectorType&& mbed);
     template <typename ... Args> void emplace_back(Args&&... args) { emplace_back(Value(std::forward<Args>(args)...)); }
