@@ -969,20 +969,25 @@ Value multmatvec(const VectorType& matrixvec, const VectorType& vectorvec)
   // Matrix * Vector
   VectorType dstv(matrixvec.evaluation_session());
   dstv.reserve(matrixvec.size());
+  const auto vectorsize = vectorvec.size();
   for (size_t i = 0; i < matrixvec.size(); ++i) {
-    if (matrixvec[i].type() != Value::Type::VECTOR ||
-        matrixvec[i].toVector().size() != vectorvec.size()) {
+    auto &mi = matrixvec[i];
+    auto &miv = mi.toVector(); // Won't explode just yet but test type next!
+    if (mi.type() != Value::Type::VECTOR ||
+        miv.size() != vectorsize) {
       return Value::undef(STR("Matrix must be rectangular. Problem at row " << i));
     }
     double r_e = 0.0;
-    for (size_t j = 0; j < matrixvec[i].toVector().size(); ++j) {
-      if (matrixvec[i].toVector()[j].type() != Value::Type::NUMBER) {
+    for (size_t j = 0; j < vectorsize; ++j) {
+      auto &mij = miv[j];
+      if (mij.type() != Value::Type::NUMBER) {
         return Value::undef(STR("Matrix must contain only numbers. Problem at row " << i << ", col " << j));
       }
-      if (vectorvec[j].type() != Value::Type::NUMBER) {
+      auto &vj = vectorvec[j];
+      if (vj.type() != Value::Type::NUMBER) {
         return Value::undef(STR("Vector must contain only numbers. Problem at index " << j));
       }
-      r_e += matrixvec[i].toVector()[j].toDouble() * vectorvec[j].toDouble();
+      r_e += mij.toDouble() * vj.toDouble();
     }
     dstv.emplace_back(Value(r_e));
   }
@@ -999,20 +1004,23 @@ Value multvecmat(const VectorType& vectorvec, const VectorType& matrixvec)
   for (size_t i = 0; i < firstRowSize; ++i) {
     double r_e = 0.0;
     for (size_t j = 0; j < vectorvec.size(); ++j) {
-      if (matrixvec[j].type() != Value::Type::VECTOR ||
-          matrixvec[j].toVector().size() != firstRowSize) {
+      auto &mj = matrixvec[j];
+      auto &mjv = mj.toVector(); // Test type below!
+      auto &vj = vectorvec[j];
+      if (mj.type() != Value::Type::VECTOR ||
+          mjv.size() != firstRowSize) {
         LOG(message_group::Warning, Location::NONE, "", "Matrix must be rectangular. Problem at row %1$lu", j);
         return Value::undef(STR("Matrix must be rectangular. Problem at row " << j));
       }
-      if (vectorvec[j].type() != Value::Type::NUMBER) {
+      if (vj.type() != Value::Type::NUMBER) {
         LOG(message_group::Warning, Location::NONE, "", "Vector must contain only numbers. Problem at index %1$lu", j);
         return Value::undef(STR("Vector must contain only numbers. Problem at index " << j));
       }
-      if (matrixvec[j].toVector()[i].type() != Value::Type::NUMBER) {
+      if (mjv[i].type() != Value::Type::NUMBER) {
         LOG(message_group::Warning, Location::NONE, "", "Matrix must contain only numbers. Problem at row %1$lu, col %2$lu", j, i);
         return Value::undef(STR("Matrix must contain only numbers. Problem at row " << j << ", col " << i));
       }
-      r_e += vectorvec[j].toDouble() * matrixvec[j].toVector()[i].toDouble();
+      r_e += vj.toDouble() * mjv[i].toDouble();
     }
     dstv.emplace_back(r_e);
   }
