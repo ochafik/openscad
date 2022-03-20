@@ -471,7 +471,7 @@ public:
     const_iterator begin() const { return iterator(ptr.get()); }
     const_iterator   end() const { return iterator(ptr.get(), true); }
     size_type size() const { return ptr->size(); }
-    bool empty() const { return ptr->vec.empty(); }
+    bool empty() const { return ptr->size() == 0; }
     // const accesses to VectorObject require .clone to be move-able
     const Value& operator[](size_t idx) const {
       if (idx < this->size()) {
