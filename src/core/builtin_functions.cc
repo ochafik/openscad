@@ -164,6 +164,7 @@ Value builtin_rands(Arguments arguments, const Location& loc)
   }
 
   VectorType vec(arguments.session());
+  vec.reserve(numresults);
   if (min >= max) { // uniform_real_distribution doesn't allow min == max
     for (size_t i = 0; i < numresults; ++i)
       vec.emplace_back(min);
@@ -417,6 +418,7 @@ Value builtin_ord(Arguments arguments, const Location& loc)
 Value builtin_concat(Arguments arguments, const Location& loc)
 {
   VectorType result(arguments.session());
+  result.reserve(arguments.size());
   for (auto& argument : arguments) {
     if (argument->type() == Value::Type::VECTOR) {
       result.emplace_back(EmbeddedVectorType(std::move(argument->toVectorNonConst())));
