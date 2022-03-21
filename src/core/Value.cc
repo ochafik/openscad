@@ -567,7 +567,7 @@ void VectorType::reserve(size_t size) {
 void VectorType::emplace_back(Value&& val)
 {
   auto clearEigenVector = [&](const char* reason) {
-    if (ptr->vector || ptr->matrix) {
+    if (ptr->vector) {
       std::cerr << "# Deoptimizing eigen vector (reason: " << reason << ")\n";
       ptr->vector.reset();
     }
@@ -588,12 +588,16 @@ void VectorType::emplace_back(Value&& val)
       if (val.type() == Value::Type::NUMBER) {
         clearEigenMatrix("Adding a number");
         if (empty() && ptr->vec.capacity()) {
-          ptr->vector.reset(new Eigen::VectorXd(ptr->vec.capacity()));
+          ptr->vector.reset(new Eigen::VectorXd());
+          ptr->vector->resize(ptr->vec.capacity());
         }
         if (ptr->vector) {
           if (size() < ptr->vector->size()) {
             (*ptr->vector)[size()] = val.toDouble();
           } else {
+            auto s = size();
+            auto capacity = ptr->vec.capacity();
+            auto vecSize = ptr->vector->size();
             clearEigenVector("Exceeded size of eigen vector's reserved size");
           }
         }
@@ -974,6 +978,25 @@ bool Value::cmp_less(const Value& v1, const Value& v2) {
   return v1.operator<(v2).toBool();
 }
 
+bool hasFilledEigenVector(const VectorType& vec) {
+  return vec.ptr->vector && vec.size() == vec.ptr->vector->size();
+}
+
+bool haveEigenVectorsWithSameSize(const VectorType& op1, const VectorType& op2) {
+  return hasFilledEigenVector(op1) && hasFilledEigenVector(op2) &&
+        op1.ptr->vector->size() == op2.ptr->vector->size();
+}
+
+bool hasFilledEigenMatrix(const VectorType& vec) {
+  return vec.ptr->matrix && vec.size() == vec.ptr->matrix->rows();
+}
+
+bool haveEigenMatricesWithSameSize(const VectorType& op1, const VectorType& op2) {
+  return hasFilledEigenMatrix(op1) && hasFilledEigenMatrix(op2) &&
+        op1.ptr->matrix->rows() == op2.ptr->matrix->rows() &&
+        op1.ptr->matrix->cols() == op2.ptr->matrix->cols();
+}
+
 class plus_visitor : public boost::static_visitor<Value>
 {
 public:
@@ -988,13 +1011,10 @@ public:
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     VectorType sum(op1.evaluation_session());
 
-    if (op1.ptr->vector && op2.ptr->vector &&
-        op1.ptr->vector->size() == op2.ptr->vector->size()) {
+    if (haveEigenVectorsWithSameSize(op1, op2)) {
       std::cerr << "# Eigen Vector(" << op1.ptr->vector->size() << ") + Vector\n";
       sum = std::make_shared<Eigen::VectorXd>(*op1.ptr->vector + *op2.ptr->vector);
-    } else if (op1.ptr->matrix && op2.ptr->matrix &&
-              op1.ptr->matrix->rows() == op2.ptr->matrix->rows() &&
-              op1.ptr->matrix->cols() == op2.ptr->matrix->cols()) {
+    } else if (haveEigenMatricesWithSameSize(op1, op2)) {
       std::cerr << "# Eigen Matrix(" << op1.ptr->matrix->rows() << ", " << op1.ptr->matrix->cols() << ") + Matrix\n";
       sum = std::make_shared<Eigen::MatrixXd>(*op1.ptr->matrix + *op2.ptr->matrix);
     } else {
@@ -1032,13 +1052,10 @@ public:
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     VectorType sum(op1.evaluation_session());
     
-    if (op1.ptr->vector && op2.ptr->vector &&
-        op1.ptr->vector->size() == op2.ptr->vector->size()) {
+    if (haveEigenVectorsWithSameSize(op1, op2)) {
       std::cerr << "# Eigen Vector(" << op1.ptr->vector->size() << ") - Vector\n";
       sum = std::make_shared<Eigen::VectorXd>(*op1.ptr->vector - *op2.ptr->vector);
-    } else if (op1.ptr->matrix && op2.ptr->matrix &&
-              op1.ptr->matrix->rows() == op2.ptr->matrix->rows() &&
-              op1.ptr->matrix->cols() == op2.ptr->matrix->cols()) {
+    } else if (haveEigenMatricesWithSameSize(op1, op2)) {
       std::cerr << "# Eigen Matrix(" << op1.ptr->matrix->rows() << ", " << op1.ptr->matrix->cols() << ") - Matrix\n";
       sum = std::make_shared<Eigen::MatrixXd>(*op1.ptr->matrix - *op2.ptr->matrix);
     } else {
@@ -1060,10 +1077,10 @@ Value multvecnum(const VectorType& vecval, const Value& numval)
 {
   // Vector * Number
   VectorType dstv(vecval.evaluation_session());
-  if (vecval.ptr->vector && numval.type() == Value::Type::NUMBER) {
+  if (hasFilledEigenVector(vecval) && numval.type() == Value::Type::NUMBER) {
     std::cerr << "# Eigen Vector(" << vecval.ptr->vector->size() << ") * scalar\n";
     dstv = std::make_shared<Eigen::VectorXd>(*vecval.ptr->vector * numval.toDouble());
-  } else if (vecval.ptr->matrix && numval.type() == Value::Type::NUMBER) {
+  } else if (hasFilledEigenMatrix(vecval) && numval.type() == Value::Type::NUMBER) {
     std::cerr << "# Eigen Matrix(" << vecval.ptr->matrix->rows() << ", " << vecval.ptr->matrix->cols() << ") * scalar\n";
     dstv = std::make_shared<Eigen::MatrixXd>(*vecval.ptr->matrix * numval.toDouble());
   } else {
@@ -1080,7 +1097,7 @@ Value multmatvec(const VectorType& matrixvec, const VectorType& vectorvec)
   // Matrix * Vector
   VectorType dstv(matrixvec.evaluation_session());
 
-  if (matrixvec.ptr->matrix && vectorvec.ptr->vector &&
+  if (hasFilledEigenMatrix(matrixvec) && hasFilledEigenVector(vectorvec) &&
       matrixvec.ptr->matrix->cols() == vectorvec.ptr->vector->size()) {
     std::cerr << "# Eigen Matrix(" << matrixvec.ptr->matrix->rows() << ", " << matrixvec.ptr->matrix->cols() << ") * Vector\n";
     dstv = std::make_shared<Eigen::VectorXd>(*matrixvec.ptr->matrix * *vectorvec.ptr->vector);
@@ -1149,8 +1166,7 @@ Value multvecvec(const VectorType& vec1, const VectorType& vec2) {
   // Vector dot product.
   auto r = 0.0;
 
-  if (vec1.ptr->vector && vec2.ptr->vector &&
-      vec1.ptr->vector->size() == vec2.ptr->vector->size()) {
+  if (haveEigenVectorsWithSameSize(vec1, vec2)) {
     std::cerr << "# Eigen Vector(" << vec1.ptr->vector->size() << ") . Vector\n";
     r = vec1.ptr->vector->dot(*vec2.ptr->vector);
   } else {
@@ -1230,10 +1246,10 @@ Value Value::operator/(const Value& v) const
   } else if (this->type() == Type::VECTOR && v.type() == Type::NUMBER) {
     auto &vec = this->toVector();
     VectorType dstv(vec.evaluation_session());
-    if (vec.ptr->vector) {
+    if (hasFilledEigenVector(vec)) {
       std::cerr << "# Eigen Vector(" << vec.ptr->vector->size() << ") / scalar\n";
       dstv = std::make_shared<Eigen::VectorXd>(*vec.ptr->vector / v.toDouble());
-    } else if (vec.ptr->matrix) {
+    } else if (hasFilledEigenMatrix(vec)) {
       std::cerr << "# Eigen Matrix(" << vec.ptr->matrix->rows() << ", " << vec.ptr->matrix->cols() << ") / scalar\n";
       dstv = std::make_shared<Eigen::MatrixXd>(*vec.ptr->matrix / v.toDouble());
     } else {  
