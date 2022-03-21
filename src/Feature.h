@@ -22,6 +22,7 @@ public:
   static const Feature ExperimentalFastCsgRemesh;
   static const Feature ExperimentalFastCsgRemeshPredictibly;
   static const Feature ExperimentalRoof;
+  static const Feature ExperimentalFastLinalg;
   static const Feature ExperimentalInputDriverDBus;
   static const Feature ExperimentalLazyUnion;
   static const Feature ExperimentalVxORenderers;

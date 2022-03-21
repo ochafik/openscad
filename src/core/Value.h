@@ -16,6 +16,7 @@
 #endif
 
 #include "Assignment.h"
+#include "linalg.h"
 #include "memory.h"
 
 class tostring_visitor;
@@ -378,11 +379,20 @@ protected:
       vec_t vec;
       size_type embed_excess = 0; // Keep count of the number of embedded elements *excess of* vec.size()
       class EvaluationSession *evaluation_session = nullptr; // Used for heap size bookkeeping. May be null for vectors of known small maximum size.
+
+      // TODO: make vec lazy / built on demand from vector or matrix upon access.
+      shared_ptr<Eigen::VectorXd> vector;
+      shared_ptr<Eigen::MatrixXd> matrix;
+
       size_type size() const { return vec.size() + embed_excess;  }
     };
     using vec_t = VectorObject::vec_t;
 public:
     shared_ptr<VectorObject> ptr;
+
+    void operator=(const shared_ptr<Eigen::VectorXd> &vector);
+    void operator=(const shared_ptr<Eigen::MatrixXd> &matrix);
+
 protected:
 
     // A Deleter is used on the shared_ptrs to avoid stack overflow in cases

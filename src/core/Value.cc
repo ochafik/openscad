@@ -534,15 +534,93 @@ VectorType::VectorType(class EvaluationSession *session, double x, double y, dou
   emplace_back(z);
 }
 
+void VectorType::operator=(const shared_ptr<Eigen::VectorXd> &vector) {
+  assert(empty());
+  ptr->vector = vector;
+  auto size = vector->size();
+  reserve(size);
+  for (size_t i = 0; i < size; i++) {
+    emplace_back(Value((*vector)[i]));
+  }
+}
+
+void VectorType::operator=(const shared_ptr<Eigen::MatrixXd> &matrix) {
+  assert(empty());
+  ptr->matrix = matrix;
+  auto rows = matrix->rows();
+  auto cols = matrix->cols();
+  reserve(rows);
+  for (size_t i = 0; i < rows; i++) {
+    VectorType row(this->evaluation_session());
+    row.reserve(cols);
+    for (size_t j = 0; j < cols; j++) {
+      row.emplace_back(Value((*matrix)(i, j)));
+    }
+    emplace_back(std::move(row));
+  }
+}
+
 void VectorType::reserve(size_t size) {
   ptr->vec.reserve(size);
 }
 
 void VectorType::emplace_back(Value&& val)
 {
+  auto clearEigenVector = [&](const char* reason) {
+    if (ptr->vector || ptr->matrix) {
+      std::cerr << "# Deoptimizing eigen vector (reason: " << reason << ")\n";
+      ptr->vector.reset();
+    }
+  };
+  auto clearEigenMatrix = [&](const char* reason) {
+    if (ptr->matrix) {
+      std::cerr << "# Deoptimizing eigen matrix (reason: " << reason << ")\n";
+      ptr->matrix.reset();
+    }
+  };
+
   if (val.type() == Value::Type::EMBEDDED_VECTOR) {
     emplace_back(std::move(val.toEmbeddedVectorNonConst()));
+    clearEigenVector("Added an embedded vector");
+    clearEigenMatrix("Added an embedded vector");
   } else {
+    if (Feature::ExperimentalFastLinalg.is_enabled()) {
+      if (val.type() == Value::Type::NUMBER) {
+        clearEigenMatrix("Adding a number");
+        if (empty() && ptr->vec.capacity()) {
+          ptr->vector.reset(new Eigen::VectorXd(ptr->vec.capacity()));
+        }
+        if (ptr->vector) {
+          if (size() < ptr->vector->size()) {
+            (*ptr->vector)[size()] = val.toDouble();
+          } else {
+            clearEigenVector("Exceeded size of eigen vector's reserved size");
+          }
+        }
+      } else if (val.type() == Value::Type::VECTOR) {
+        clearEigenVector("Adding a vector");
+        const VectorType &valVec = val.toVector();
+        if (auto eigenVec = valVec.ptr->vector) {
+          if (empty() && ptr->vec.capacity()) {
+            ptr->matrix.reset(new Eigen::MatrixXd(ptr->vec.capacity(), eigenVec->size()));
+          }
+          if (ptr->matrix) {
+            if (ptr->matrix->cols() != eigenVec->size()) {
+              clearEigenMatrix("Added a vector of the wrong size to a matrix");
+            } else if (size() < ptr->matrix->rows()) {
+              (*ptr->matrix).block(size(), 0, 1, eigenVec->size()) = eigenVec->adjoint();
+            } else {
+              clearEigenMatrix("Exceeded size of eigen matrix's reserved rows");
+            }
+          }
+        } else {
+          clearEigenMatrix("Added a non-eigen vector");
+        }
+      } else {
+        clearEigenVector("Added a non-number and non-vector value");
+        clearEigenMatrix("Added a non-number and non-vector value");
+      }
+    }
     ptr->vec.push_back(std::move(val));
     if (ptr->evaluation_session) {
       ptr->evaluation_session->accounting().addVectorElement(1);
@@ -909,14 +987,27 @@ public:
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     VectorType sum(op1.evaluation_session());
-    sum.reserve(op1.size());
-    // FIXME: should we really truncate to shortest vector here?
-    //   Maybe better to either "add zeroes" and return longest
-    //   and/or issue an warning/error about length mismatch.
-    for (auto it1 = op1.begin(), end1 = op1.end(), it2 = op2.begin(), end2 = op2.end();
-         it1 != end1 && it2 != end2;
-         ++it1, ++it2) {
-      sum.emplace_back(*it1 + *it2);
+
+    if (op1.ptr->vector && op2.ptr->vector &&
+        op1.ptr->vector->size() == op2.ptr->vector->size()) {
+      std::cerr << "# Eigen Vector(" << op1.ptr->vector->size() << ") + Vector\n";
+      sum = std::make_shared<Eigen::VectorXd>(*op1.ptr->vector + *op2.ptr->vector);
+    } else if (op1.ptr->matrix && op2.ptr->matrix &&
+              op1.ptr->matrix->rows() == op2.ptr->matrix->rows() &&
+              op1.ptr->matrix->cols() == op2.ptr->matrix->cols()) {
+      std::cerr << "# Eigen Matrix(" << op1.ptr->matrix->rows() << ", " << op1.ptr->matrix->cols() << ") + Matrix\n";
+      sum = std::make_shared<Eigen::MatrixXd>(*op1.ptr->matrix + *op2.ptr->matrix);
+    } else {
+      sum.reserve(op1.size());
+
+      // FIXME: should we really truncate to shortest vector here?
+      //   Maybe better to either "add zeroes" and return longest
+      //   and/or issue an warning/error about length mismatch.
+      for (auto it1 = op1.begin(), end1 = op1.end(), it2 = op2.begin(), end2 = op2.end();
+          it1 != end1 && it2 != end2;
+          ++it1, ++it2) {
+        sum.emplace_back(*it1 + *it2);
+      }
     }
     return std::move(sum);
   }
@@ -940,9 +1031,21 @@ public:
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     VectorType sum(op1.evaluation_session());
-    sum.reserve(op1.size());
-    for (size_t i = 0; i < op1.size() && i < op2.size(); ++i) {
-      sum.emplace_back(op1[i] - op2[i]);
+    
+    if (op1.ptr->vector && op2.ptr->vector &&
+        op1.ptr->vector->size() == op2.ptr->vector->size()) {
+      std::cerr << "# Eigen Vector(" << op1.ptr->vector->size() << ") - Vector\n";
+      sum = std::make_shared<Eigen::VectorXd>(*op1.ptr->vector - *op2.ptr->vector);
+    } else if (op1.ptr->matrix && op2.ptr->matrix &&
+              op1.ptr->matrix->rows() == op2.ptr->matrix->rows() &&
+              op1.ptr->matrix->cols() == op2.ptr->matrix->cols()) {
+      std::cerr << "# Eigen Matrix(" << op1.ptr->matrix->rows() << ", " << op1.ptr->matrix->cols() << ") - Matrix\n";
+      sum = std::make_shared<Eigen::MatrixXd>(*op1.ptr->matrix - *op2.ptr->matrix);
+    } else {
+      sum.reserve(op1.size());
+      for (size_t i = 0; i < op1.size() && i < op2.size(); ++i) {
+        sum.emplace_back(op1[i] - op2[i]);
+      }
     }
     return std::move(sum);
   }
@@ -957,9 +1060,17 @@ Value multvecnum(const VectorType& vecval, const Value& numval)
 {
   // Vector * Number
   VectorType dstv(vecval.evaluation_session());
-  dstv.reserve(vecval.size());
-  for (const auto& val : vecval) {
-    dstv.emplace_back(val * numval);
+  if (vecval.ptr->vector && numval.type() == Value::Type::NUMBER) {
+    std::cerr << "# Eigen Vector(" << vecval.ptr->vector->size() << ") * scalar\n";
+    dstv = std::make_shared<Eigen::VectorXd>(*vecval.ptr->vector * numval.toDouble());
+  } else if (vecval.ptr->matrix && numval.type() == Value::Type::NUMBER) {
+    std::cerr << "# Eigen Matrix(" << vecval.ptr->matrix->rows() << ", " << vecval.ptr->matrix->cols() << ") * scalar\n";
+    dstv = std::make_shared<Eigen::MatrixXd>(*vecval.ptr->matrix * numval.toDouble());
+  } else {
+    dstv.reserve(vecval.size());
+    for (const auto& val : vecval) {
+      dstv.emplace_back(val * numval);
+    }
   }
   return std::move(dstv);
 }
@@ -968,28 +1079,35 @@ Value multmatvec(const VectorType& matrixvec, const VectorType& vectorvec)
 {
   // Matrix * Vector
   VectorType dstv(matrixvec.evaluation_session());
-  dstv.reserve(matrixvec.size());
-  const auto vectorsize = vectorvec.size();
-  for (size_t i = 0; i < matrixvec.size(); ++i) {
-    auto &mi = matrixvec[i];
-    auto &miv = mi.toVector(); // Won't explode just yet but test type next!
-    if (mi.type() != Value::Type::VECTOR ||
-        miv.size() != vectorsize) {
-      return Value::undef(STR("Matrix must be rectangular. Problem at row " << i));
-    }
-    double r_e = 0.0;
-    for (size_t j = 0; j < vectorsize; ++j) {
-      auto &mij = miv[j];
-      if (mij.type() != Value::Type::NUMBER) {
-        return Value::undef(STR("Matrix must contain only numbers. Problem at row " << i << ", col " << j));
+
+  if (matrixvec.ptr->matrix && vectorvec.ptr->vector &&
+      matrixvec.ptr->matrix->cols() == vectorvec.ptr->vector->size()) {
+    std::cerr << "# Eigen Matrix(" << matrixvec.ptr->matrix->rows() << ", " << matrixvec.ptr->matrix->cols() << ") * Vector\n";
+    dstv = std::make_shared<Eigen::VectorXd>(*matrixvec.ptr->matrix * *vectorvec.ptr->vector);
+  } else {
+    dstv.reserve(matrixvec.size());
+    const auto vectorsize = vectorvec.size();
+    for (size_t i = 0; i < matrixvec.size(); ++i) {
+      auto &mi = matrixvec[i];
+      auto &miv = mi.toVector(); // Won't explode just yet but test type next!
+      if (mi.type() != Value::Type::VECTOR ||
+          miv.size() != vectorsize) {
+        return Value::undef(STR("Matrix must be rectangular. Problem at row " << i));
       }
-      auto &vj = vectorvec[j];
-      if (vj.type() != Value::Type::NUMBER) {
-        return Value::undef(STR("Vector must contain only numbers. Problem at index " << j));
+      double r_e = 0.0;
+      for (size_t j = 0; j < vectorsize; ++j) {
+        auto &mij = miv[j];
+        if (mij.type() != Value::Type::NUMBER) {
+          return Value::undef(STR("Matrix must contain only numbers. Problem at row " << i << ", col " << j));
+        }
+        auto &vj = vectorvec[j];
+        if (vj.type() != Value::Type::NUMBER) {
+          return Value::undef(STR("Vector must contain only numbers. Problem at index " << j));
+        }
+        r_e += mij.toDouble() * vj.toDouble();
       }
-      r_e += mij.toDouble() * vj.toDouble();
+      dstv.emplace_back(Value(r_e));
     }
-    dstv.emplace_back(Value(r_e));
   }
   return std::move(dstv);
 }
@@ -1030,11 +1148,18 @@ Value multvecmat(const VectorType& vectorvec, const VectorType& matrixvec)
 Value multvecvec(const VectorType& vec1, const VectorType& vec2) {
   // Vector dot product.
   auto r = 0.0;
-  for (size_t i = 0; i < vec1.size(); i++) {
-    if (vec1[i].type() != Value::Type::NUMBER || vec2[i].type() != Value::Type::NUMBER) {
-      return Value::undef(STR("undefined operation (" << vec1[i].typeName() << " * " << vec2[i].typeName() << ")"));
+
+  if (vec1.ptr->vector && vec2.ptr->vector &&
+      vec1.ptr->vector->size() == vec2.ptr->vector->size()) {
+    std::cerr << "# Eigen Vector(" << vec1.ptr->vector->size() << ") . Vector\n";
+    r = vec1.ptr->vector->dot(*vec2.ptr->vector);
+  } else {
+    for (size_t i = 0; i < vec1.size(); i++) {
+      if (vec1[i].type() != Value::Type::NUMBER || vec2[i].type() != Value::Type::NUMBER) {
+        return Value::undef(STR("undefined operation (" << vec1[i].typeName() << " * " << vec2[i].typeName() << ")"));
+      }
+      r += vec1[i].toDouble() * vec2[i].toDouble();
     }
-    r += vec1[i].toDouble() * vec2[i].toDouble();
   }
   return Value(r);
 }
@@ -1105,14 +1230,23 @@ Value Value::operator/(const Value& v) const
   } else if (this->type() == Type::VECTOR && v.type() == Type::NUMBER) {
     auto &vec = this->toVector();
     VectorType dstv(vec.evaluation_session());
-    dstv.reserve(vec.size());
-    for (const auto& vecval : vec) {
-      dstv.emplace_back(vecval / v);
+    if (vec.ptr->vector) {
+      std::cerr << "# Eigen Vector(" << vec.ptr->vector->size() << ") / scalar\n";
+      dstv = std::make_shared<Eigen::VectorXd>(*vec.ptr->vector / v.toDouble());
+    } else if (vec.ptr->matrix) {
+      std::cerr << "# Eigen Matrix(" << vec.ptr->matrix->rows() << ", " << vec.ptr->matrix->cols() << ") / scalar\n";
+      dstv = std::make_shared<Eigen::MatrixXd>(*vec.ptr->matrix / v.toDouble());
+    } else {  
+      dstv.reserve(vec.size());
+      for (const auto& vecval : vec) {
+        dstv.emplace_back(vecval / v);
+      }
     }
     return std::move(dstv);
   } else if (this->type() == Type::NUMBER && v.type() == Type::VECTOR) {
     auto &vec = v.toVector();
     VectorType dstv(vec.evaluation_session());
+    // TODO: Eigen optimization?
     dstv.reserve(vec.size());
     for (const auto& vecval : vec) {
       dstv.emplace_back(*this / vecval);
