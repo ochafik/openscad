@@ -647,6 +647,7 @@ set(CORE_SOURCES
   src/core/TextNode.cc
   src/core/TransformNode.cc
   src/core/Value.cc
+  src/core/MatrixObject.cc
   src/core/Assignment.cc
   src/core/AST.cc
   src/core/FreetypeRenderer.cc

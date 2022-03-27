@@ -519,6 +519,12 @@ std::string Value::chrString() const
   return boost::apply_visitor(chr_visitor(), this->value);
 }
 
+VectorType::VectorType(EvaluationSession *session, MatrixObject &&matrix_object) :
+  ptr(shared_ptr<VectorObject>(new VectorObject(std::move(matrix_object)), VectorObjectDeleter() ))
+{
+  ptr->evaluation_session = session;
+}
+
 VectorType::VectorType(EvaluationSession *session) :
   ptr(shared_ptr<VectorObject>(new VectorObject(), VectorObjectDeleter() ))
 {
@@ -534,100 +540,78 @@ VectorType::VectorType(class EvaluationSession *session, double x, double y, dou
   emplace_back(z);
 }
 
-void VectorType::operator=(const shared_ptr<Eigen::VectorXd> &vector) {
-  assert(empty());
-  ptr->vector = vector;
-  auto size = vector->size();
-  reserve(size);
-  for (size_t i = 0; i < size; i++) {
-    emplace_back(Value((*vector)[i]));
-  }
-}
-
-void VectorType::operator=(const shared_ptr<Eigen::MatrixXd> &matrix) {
-  assert(empty());
-  ptr->matrix = matrix;
-  auto rows = matrix->rows();
-  auto cols = matrix->cols();
-  reserve(rows);
-  for (size_t i = 0; i < rows; i++) {
-    VectorType row(this->evaluation_session());
-    row.reserve(cols);
-    for (size_t j = 0; j < cols; j++) {
-      row.emplace_back(Value((*matrix)(i, j)));
-    }
-    emplace_back(std::move(row));
-  }
+void VectorType::operator=(const MatrixObject &m) {
+  ptr->matrix_object = m;
 }
 
 void VectorType::reserve(size_t size) {
-  ptr->vec.reserve(size);
+  ptr->capacity = size;
+  if (!ptr->_vec.empty()) {
+    ptr->_vec.reserve(size);
+  }
+  if (ptr->matrix_object) {
+    ptr->matrix_object.reserve(size);
+  }
 }
 
 void VectorType::emplace_back(Value&& val)
 {
-  auto clearEigenVector = [&](const char* reason) {
-    if (ptr->vector) {
-      std::cerr << "# Deoptimizing eigen vector (reason: " << reason << ")\n";
-      ptr->vector.reset();
-    }
-  };
-  auto clearEigenMatrix = [&](const char* reason) {
-    if (ptr->matrix) {
-      std::cerr << "# Deoptimizing eigen matrix (reason: " << reason << ")\n";
-      ptr->matrix.reset();
+  auto clearMatrixObject = [&](const char* reason) {
+    if (ptr->matrix_object) {
+      std::cerr << "# Deoptimizing eigen matrix_object (reason: " << reason << ")\n";
+      ptr->matrix_object.forEachRow([&](auto value) {
+        ptr->_vec.emplace_back(std::move(value));
+      });
+      ptr->matrix_object = MatrixObject::data_t();
     }
   };
 
   if (val.type() == Value::Type::EMBEDDED_VECTOR) {
     emplace_back(std::move(val.toEmbeddedVectorNonConst()));
-    clearEigenVector("Added an embedded vector");
-    clearEigenMatrix("Added an embedded vector");
+    bool vecHasMatrixObject = val.toVector().ptr->matrix_object;
+    clearMatrixObject(vecHasMatrixObject
+      ? "Added an embedded vector w/ Eigen matrix_object"
+      : "Added an embedded generic vector");
   } else {
     if (Feature::ExperimentalFastLinalg.is_enabled()) {
       if (val.type() == Value::Type::NUMBER) {
-        clearEigenMatrix("Adding a number");
-        if (empty() && ptr->vec.capacity()) {
-          ptr->vector.reset(new Eigen::VectorXd());
-          ptr->vector->resize(ptr->vec.capacity());
+        if (empty() && ptr->capacity) {//}.capacity()) {
+          ptr->matrix_object.reserveDoubles(ptr->capacity);
         }
-        if (ptr->vector) {
-          if (size() < ptr->vector->size()) {
-            (*ptr->vector)[size()] = val.toDouble();
-          } else {
-            auto s = size();
-            auto capacity = ptr->vec.capacity();
-            auto vecSize = ptr->vector->size();
-            clearEigenVector("Exceeded size of eigen vector's reserved size");
+        if (ptr->matrix_object) {
+          if (!ptr->matrix_object.push_back(val.toDouble())) {
+            clearMatrixObject("Failed to push_back a number");
           }
         }
       } else if (val.type() == Value::Type::VECTOR) {
-        clearEigenVector("Adding a vector");
         const VectorType &valVec = val.toVector();
-        if (auto eigenVec = valVec.ptr->vector) {
-          if (empty() && ptr->vec.capacity()) {
-            ptr->matrix.reset(new Eigen::MatrixXd(ptr->vec.capacity(), eigenVec->size()));
+        size_t vecSize = valVec.size();
+        // TODO: check shape of vec (no matrices!)
+        if (valVec.ptr->matrix_object) {
+          if (empty() && ptr->capacity) {
+            ptr->matrix_object.reserveDoubleArrays(ptr->capacity, vecSize);  
           }
-          if (ptr->matrix) {
-            if (ptr->matrix->cols() != eigenVec->size()) {
-              clearEigenMatrix("Added a vector of the wrong size to a matrix");
-            } else if (size() < ptr->matrix->rows()) {
-              (*ptr->matrix).block(size(), 0, 1, eigenVec->size()) = eigenVec->adjoint();
-            } else {
-              clearEigenMatrix("Exceeded size of eigen matrix's reserved rows");
+          if (ptr->matrix_object) {
+            if (!ptr->matrix_object.push_back(valVec.ptr->matrix_object)) {
+              clearMatrixObject("Failed to push_back a vector");
             }
           }
         } else {
-          clearEigenMatrix("Added a non-eigen vector");
+          clearMatrixObject("Added a non-eigen vector");
         }
       } else {
-        clearEigenVector("Added a non-number and non-vector value");
-        clearEigenMatrix("Added a non-number and non-vector value");
+        clearMatrixObject("Added a non-number and non-vector value");
       }
     }
-    ptr->vec.push_back(std::move(val));
-    if (ptr->evaluation_session) {
-      ptr->evaluation_session->accounting().addVectorElement(1);
+
+    if (!ptr->matrix_object || !ptr->_vec.empty()) {
+      if (empty() && ptr->capacity) {
+        ptr->_vec.reserve(ptr->capacity);
+      }
+      ptr->_vec.push_back(std::move(val));
+      if (ptr->evaluation_session) {
+        ptr->evaluation_session->accounting().addVectorElement(1);
+      }
     }
   }
 }
@@ -635,11 +619,21 @@ void VectorType::emplace_back(Value&& val)
 // Specialized handler for EmbeddedVectorTypes
 void VectorType::emplace_back(EmbeddedVectorType&& mbed)
 {
-  if (mbed.size() > 1) {
+  if (Feature::ExperimentalFastLinalg.is_enabled() && mbed.size() == 2) {
+    // If embedded vector contains only two value, then insert a copy of that element
+    // Due to the above mentioned "-1" count, putting it in directaly as an EmbeddedVector
+    // would not change embed_excess, which is needed to check if flatten is required.
+    for (auto &val : mbed.ptr->_vec) {
+      emplace_back(val.clone());
+    }
+    if (ptr->evaluation_session) {
+      ptr->evaluation_session->accounting().addVectorElement(mbed.ptr->_vec.size() - 1);
+    }
+  } else if (mbed.size() > 1) {
     // embed_excess represents how many to add to vec.size() to get the total elements after flattening,
     // the embedded vector itself already counts towards an element in the parent's size, so subtract 1 from its size.
     ptr->embed_excess += mbed.size() - 1;
-    ptr->vec.emplace_back(std::move(mbed));
+    ptr->vec().emplace_back(std::move(mbed));
     if (ptr->evaluation_session) {
       ptr->evaluation_session->accounting().addVectorElement(1);
     }
@@ -647,39 +641,85 @@ void VectorType::emplace_back(EmbeddedVectorType&& mbed)
     // If embedded vector contains only one value, then insert a copy of that element
     // Due to the above mentioned "-1" count, putting it in directaly as an EmbeddedVector
     // would not change embed_excess, which is needed to check if flatten is required.
-    emplace_back(mbed.ptr->vec[0].clone());
+    emplace_back(mbed.ptr->vec()[0].clone());
+    // // if (!mbed.ptr->vec.empty()) {
+    // // TODO
+    // emplace_back(mbed.begin()->clone());
+    // // } else if (mbed.ptr->matrix_object) {
+    // //   emplace_back(mbed.ptr->matrix_object
+    // // }
   }
   // else mbed.size() == 0, do nothing
 }
 
+// const accesses to VectorObject require .clone to be move-able
+const Value& VectorType::operator[](size_t idx) const {
+  if (idx < this->size()) {
+    if (ptr->embed_excess) {
+      flatten();
+    } else if (!ptr->matrix_object && !ptr->_vec.empty()) {
+      // TODO: Test shape
+      flatten();
+    }
+    return ptr->vec()[idx];
+  } else {
+    return Value::undefined;
+  }
+}
+
 void VectorType::flatten() const
 {
-  vec_t ret;
-  ret.reserve(this->size());
-  // VectorType::iterator already handles the tricky recursive navigation of embedded vectors,
-  // so just build up our new vector from that.
-  for (const auto& el : *this) ret.emplace_back(el.clone());
-  assert(ret.size() == this->size());
-  ptr->embed_excess = 0;
-  if (ptr->evaluation_session) {
-    ptr->evaluation_session->accounting().addVectorElement(ret.size());
-    ptr->evaluation_session->accounting().removeVectorElement(ptr->vec.size());
+  if (Feature::ExperimentalFastLinalg.is_enabled()) {
+    assert(!ptr->matrix_object);
+
+    VectorType tmp(evaluation_session());
+    tmp.reserve(this->size());
+    // VectorType::iterator already handles the tricky recursive navigation of embedded vectors,
+    // so just build up our new vector from that.
+    // for (const auto& el : *this) {
+    for (auto& el : *this) {
+      if (el.type() == Value::Type::VECTOR) {
+        auto &vec = el.toVector();
+        if (!vec.ptr->matrix_object) vec.flatten();
+      }
+      tmp.emplace_back(el.clone());
+    }
+    assert(tmp.size() == this->size());
+    if (ptr->evaluation_session) {
+      ptr->evaluation_session->accounting().addVectorElement(tmp.size());
+      ptr->evaluation_session->accounting().removeVectorElement(ptr->_vec.size());
+    }
+    ptr = tmp.ptr;
+  } else {
+    vec_t ret;
+    ret.reserve(this->size());
+    // VectorType::iterator already handles the tricky recursive navigation of embedded vectors,
+    // so just build up our new vector from that.
+    for (const auto& el : *this) ret.emplace_back(el.clone());
+    assert(ret.size() == this->size());
+    ptr->embed_excess = 0;
+    if (ptr->evaluation_session) {
+      ptr->evaluation_session->accounting().addVectorElement(ret.size());
+      ptr->evaluation_session->accounting().removeVectorElement(ptr->_vec.size());
+    }
+    ptr->_vec = std::move(ret);
   }
-  ptr->vec = std::move(ret);
 }
 
 void VectorType::VectorObjectDeleter::operator()(VectorObject *v)
 {
   if (v->evaluation_session) {
-    v->evaluation_session->accounting().removeVectorElement(v->vec.size());
+    v->evaluation_session->accounting().removeVectorElement(v->_vec.size());
   }
+
+  // TODO
 
   VectorObject *orig = v;
   shared_ptr<VectorObject> curr;
   std::vector<shared_ptr<VectorObject>> purge;
   while (true) {
     if (v && v->embed_excess) {
-      for (Value& val : v->vec) {
+      for (Value& val : v->_vec) {
         auto type = val.type();
         if (type == Value::Type::EMBEDDED_VECTOR) {
           shared_ptr<VectorObject>& temp = boost::get<EmbeddedVectorType>(val.value).ptr;
@@ -978,25 +1018,6 @@ bool Value::cmp_less(const Value& v1, const Value& v2) {
   return v1.operator<(v2).toBool();
 }
 
-bool hasFilledEigenVector(const VectorType& vec) {
-  return vec.ptr->vector && vec.size() == vec.ptr->vector->size();
-}
-
-bool haveEigenVectorsWithSameSize(const VectorType& op1, const VectorType& op2) {
-  return hasFilledEigenVector(op1) && hasFilledEigenVector(op2) &&
-        op1.ptr->vector->size() == op2.ptr->vector->size();
-}
-
-bool hasFilledEigenMatrix(const VectorType& vec) {
-  return vec.ptr->matrix && vec.size() == vec.ptr->matrix->rows();
-}
-
-bool haveEigenMatricesWithSameSize(const VectorType& op1, const VectorType& op2) {
-  return hasFilledEigenMatrix(op1) && hasFilledEigenMatrix(op2) &&
-        op1.ptr->matrix->rows() == op2.ptr->matrix->rows() &&
-        op1.ptr->matrix->cols() == op2.ptr->matrix->cols();
-}
-
 class plus_visitor : public boost::static_visitor<Value>
 {
 public:
@@ -1009,25 +1030,30 @@ public:
   }
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
-    VectorType sum(op1.evaluation_session());
-
-    if (haveEigenVectorsWithSameSize(op1, op2)) {
-      std::cerr << "# Eigen Vector(" << op1.ptr->vector->size() << ") + Vector\n";
-      sum = std::make_shared<Eigen::VectorXd>(*op1.ptr->vector + *op2.ptr->vector);
-    } else if (haveEigenMatricesWithSameSize(op1, op2)) {
-      std::cerr << "# Eigen Matrix(" << op1.ptr->matrix->rows() << ", " << op1.ptr->matrix->cols() << ") + Matrix\n";
-      sum = std::make_shared<Eigen::MatrixXd>(*op1.ptr->matrix + *op2.ptr->matrix);
-    } else {
-      sum.reserve(op1.size());
-
-      // FIXME: should we really truncate to shortest vector here?
-      //   Maybe better to either "add zeroes" and return longest
-      //   and/or issue an warning/error about length mismatch.
-      for (auto it1 = op1.begin(), end1 = op1.end(), it2 = op2.begin(), end2 = op2.end();
-          it1 != end1 && it2 != end2;
-          ++it1, ++it2) {
-        sum.emplace_back(*it1 + *it2);
+    
+    if (op1.size() > 0) op1[0]; // Causes a .flatten();
+    if (op2.size() > 0) op2[0]; // Causes a .flatten();
+  
+    if (op1.ptr->matrix_object && op2.ptr->matrix_object) {
+      auto res = op1.ptr->matrix_object + op2.ptr->matrix_object;
+      if (res) {
+        std::cerr << "YASSSS plus MEES\n";
+        return VectorType(op1.evaluation_session(), std::move(*res));
+      } else {
+        std::cerr << "FAILED plus :-(\n";
       }
+    }
+    
+    VectorType sum(op1.evaluation_session());
+    sum.reserve(op1.size());
+
+    // FIXME: should we really truncate to shortest vector here?
+    //   Maybe better to either "add zeroes" and return longest
+    //   and/or issue an warning/error about length mismatch.
+    for (auto it1 = op1.begin(), end1 = op1.end(), it2 = op2.begin(), end2 = op2.end();
+        it1 != end1 && it2 != end2;
+        ++it1, ++it2) {
+      sum.emplace_back(*it1 + *it2);
     }
     return std::move(sum);
   }
@@ -1050,19 +1076,24 @@ public:
   }
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
-    VectorType sum(op1.evaluation_session());
     
-    if (haveEigenVectorsWithSameSize(op1, op2)) {
-      std::cerr << "# Eigen Vector(" << op1.ptr->vector->size() << ") - Vector\n";
-      sum = std::make_shared<Eigen::VectorXd>(*op1.ptr->vector - *op2.ptr->vector);
-    } else if (haveEigenMatricesWithSameSize(op1, op2)) {
-      std::cerr << "# Eigen Matrix(" << op1.ptr->matrix->rows() << ", " << op1.ptr->matrix->cols() << ") - Matrix\n";
-      sum = std::make_shared<Eigen::MatrixXd>(*op1.ptr->matrix - *op2.ptr->matrix);
-    } else {
-      sum.reserve(op1.size());
-      for (size_t i = 0; i < op1.size() && i < op2.size(); ++i) {
-        sum.emplace_back(op1[i] - op2[i]);
+    if (op1.size() > 0) op1[0]; // Causes a .flatten();
+    if (op2.size() > 0) op2[0]; // Causes a .flatten();
+  
+    if (op1.ptr->matrix_object && op2.ptr->matrix_object) {
+      auto res = op1.ptr->matrix_object - op2.ptr->matrix_object;
+      if (res) {
+        std::cerr << "YASSSS minus MEES\n";
+        return VectorType(op1.evaluation_session(), std::move(*res));
+      } else {
+        std::cerr << "FAILED minus :-(\n";
       }
+    }
+
+    VectorType sum(op1.evaluation_session());
+    sum.reserve(op1.size());
+    for (size_t i = 0; i < op1.size() && i < op2.size(); ++i) {
+      sum.emplace_back(op1[i] - op2[i]);
     }
     return std::move(sum);
   }
@@ -1077,17 +1108,9 @@ Value multvecnum(const VectorType& vecval, const Value& numval)
 {
   // Vector * Number
   VectorType dstv(vecval.evaluation_session());
-  if (hasFilledEigenVector(vecval) && numval.type() == Value::Type::NUMBER) {
-    std::cerr << "# Eigen Vector(" << vecval.ptr->vector->size() << ") * scalar\n";
-    dstv = std::make_shared<Eigen::VectorXd>(*vecval.ptr->vector * numval.toDouble());
-  } else if (hasFilledEigenMatrix(vecval) && numval.type() == Value::Type::NUMBER) {
-    std::cerr << "# Eigen Matrix(" << vecval.ptr->matrix->rows() << ", " << vecval.ptr->matrix->cols() << ") * scalar\n";
-    dstv = std::make_shared<Eigen::MatrixXd>(*vecval.ptr->matrix * numval.toDouble());
-  } else {
-    dstv.reserve(vecval.size());
-    for (const auto& val : vecval) {
-      dstv.emplace_back(val * numval);
-    }
+  dstv.reserve(vecval.size());
+  for (const auto& val : vecval) {
+    dstv.emplace_back(val * numval);
   }
   return std::move(dstv);
 }
@@ -1096,35 +1119,28 @@ Value multmatvec(const VectorType& matrixvec, const VectorType& vectorvec)
 {
   // Matrix * Vector
   VectorType dstv(matrixvec.evaluation_session());
-
-  if (hasFilledEigenMatrix(matrixvec) && hasFilledEigenVector(vectorvec) &&
-      matrixvec.ptr->matrix->cols() == vectorvec.ptr->vector->size()) {
-    std::cerr << "# Eigen Matrix(" << matrixvec.ptr->matrix->rows() << ", " << matrixvec.ptr->matrix->cols() << ") * Vector\n";
-    dstv = std::make_shared<Eigen::VectorXd>(*matrixvec.ptr->matrix * *vectorvec.ptr->vector);
-  } else {
-    dstv.reserve(matrixvec.size());
-    const auto vectorsize = vectorvec.size();
-    for (size_t i = 0; i < matrixvec.size(); ++i) {
-      auto &mi = matrixvec[i];
-      auto &miv = mi.toVector(); // Won't explode just yet but test type next!
-      if (mi.type() != Value::Type::VECTOR ||
-          miv.size() != vectorsize) {
-        return Value::undef(STR("Matrix must be rectangular. Problem at row " << i));
-      }
-      double r_e = 0.0;
-      for (size_t j = 0; j < vectorsize; ++j) {
-        auto &mij = miv[j];
-        if (mij.type() != Value::Type::NUMBER) {
-          return Value::undef(STR("Matrix must contain only numbers. Problem at row " << i << ", col " << j));
-        }
-        auto &vj = vectorvec[j];
-        if (vj.type() != Value::Type::NUMBER) {
-          return Value::undef(STR("Vector must contain only numbers. Problem at index " << j));
-        }
-        r_e += mij.toDouble() * vj.toDouble();
-      }
-      dstv.emplace_back(Value(r_e));
+  dstv.reserve(matrixvec.size());
+  const auto vectorsize = vectorvec.size();
+  for (size_t i = 0; i < matrixvec.size(); ++i) {
+    auto &mi = matrixvec[i];
+    auto &miv = mi.toVector(); // Won't explode just yet but test type next!
+    if (mi.type() != Value::Type::VECTOR ||
+        miv.size() != vectorsize) {
+      return Value::undef(STR("Matrix must be rectangular. Problem at row " << i));
     }
+    double r_e = 0.0;
+    for (size_t j = 0; j < vectorsize; ++j) {
+      auto &mij = miv[j];
+      if (mij.type() != Value::Type::NUMBER) {
+        return Value::undef(STR("Matrix must contain only numbers. Problem at row " << i << ", col " << j));
+      }
+      auto &vj = vectorvec[j];
+      if (vj.type() != Value::Type::NUMBER) {
+        return Value::undef(STR("Vector must contain only numbers. Problem at index " << j));
+      }
+      r_e += mij.toDouble() * vj.toDouble();
+    }
+    dstv.emplace_back(Value(r_e));
   }
   return std::move(dstv);
 }
@@ -1136,6 +1152,9 @@ Value multvecmat(const VectorType& vectorvec, const VectorType& matrixvec)
   VectorType dstv(matrixvec[0].toVector().evaluation_session());
   size_t firstRowSize = matrixvec[0].toVector().size();
   dstv.reserve(firstRowSize);
+  // if (hasFilledEigenMatrix(matrixvec)) {
+  //   for 
+  // }
   for (size_t i = 0; i < firstRowSize; ++i) {
     double r_e = 0.0;
     for (size_t j = 0; j < vectorvec.size(); ++j) {
@@ -1166,10 +1185,11 @@ Value multvecvec(const VectorType& vec1, const VectorType& vec2) {
   // Vector dot product.
   auto r = 0.0;
 
-  if (haveEigenVectorsWithSameSize(vec1, vec2)) {
-    std::cerr << "# Eigen Vector(" << vec1.ptr->vector->size() << ") . Vector\n";
-    r = vec1.ptr->vector->dot(*vec2.ptr->vector);
-  } else {
+  // if (haveEigenVectorsWithSameSize(vec1, vec2)) {
+  //   std::cerr << "# Eigen Vector(" << vec1.ptr->vector->size() << ") . Vector\n";
+  //   r = vec1.ptr->vector->dot(*vec2.ptr->vector);
+  // } else 
+  {
     for (size_t i = 0; i < vec1.size(); i++) {
       if (vec1[i].type() != Value::Type::NUMBER || vec2[i].type() != Value::Type::NUMBER) {
         return Value::undef(STR("undefined operation (" << vec1[i].typeName() << " * " << vec2[i].typeName() << ")"));
@@ -1192,6 +1212,19 @@ public:
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     if (op1.empty() || op2.empty()) return Value::undef("Multiplication is undefined on empty vectors");
+
+    if (op1.size() > 0) op1[0]; // Causes a .flatten();
+    if (op2.size() > 0) op2[0]; // Causes a .flatten();
+  
+    if (op1.ptr->matrix_object && op2.ptr->matrix_object) {
+      auto res = op1.ptr->matrix_object * op2.ptr->matrix_object;
+      if (res) {
+        std::cerr << "YASSSS product MEES\n";
+        return VectorType(op1.evaluation_session(), std::move(*res));
+      } else {
+        std::cerr << "FAILED product :-(\n";
+      }
+    }
     auto first1 = op1.begin(), first2 = op2.begin();
     auto eltype1 = (*first1).type(), eltype2 = (*first2).type();
     if (eltype1 == Value::Type::NUMBER) {
@@ -1246,17 +1279,9 @@ Value Value::operator/(const Value& v) const
   } else if (this->type() == Type::VECTOR && v.type() == Type::NUMBER) {
     auto &vec = this->toVector();
     VectorType dstv(vec.evaluation_session());
-    if (hasFilledEigenVector(vec)) {
-      std::cerr << "# Eigen Vector(" << vec.ptr->vector->size() << ") / scalar\n";
-      dstv = std::make_shared<Eigen::VectorXd>(*vec.ptr->vector / v.toDouble());
-    } else if (hasFilledEigenMatrix(vec)) {
-      std::cerr << "# Eigen Matrix(" << vec.ptr->matrix->rows() << ", " << vec.ptr->matrix->cols() << ") / scalar\n";
-      dstv = std::make_shared<Eigen::MatrixXd>(*vec.ptr->matrix / v.toDouble());
-    } else {  
-      dstv.reserve(vec.size());
-      for (const auto& vecval : vec) {
-        dstv.emplace_back(vecval / v);
-      }
+    dstv.reserve(vec.size());
+    for (const auto& vecval : vec) {
+      dstv.emplace_back(vecval / v);
     }
     return std::move(dstv);
   } else if (this->type() == Type::NUMBER && v.type() == Type::VECTOR) {

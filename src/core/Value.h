@@ -18,6 +18,7 @@
 #include "Assignment.h"
 #include "linalg.h"
 #include "memory.h"
+#include "MatrixObject.h"
 
 class tostring_visitor;
 class tostream_visitor;
@@ -376,22 +377,47 @@ protected:
     struct VectorObject {
       using vec_t = std::vector<Value>;
       using size_type = vec_t::size_type;
-      vec_t vec;
+      mutable vec_t _vec;
+      MatrixObject matrix_object;
+      size_t capacity = 0;
       size_type embed_excess = 0; // Keep count of the number of embedded elements *excess of* vec.size()
       class EvaluationSession *evaluation_session = nullptr; // Used for heap size bookkeeping. May be null for vectors of known small maximum size.
 
       // TODO: make vec lazy / built on demand from vector or matrix upon access.
-      shared_ptr<Eigen::VectorXd> vector;
-      shared_ptr<Eigen::MatrixXd> matrix;
+      // shared_ptr<Eigen::VectorXd> vector;
+      // shared_ptr<Eigen::MatrixXd> matrix;
 
-      size_type size() const { return vec.size() + embed_excess;  }
+      VectorObject() {}
+      VectorObject(MatrixObject &&matrix_object) : matrix_object(std::move(matrix_object)) {}
+
+      vec_t& vec() {
+        if (matrix_object && _vec.empty()) {
+          matrix_object.forEachRow([&](Value &&value) {
+            _vec.emplace_back(std::move(value));
+          });
+        }
+        return _vec;
+      }
+      const vec_t& vec() const {
+        if (matrix_object && _vec.empty()) {
+          matrix_object.forEachRow([&](auto value) {
+            _vec.emplace_back(std::move(value));
+          });
+        }
+        return _vec;
+      }
+
+      size_type size() const {
+        return matrix_object ? matrix_object.rows() : (_vec.size() + embed_excess); 
+      }
     };
     using vec_t = VectorObject::vec_t;
 public:
-    shared_ptr<VectorObject> ptr;
+    mutable shared_ptr<VectorObject> ptr;
 
-    void operator=(const shared_ptr<Eigen::VectorXd> &vector);
-    void operator=(const shared_ptr<Eigen::MatrixXd> &matrix);
+    void operator=(const MatrixObject &m);
+    // void operator=(const shared_ptr<Eigen::VectorXd> &vector);
+    // void operator=(const shared_ptr<Eigen::MatrixXd> &matrix);
 
 protected:
 
@@ -428,7 +454,7 @@ private:
       {
         if (it != end) {
           while (it->type() == Type::EMBEDDED_VECTOR) {
-            const vec_t& cur = it->toEmbeddedVector().ptr->vec;
+            const vec_t& cur = it->toEmbeddedVector().ptr->_vec;
             it_stack.emplace_back(it, end);
             it = cur.begin();
             end = cur.end();
@@ -442,8 +468,8 @@ public:
       using reference = const value_type&;
       using pointer = const value_type *;
 
-      iterator() : vo(EMPTY.ptr.get()), it_stack(), it(EMPTY.ptr->vec.begin()), end(EMPTY.ptr->vec.end()), index(0) {}
-      iterator(const VectorObject *v) : vo(v), it(v->vec.begin()), end(v->vec.end()), index(0) {
+      iterator() : vo(EMPTY.ptr.get()), it_stack(), it(EMPTY.ptr->vec().begin()), end(EMPTY.ptr->vec().end()), index(0) {}
+      iterator(const VectorObject *v) : vo(v), it(v->vec().begin()), end(v->vec().end()), index(0) {
         if (vo->embed_excess) check_and_push();
       }
       iterator(const VectorObject *v, bool /*end*/) : vo(v), index(v->size()) { }
@@ -459,7 +485,7 @@ public:
           }
           check_and_push();
         } else { // vo->vec is flat
-          it = vo->vec.begin() + index;
+          it = vo->vec().begin() + index;
         }
         return *this;
       }
@@ -471,6 +497,7 @@ public:
     using const_iterator = const iterator;
     VectorType(class EvaluationSession *session); // : ptr(shared_ptr<VectorObject>(new VectorObject(), VectorObjectDeleter() )) {}
     VectorType(class EvaluationSession *session, double x, double y, double z);
+    VectorType(EvaluationSession *session, MatrixObject &&matrix_object);
     VectorType(const VectorType&) = delete; // never copy, move instead
     VectorType& operator=(const VectorType&) = delete; // never copy, move instead
     VectorType(VectorType&&) = default;
@@ -483,14 +510,7 @@ public:
     size_type size() const { return ptr->size(); }
     bool empty() const { return ptr->size() == 0; }
     // const accesses to VectorObject require .clone to be move-able
-    const Value& operator[](size_t idx) const {
-      if (idx < this->size()) {
-        if (ptr->embed_excess) flatten();
-        return ptr->vec[idx];
-      } else {
-        return Value::undefined;
-      }
-    }
+    const Value& operator[](size_t idx) const;
     Value operator==(const VectorType& v) const;
     Value operator<(const VectorType& v) const;
     Value operator>(const VectorType& v) const;
