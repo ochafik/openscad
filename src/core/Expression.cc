@@ -187,7 +187,17 @@ ArrayLookup::ArrayLookup(Expression *array, Expression *index, const Location& l
 }
 
 Value ArrayLookup::evaluate(const std::shared_ptr<const Context>& context) const {
-  return this->array->evaluate(context)[this->index->evaluate(context)];
+  auto arr = this->array->evaluate(context);
+  auto index = this->index->evaluate(context);
+  if (arr.type() == Value::Type::VECTOR) {
+    auto &vec = arr.toVector();
+    if (vec.ptr->matrix_object) {
+      // TODO
+      // auto maybeItem = vec.ptr->matrix_object;
+      // 
+    }
+  }
+  return arr[index];
 }
 
 void ArrayLookup::print(std::ostream& stream, const std::string&) const
