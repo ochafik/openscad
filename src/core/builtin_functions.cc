@@ -418,6 +418,15 @@ Value builtin_ord(Arguments arguments, const Location& loc)
 Value builtin_concat(Arguments arguments, const Location& loc)
 {
   VectorType result(arguments.session());
+  // size_t size = 0;
+  // for (auto& argument : arguments) {
+  //   if (argument->type() == Value::Type::VECTOR) {
+  //     size += argument->toVector().size();
+  //   } else {
+  //     size++;
+  //   }
+  // }
+  // result.reserve(size);//
   result.reserve(arguments.size());
   for (auto& argument : arguments) {
     if (argument->type() == Value::Type::VECTOR) {
@@ -751,6 +760,16 @@ Value builtin_cross(Arguments arguments, const Location& loc)
 
   const auto& v0 = arguments[0]->toVector();
   const auto& v1 = arguments[1]->toVector();
+
+  // if (v0.ptr->vector && v1.ptr->vector &&
+  //     v0.ptr->vector->size() && v1.ptr->vector->size())
+  // {
+  //   std::cerr << "# Eigen Vector ^ Vector\n";
+  //   VectorType cross(arguments.session());
+  //   cross = std::make_shared<Eigen::VectorXd>(v0.ptr->vector->cross(*v1.ptr->vector));
+  //   return std::move(cross);
+  // }
+
   if ((v0.size() == 2) && (v1.size() == 2)) {
     return Value(v0[0].toDouble() * v1[1].toDouble() - v0[1].toDouble() * v1[0].toDouble());
   }
