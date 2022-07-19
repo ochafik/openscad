@@ -217,6 +217,12 @@ static std::vector<double> min_max_arguments(const Arguments& arguments, const L
 
 Value builtin_min(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    auto mat = arguments[0]->toMatrix();
+    if (mat.cols() == 1 && mat.rows() > 0) {
+      return Value(mat.minCoeff());
+    }
+  }
   std::vector<double> values = min_max_arguments(arguments, loc, "min");
   if (values.empty()) {
     return Value::undefined.clone();
@@ -226,6 +232,12 @@ Value builtin_min(Arguments arguments, const Location& loc)
 
 Value builtin_max(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    auto mat = arguments[0]->toMatrix();
+    if (mat.cols() == 1 && mat.rows() > 0) {
+      return Value(mat.maxCoeff());
+    }
+  }
   std::vector<double> values = min_max_arguments(arguments, loc, "max");
   if (values.empty()) {
     return Value::undefined.clone();
@@ -342,6 +354,9 @@ Value builtin_length(Arguments arguments, const Location& loc)
   if (try_check_arguments(arguments, { Value::Type::VECTOR })) {
     return {double(arguments[0]->toVector().size())};
   }
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    return Value(double(arguments[0]->toMatrix().rows()));
+  }
   if (!check_arguments("len", arguments, loc, { Value::Type::STRING })) {
     return Value::undefined.clone();
   }
@@ -416,19 +431,38 @@ Value builtin_ord(Arguments arguments, const Location& loc)
 
 Value builtin_concat(Arguments arguments, const Location& /*loc*/)
 {
-  VectorType result(arguments.session());
+  VectorBuilder result(arguments.session());
+  size_t size = 0;
   for (auto& argument : arguments) {
     if (argument->type() == Value::Type::VECTOR) {
-      result.emplace_back(EmbeddedVectorType(std::move(argument->toVectorNonConst())));
+      size += argument->toVector().size();
+    } else if (argument->type() == Value::Type::MATRIX) {
+      size += argument->toMatrix().rows();
+    } else {
+      size++;
+    }
+  }
+  result.reserve(size);
+  for (auto& argument : arguments) {
+    if (argument->type() == Value::Type::VECTOR) {
+      result.flat_emplace_back(std::move(argument->toVectorNonConst()));
+    } else if (argument->type() == Value::Type::MATRIX) {
+      result.flat_emplace_back(std::move(argument->toMatrixNonConst()));
     } else {
       result.emplace_back(std::move(argument.value));
     }
   }
-  return std::move(result);
+  return std::move(result.build());
 }
 
 Value builtin_lookup(Arguments arguments, const Location& loc)
 {
+  Value array = arguments[1]->clone();
+  if (try_check_arguments(arguments, { Value::Type::NUMBER, Value::Type::MATRIX })) {
+  // TODO(ochafik): optimize MATRIX case
+    array = Value(std::move(array.toMatrix().toVector()));
+  }
+  
   if (!check_arguments("lookup", arguments, loc, { Value::Type::NUMBER, Value::Type::VECTOR })) {
     return Value::undefined.clone();
   }
@@ -439,7 +473,7 @@ Value builtin_lookup(Arguments arguments, const Location& loc)
   }
 
   double low_p, low_v, high_p, high_v;
-  const auto& vec = arguments[1]->toVector();
+  const auto& vec = array.toVector();
 
   // Second must be a vector of vec2, with valid numbers inside
   auto it = vec.begin();
@@ -613,12 +647,20 @@ Value builtin_search(Arguments arguments, const Location& loc)
     return Value::undefined.clone();
   }
 
+  // TODO(ochafik): handle MATRIX properly
+  // Value findThis = arguments[0].value;
+  // if (findThis.type() == Value::Type::MATRIX) {
+  //   findThis = Value(std::move(findThis.toMatrix().toVector()));
+  // }
   const Value& findThis = arguments[0].value;
   const Value& searchTable = arguments[1].value;
   unsigned int num_returns_per_match = (arguments.size() > 2) ? (unsigned int)arguments[2]->toDouble() : 1;
   unsigned int index_col_num = (arguments.size() > 3) ? (unsigned int)arguments[3]->toDouble() : 0;
 
   VectorType returnvec(arguments.session());
+
+  // auto searchTableVec = searchTable.asVector();
+  // throw 0; // TODO(ochafik): DO NOT SUBMIT
 
   if (findThis.type() == Value::Type::NUMBER) {
     unsigned int matchCount = 0;
@@ -639,8 +681,8 @@ Value builtin_search(Arguments arguments, const Location& loc)
     } else {
       returnvec = search(findThis.toStrUtf8Wrapper(), searchTable.toVector(), num_returns_per_match, index_col_num, loc, arguments.session());
     }
-  } else if (findThis.type() == Value::Type::VECTOR) {
-    const auto& findVec = findThis.toVector();
+  } else if (auto findVecAsVec = findThis.asVector()) {
+    const auto& findVec = findVecAsVec->toVector();
     for (const auto& find_value : findVec) {
       unsigned int matchCount = 0;
       VectorType resultvec(arguments.session());
@@ -723,6 +765,9 @@ Value builtin_parent_module(Arguments arguments, const Location& loc)
 
 Value builtin_norm(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    return Value(arguments[0]->toMatrix().norm());
+  }
   if (!check_arguments("norm", arguments, loc, { Value::Type::VECTOR })) {
     return Value::undefined.clone();
   }
@@ -741,6 +786,11 @@ Value builtin_norm(Arguments arguments, const Location& loc)
 
 Value builtin_cross(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX, Value::Type::MATRIX })) {
+    if (auto ret = arguments[0]->toMatrix().cross(arguments[1]->toMatrix())) {
+      return std::move(Value(std::move(ret.get())));
+    }
+  }
   if (!check_arguments("cross", arguments, loc, { Value::Type::VECTOR, Value::Type::VECTOR })) {
     return Value::undefined.clone();
   }
@@ -888,7 +938,10 @@ Value builtin_is_list(Arguments arguments, const Location& loc)
   if (!check_arguments("is_list", arguments, loc, 1)) {
     return Value::undefined.clone();
   }
-  return {arguments[0]->isDefinedAs(Value::Type::VECTOR)};
+  auto arg = arguments[0];
+  return Value(
+    arg->isDefinedAs(Value::Type::VECTOR) ||
+    (arg->isDefinedAs(Value::Type::MATRIX) && arg->toMatrix()->is_vector));
 }
 
 Value builtin_is_num(Arguments arguments, const Location& loc)
