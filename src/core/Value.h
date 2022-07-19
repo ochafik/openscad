@@ -7,11 +7,13 @@
 #include <limits>
 #include <iostream>
 #include <memory>
+#include <Eigen/Core>
 
 // Workaround for https://bugreports.qt-project.org/browse/QTBUG-22829
 #ifndef Q_MOC_RUN
 #include <boost/variant.hpp>
 #include <boost/lexical_cast.hpp>
+#include <boost/optional.hpp>
 #include <glib.h>
 #endif
 
@@ -336,6 +338,7 @@ public:
     STRING,
     VECTOR,
     EMBEDDED_VECTOR,
+    MATRIX,
     RANGE,
     FUNCTION,
     OBJECT
@@ -379,6 +382,7 @@ protected:
       size_type embed_excess = 0; // Keep count of the number of embedded elements *excess of* vec.size()
       class EvaluationSession *evaluation_session = nullptr; // Used for heap size bookkeeping. May be null for vectors of known small maximum size.
       size_type size() const { return vec.size() + embed_excess;  }
+      bool empty() const { return vec.empty() && embed_excess == 0;  }
     };
     using vec_t = VectorObject::vec_t;
 public:
@@ -468,10 +472,14 @@ public:
     VectorType clone() const { return VectorType(this->ptr); } // Copy explicitly only when necessary
     static Value Empty() { return VectorType(nullptr); }
 
+    void reserve(size_t size) {
+      ptr->vec.reserve(size);
+    }
+
     const_iterator begin() const { return iterator(ptr.get()); }
     const_iterator   end() const { return iterator(ptr.get(), true); }
     size_type size() const { return ptr->size(); }
-    bool empty() const { return ptr->vec.empty(); }
+    bool empty() const { return ptr->empty(); }
     // const accesses to VectorObject require .clone to be move-able
     const Value& operator[](size_t idx) const {
       if (idx < this->size()) {
@@ -492,6 +500,161 @@ public:
     void emplace_back(Value&& val);
     void emplace_back(EmbeddedVectorType&& mbed);
     template <typename ... Args> void emplace_back(Args&&... args) { emplace_back(Value(std::forward<Args>(args)...)); }
+  };
+
+  class MatrixType {
+    typedef Eigen::internal::scalar_sum_op<double, double> ScalarSum;
+    typedef Eigen::internal::scalar_product_op<double, double> ScalarProduct;
+    typedef Eigen::internal::scalar_difference_op<double, double> ScalarDifference;
+    typedef Eigen::internal::scalar_quotient_op<double, double> ScalarQuotient;
+    typedef Eigen::internal::scalar_opposite_op<double> ScalarOpposite;
+    typedef Eigen::internal::scalar_min_op<double, double> ScalarMin;
+    typedef Eigen::internal::scalar_max_op<double, double> ScalarMax;
+
+  public:
+
+    typedef boost::variant<
+      //boost::blank,
+      std::shared_ptr<Eigen::Vector2d>,  // 2D point
+      std::shared_ptr<Eigen::Vector3d>,  // 3D point or row of a 2D transform
+      std::shared_ptr<Eigen::Vector4d>,  // Rows of a 3D transform
+      std::shared_ptr<Eigen::VectorXd>,  // Generic list of numbers
+      
+      std::shared_ptr<Eigen::Matrix2d>,  // ...?
+      std::shared_ptr<Eigen::Matrix3d>,  // 2D transform
+      std::shared_ptr<Eigen::Matrix<double, 4, 3>>, // 3D matrix for vec(pts) * matrix once transposed by BOSL2 apply
+      std::shared_ptr<Eigen::Matrix4d>,  // 3D transform
+      std::shared_ptr<Eigen::MatrixX2d>, // List of 2D points
+      std::shared_ptr<Eigen::MatrixX3d>, // List of 3D points
+      std::shared_ptr<Eigen::MatrixX4d>, // List of 3D points (concatenated w/ 1) about to be transformed by BOSL2 apply 
+      std::shared_ptr<Eigen::MatrixXd>  // Generic matrix of numbers
+
+      // std::shared_ptr<LazyMatrix<4, 4,
+      //                            Eigen::Product<const Eigen::Matrix4d, const Eigen::Matrix4d>>>,
+      // // TODO: add other scalar ops
+      // std::shared_ptr<LazyMatrix<4, 4,
+      //                            Eigen::CwiseBinaryOp<ScalarSum, const Eigen::Matrix4d, const Eigen::Matrix4d>>>
+    > data_t;
+
+  private:
+    friend class tostream_visitor;
+
+    mutable data_t data;
+    // Implies cols() == 1, but has implications on toString and toVector
+    bool is_vector;
+
+  public:
+    MatrixType(size_t rows, size_t cols, bool dynamic, bool is_vector);
+    MatrixType(data_t &&data, bool is_vector = false) : data(std::move(data)), is_vector(is_vector) {}
+
+    MatrixType clone() const {
+      data_t copy = data;
+      return std::move(MatrixType(std::move(copy), is_vector));
+    }
+
+    bool resize(size_t rows);
+    void seal(size_t sealed_rows);
+
+    Value operator[](size_t index) const;
+    Value operator[](const std::vector<size_t> &indices) const;
+    bool set(size_t index, double value);
+    bool set_row(size_t index, const MatrixType& element);
+    bool set_range(size_t index, const MatrixType& element);
+
+    size_t cols() const;
+    size_t rows() const;
+    double operator()(size_t row, size_t col) const;
+
+    VectorType toVector(EvaluationSession *session = nullptr, int size = -1) const;
+
+    bool operator==(const MatrixType& other) const;
+    bool operator!=(const MatrixType& other) const {
+      return !(*this == other);
+    }
+    bool operator<(const MatrixType& other) const;
+    bool operator>(const MatrixType& other) const;
+    bool operator>=(const MatrixType& other) const {
+      return !(*this < other);
+    }
+    bool operator<=(const MatrixType& other) const {
+      return !(*this > other);
+    }
+
+    double norm() const;
+    double minCoeff() const;
+    double maxCoeff() const;
+
+    boost::optional<MatrixType> operator+(const MatrixType& other) const;
+    boost::optional<MatrixType> operator-(const MatrixType& other) const;
+    boost::optional<MatrixType> operator*(const MatrixType& other) const;
+    // boost::optional<MatrixType> operator/(const MatrixType& other) const;
+    boost::optional<MatrixType> cross(const MatrixType &other) const;
+    // TODO: cross, dot ops...
+    
+    template <class T>
+    static T getValue(const T& value) {
+      return value;
+    }
+
+    /*
+    template <int Rows, int Cols, class T>
+    class LazyMatrix {
+      //}: public std::enable_shared_from_this<LazyMatrix<Rows, Cols, T>> {
+      std::function<std::shared_ptr<T>()> getter;
+      mutable boost::optional<std::shared_ptr<T>> value;
+      mutable boost::optional<data_t> matrix;
+
+    public:
+      LazyMatrix(std::function<T()> &&getter) : getter(std::move(getter)) {}
+
+      data_t getMatrix() const {
+        if (!matrix) {
+          matrix = std::make_shared<std::pair<Eigen::Matrix<double, Rows, Cols>, size_t>>(*getValue(), Rows);
+        }
+        return matrix;
+      }
+      std::shared_ptr<T> getValue() const {
+        if (matrix) {
+          return *matrix;
+        }
+        if (!value) {
+          value = getter();
+        }
+        return *value;
+      }
+    };
+
+    template <int Rows, int Cols, class T>
+    static T getValue(const LazyMatrix<Rows, Cols, T>& lazyValue) {
+      return lazyValue.get();
+    }
+    */
+  };
+
+  class VectorBuilder {
+private:
+    boost::variant<
+      boost::blank,
+      VectorType,
+      MatrixType // May not be complete
+    > data;
+
+    size_t size;
+    int capacity;
+    EvaluationSession *session;
+
+public:
+    VectorBuilder(EvaluationSession *session = nullptr): size(0), capacity(-1), session(session) {}
+
+    void reserve(size_t size);
+
+    void emplace_back(Value &&value);
+    void flat_emplace_back(VectorType &&v);
+    void flat_emplace_back(MatrixType &&m);
+    Value build();
+
+private:
+    VectorType toVector();
   };
 
   class EmbeddedVectorType : public VectorType
@@ -567,12 +730,15 @@ public:
   double toDouble() const;
   const str_utf8_wrapper& toStrUtf8Wrapper() const;
   const VectorType& toVector() const;
+  const MatrixType& toMatrix() const;
+  MatrixType& toMatrixNonConst();
   const EmbeddedVectorType& toEmbeddedVector() const;
   VectorType& toVectorNonConst();
   EmbeddedVectorType& toEmbeddedVectorNonConst();
   const RangeType& toRange() const;
   const FunctionType& toFunction() const;
   const ObjectType& toObject() const;
+  boost::optional<Value> asVector() const;
 
   // Other conversion utility functions
   bool getDouble(double& v) const;
@@ -600,6 +766,7 @@ public:
   Value operator-() const;
   Value operator[](size_t idx) const;
   Value operator[](const Value& v) const;
+  Value operator[](const std::vector<size_t> &indices) const;
   Value operator+(const Value& v) const;
   Value operator-(const Value& v) const;
   Value operator*(const Value& v) const;
@@ -615,7 +782,20 @@ public:
     return stream;
   }
 
-  typedef boost::variant<UndefType, bool, double, str_utf8_wrapper, VectorType, EmbeddedVectorType, RangePtr, FunctionPtr, ObjectType> Variant;
+  using MatrixPtr = ValuePtr<MatrixType>;
+
+  typedef boost::variant<
+    UndefType,
+    bool,
+    double,
+    str_utf8_wrapper,
+    VectorType,
+    EmbeddedVectorType,
+    // MatrixType,
+    MatrixPtr,
+    RangePtr,
+    FunctionPtr,
+    ObjectType> Variant;
 
 
   static_assert(sizeof(Value::Variant) <= 24, "Memory size of Value too big");
@@ -638,4 +818,7 @@ std::ostream& operator<<(std::ostream& stream, const Value::ObjectType& u);
 
 using VectorType = Value::VectorType;
 using EmbeddedVectorType = Value::EmbeddedVectorType;
+using MatrixType = Value::MatrixType;
+using MatrixPtr = ValuePtr<MatrixType>;
 using ObjectType = Value::ObjectType;
+using VectorBuilder = Value::VectorBuilder;

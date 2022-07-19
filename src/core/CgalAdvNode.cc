@@ -71,16 +71,16 @@ static std::shared_ptr<AbstractNode> builtin_resize(const ModuleInstantiation *i
   Parameters parameters = Parameters::parse(std::move(arguments), inst->location(), {"newsize", "auto", "convexity"});
   node->convexity = static_cast<int>(parameters["convexity"].toDouble());
   node->newsize << 0, 0, 0;
-  if (parameters["newsize"].type() == Value::Type::VECTOR) {
-    const auto& vs = parameters["newsize"].toVector();
+  if (auto newsizeVec = parameters["newsize"].asVector()) {
+    const auto& vs = newsizeVec->toVector();
     if (vs.size() >= 1) node->newsize[0] = vs[0].toDouble();
     if (vs.size() >= 2) node->newsize[1] = vs[1].toDouble();
     if (vs.size() >= 3) node->newsize[2] = vs[2].toDouble();
   }
   const auto& autosize = parameters["auto"];
   node->autosize << false, false, false;
-  if (autosize.type() == Value::Type::VECTOR) {
-    const auto& va = autosize.toVector();
+  if (auto autosizeVec = autosize.asVector()) {
+    const auto& va = autosizeVec->toVector();
     if (va.size() >= 1) node->autosize[0] = va[0].toBool();
     if (va.size() >= 2) node->autosize[1] = va[1].toBool();
     if (va.size() >= 3) node->autosize[2] = va[2].toBool();

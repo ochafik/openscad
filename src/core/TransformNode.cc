@@ -79,12 +79,12 @@ std::shared_ptr<AbstractNode> builtin_rotate(const ModuleInstantiation *inst, Ar
 
   const auto& val_a = parameters["a"];
   const auto& val_v = parameters["v"];
-  if (val_a.type() == Value::Type::VECTOR) {
+  if (auto aVec = val_a.asVector()) {
     double sx = 0, sy = 0, sz = 0;
     double cx = 1, cy = 1, cz = 1;
     double a = 0.0;
     bool ok = true;
-    const auto& vec_a = val_a.toVector();
+    const auto& vec_a = aVec->toVector();
     switch (vec_a.size()) {
     default:
       ok &= false;
@@ -205,9 +205,9 @@ std::shared_ptr<AbstractNode> builtin_multmatrix(const ModuleInstantiation *inst
 
   Parameters parameters = Parameters::parse(std::move(arguments), inst->location(), {"m"});
 
-  if (parameters["m"].type() == Value::Type::VECTOR) {
+  if (auto mVec = parameters["m"].asVector()) {
     Matrix4d rawmatrix{Matrix4d::Identity()};
-    const auto& mat = parameters["m"].toVector();
+    const auto& mat = mVec->toVector();
     for (size_t row_i = 0; row_i < std::min(mat.size(), size_t(4)); ++row_i) {
       const auto& row = mat[row_i].toVector();
       for (size_t col_i = 0; col_i < std::min(row.size(), size_t(4)); ++col_i) {

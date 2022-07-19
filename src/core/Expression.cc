@@ -326,14 +326,15 @@ Value Vector::evaluate(const std::shared_ptr<const Context>& context) const
     if (val.type() == Value::Type::EMBEDDED_VECTOR) {
       return VectorType(std::move(val.toEmbeddedVectorNonConst()));
     } else {
-      VectorType vec(context->session());
+      VectorBuilder vec(context->session());
       vec.emplace_back(std::move(val));
-      return std::move(vec);
+      return std::move(vec.build());
     }
   } else {
-    VectorType vec(context->session());
+    VectorBuilder vec(context->session());
+    vec.reserve(this->children.size());
     for (const auto& e : this->children) vec.emplace_back(e->evaluate(context));
-    return std::move(vec);
+    return std::move(vec.build());
   }
 }
 
@@ -373,25 +374,19 @@ Value MemberLookup::evaluate(const std::shared_ptr<const Context>& context) cons
 
   switch (v.type()) {
   case Value::Type::VECTOR:
-    if (this->member.length() > 1 && boost::regex_match(this->member, re_swizzle_validation)) {
-      VectorType ret(context->session());
+  case Value::Type::MATRIX:
+    if (boost::regex_match(this->member, re_swizzle_validation)) {
+      std::vector<size_t> indices;
+      indices.reserve(this->member.length());
       for (const char& ch : this->member)
         switch (ch) {
-        case 'r': case 'x': ret.emplace_back(v[0]); break;
-        case 'g': case 'y': ret.emplace_back(v[1]); break;
-        case 'b': case 'z': ret.emplace_back(v[2]); break;
-        case 'a': case 'w': ret.emplace_back(v[3]); break;
+        case 'r': case 'x': indices.push_back(0); break;
+        case 'g': case 'y': indices.push_back(1); break;
+        case 'b': case 'z': indices.push_back(2); break;
+        case 'a': case 'w': indices.push_back(3); break;
         }
-      return Value(std::move(ret));
+      return v[indices];
     }
-    if (this->member == "x") return v[0];
-    if (this->member == "y") return v[1];
-    if (this->member == "z") return v[2];
-    if (this->member == "w") return v[3];
-    if (this->member == "r") return v[0];
-    if (this->member == "g") return v[1];
-    if (this->member == "b") return v[2];
-    if (this->member == "a") return v[3];
     break;
   case Value::Type::RANGE:
     if (this->member == "begin") return v[0];
@@ -401,6 +396,7 @@ Value MemberLookup::evaluate(const std::shared_ptr<const Context>& context) cons
   case Value::Type::OBJECT:
     return v[this->member];
   default:
+    LOG(message_group::Warning, Location::NONE, "", "Unhandled Value::Type in MemberLookup::evaluate");
     break;
   }
   return Value::undefined.clone();
@@ -792,6 +788,10 @@ Value LcEach::evalRecur(Value&& v, const std::shared_ptr<const Context>& context
     // which should remain constant
     for (const auto& val : v.toEmbeddedVector()) vec.emplace_back(evalRecur(val.clone(), context) );
     return Value(std::move(vec));
+  } else if (v.type() == Value::Type::MATRIX) {
+    // TODO(ochafik): optimize MATRIX flatten in eigen: just transpose (default storage is column major), copy to matrix and reuse its backing array as a 1d vector
+    auto vec = EmbeddedVectorType(std::move(v.toMatrix().toVector()));
+    return Value(std::move(vec));
   } else if (v.type() == Value::Type::STRING) {
     EmbeddedVectorType vec(context->session());
     for (auto ch : v.toStrUtf8Wrapper()) vec.emplace_back(std::move(ch));
@@ -854,6 +854,14 @@ static void doForEach(
     }
   } else if (variable_values.type() == Value::Type::VECTOR) {
     for (const auto& value : variable_values.toVector()) {
+      doForEach(assignments, location, operation, assignment_index + 1,
+                *forContext(context, variable_name, value.clone())
+                );
+    }
+  } else if (variable_values.type() == Value::Type::MATRIX) {
+    auto &mat = variable_values.toMatrix();
+    for (size_t i = 0, n = mat.rows(); i < n; i++) {
+      auto value = mat[i];
       doForEach(assignments, location, operation, assignment_index + 1,
                 *forContext(context, variable_name, value.clone())
                 );

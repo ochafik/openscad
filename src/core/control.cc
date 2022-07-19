@@ -118,9 +118,9 @@ static std::shared_ptr<AbstractNode> builtin_children(const ModuleInstantiation 
       return nullptr;
     }
     return children->instantiate(lazyUnionNode(inst), {*index});
-  } else if (parameters["index"].type() == Value::Type::VECTOR) {
+  } else if (auto indexVec = parameters["index"].asVector()) {
     std::vector<size_t> indices;
-    for (const auto& val : parameters["index"].toVector()) {
+    for (const auto& val : indexVec->toVector()) {
       auto index = validChildIndex(val, children, inst, context);
       if (index) {
         indices.push_back(*index);

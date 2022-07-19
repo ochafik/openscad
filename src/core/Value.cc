@@ -207,6 +207,7 @@ Value Value::clone() const {
   case Type::VECTOR:    return boost::get<VectorType>(this->value).clone();
   case Type::OBJECT:    return boost::get<ObjectType>(this->value).clone();
   case Type::FUNCTION:  return boost::get<FunctionPtr>(this->value).clone();
+  case Type::MATRIX:    return MatrixPtr(boost::get<MatrixPtr>(this->value)->clone());
   default: assert(false && "unknown Value variant type"); return Value();
   }
 }
@@ -224,6 +225,7 @@ std::string Value::typeName(Type type)
   case Type::NUMBER:    return "number";
   case Type::STRING:    return "string";
   case Type::VECTOR:    return "vector";
+  case Type::MATRIX:    return "matrix";
   case Type::RANGE:     return "range";
   case Type::OBJECT:    return "object";
   case Type::FUNCTION:  return "function";
@@ -242,6 +244,7 @@ std::string getTypeName(bool) { return "bool"; }
 std::string getTypeName(double) { return "number"; }
 std::string getTypeName(const str_utf8_wrapper&) { return "string"; }
 std::string getTypeName(const VectorType&) { return "vector"; }
+std::string getTypeName(const MatrixPtr&) { return "matrix"; }
 std::string getTypeName(const ObjectType&) { return "object"; }
 std::string getTypeName(const RangePtr&) { return "range"; }
 std::string getTypeName(const FunctionPtr&) { return "function"; }
@@ -254,6 +257,7 @@ bool Value::toBool() const
   case Type::NUMBER:    return boost::get<double>(this->value) != 0;
   case Type::STRING:    return !boost::get<str_utf8_wrapper>(this->value).empty();
   case Type::VECTOR:    return !boost::get<VectorType>(this->value).empty();
+  case Type::MATRIX:    return true;
   case Type::RANGE:     return true;
   case Type::OBJECT:    return true;
   case Type::FUNCTION:  return true;
@@ -367,6 +371,30 @@ public:
     stream << ']';
   }
 
+  void operator()(const MatrixPtr& m) const {
+    auto rows = m->rows();
+    auto cols = m->cols();
+    
+    stream << '[';
+    if (m->is_vector) {
+      for (auto row = 0; row < rows; row++) {
+        if (row) stream << ", ";
+        (*this)((*m)(row, 0));
+      }
+    } else {
+      for (auto row = 0; row < rows; row++) {
+        if (row) stream << ", ";
+        stream << '[';
+        for (auto col = 0; col < cols; col++) {
+          if (col) stream << ", ";
+          (*this)((*m)(row, col));
+        }
+        stream << ']';
+      }
+    }
+    stream << ']';
+  }
+
   void operator()(const str_utf8_wrapper& v) const {
     stream << '"' << v.toString() << '"';
   }
@@ -422,6 +450,12 @@ public:
       LOG(message_group::Error, Location::NONE, "", e.what());
       throw;
     }
+    return stream.str();
+  }
+
+  std::string operator()(const MatrixPtr& v) const {
+    std::ostringstream stream;
+    (tostream_visitor(stream))(v);
     return stream.str();
   }
 
@@ -635,6 +669,140 @@ void VectorType::VectorObjectDeleter::operator()(VectorObject *v)
   delete orig;
 }
 
+VectorType Value::VectorBuilder::toVector() {
+  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+    return std::move(pMatrix->toVector(session, size));
+  } else if (auto pVector = boost::get<VectorType>(&data)) {
+    return std::move(*pVector);
+  } else {
+    return VectorType(session);
+  }
+}
+
+void Value::VectorBuilder::reserve(size_t size) {
+  capacity = size;
+
+  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+    auto rows = pMatrix->rows();
+    if (size > rows) {
+      pMatrix->resize(size);
+    }
+  } else if (auto pVector = boost::get<VectorType>(&data)) {
+    pVector->reserve(size);
+  }
+}
+
+Value Value::VectorBuilder::build() {
+  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+    if (size != pMatrix->rows()) {
+      return std::move(toVector());
+    } else {
+      pMatrix->seal(size);
+      return std::move(*pMatrix);
+    }
+  } else if (auto pVector = boost::get<VectorType>(&data)) {
+    return std::move(*pVector);
+  } else {
+    return VectorType(session);
+  }
+}
+
+int grow(int size) {
+  return (size * 15) / 10 + 16;
+}
+
+void Value::VectorBuilder::emplace_back(Value &&value) {
+  auto dynamic = capacity < 0;
+  
+  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+    if (dynamic && size == pMatrix->rows()) {
+      auto rows = grow(pMatrix->rows());
+      pMatrix->resize(rows);
+    }
+    if (value.type() == Value::Type::NUMBER) {
+      if (pMatrix->set(size++, value.toDouble())) {
+        return;
+      }
+    } else if (value.type() == Value::Type::MATRIX) {
+      if (pMatrix->set_row(size++, value.toMatrix())) {
+        return;
+      }
+    }
+    
+    data = std::move(toVector());
+  }
+  
+  if (auto pVector = boost::get<VectorType>(&data)) {
+    pVector->emplace_back(std::move(value));
+    size++;
+    return;
+  }
+  
+  // Nothing yet in data: look at the value type
+
+  auto rows = capacity <= 0 ? 1 : capacity;
+
+  // Can we build a column matrix?
+  if (value.type() == Value::Type::NUMBER) {
+    data = std::move(MatrixType(rows, 1, dynamic, /* is_vector= */ true));
+    auto pMatrix = boost::get<MatrixType>(&data);
+    pMatrix->set(size++, value.toDouble());
+    return;
+  }
+  
+  // Can we build a grid matrix? (need to be adding a column value)
+  if (value.type() == Value::Type::MATRIX) {
+    auto matrixValue = value.toMatrix();
+    if (matrixValue.cols() == 1) {
+      data = std::move(MatrixType(rows, matrixValue.rows(), dynamic, /* is_vector= */ false));
+      auto pMatrix = boost::get<MatrixType>(&data);
+      pMatrix->set_row(size++, matrixValue);
+      return;
+    }
+  }
+  
+  // Start building a plain vector.
+  data = std::move(VectorType(session));
+  auto pVector = boost::get<VectorType>(&data);
+  pVector->reserve(capacity);
+  pVector->emplace_back(std::move(value));
+  size++;
+}
+
+void Value::VectorBuilder::flat_emplace_back(VectorType &&v) {
+  auto pVector = boost::get<VectorType>(&data);
+  if (!pVector) {
+    data = std::move(toVector());
+    pVector = boost::get<VectorType>(&data);
+  }
+
+  size += v.size();
+  pVector->emplace_back(EmbeddedVectorType(std::move(v)));
+}
+
+void Value::VectorBuilder::flat_emplace_back(MatrixType &&m) {
+  auto dynamic = capacity < 0;
+  if (data.which() == 0) {
+    auto rows = capacity < m.rows() ? m.rows() : capacity;
+
+    // Can we build a column matrix?
+    data = std::move(MatrixType(rows, 1, dynamic, /* is_vector= */ true));
+  }
+
+  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+    if (dynamic && pMatrix->rows() < size + m.rows()) {
+      pMatrix->resize(grow(size + m.rows()));
+    }
+    if (pMatrix->set_range(size, m)) {
+      size += m.rows();
+      return;
+    }
+    data = std::move(toVector());
+  }
+  flat_emplace_back(std::move(m.toVector()));
+}
+
+
 const VectorType& Value::toVector() const
 {
   static const VectorType empty(nullptr);
@@ -645,6 +813,18 @@ const VectorType& Value::toVector() const
 VectorType& Value::toVectorNonConst()
 {
   return boost::get<VectorType>(this->value);
+}
+
+const MatrixType& Value::toMatrix() const
+{
+  static const MatrixType empty(0, 0, /* growable= */ true, /* is_vector= */ true); // TODO(ochafik): replace w/ empty data in variant
+  const MatrixPtr *v = boost::get<MatrixPtr>(&this->value);
+  return v ? **v : empty;
+}
+
+MatrixType& Value::toMatrixNonConst()
+{
+  return *boost::get<MatrixPtr>(this->value).get().get();
 }
 
 const ObjectType& Value::toObject() const
@@ -664,8 +844,19 @@ const EmbeddedVectorType& Value::toEmbeddedVector() const
   return boost::get<EmbeddedVectorType>(this->value);
 }
 
+boost::optional<Value> Value::asVector() const {
+  if (type() == Type::VECTOR) {
+    return this->clone();
+  }
+  if (type() == Type::MATRIX) {
+    return Value(std::move(toMatrix().toVector()));
+  }
+  return boost::none;
+}
+
 bool Value::getVec2(double& x, double& y, bool ignoreInfinite) const
 {
+  // TODO(ochafik): handle matrix
   if (this->type() != Type::VECTOR) return false;
   const auto& v = this->toVector();
   if (v.size() != 2) return false;
@@ -682,6 +873,7 @@ bool Value::getVec2(double& x, double& y, bool ignoreInfinite) const
 
 bool Value::getVec3(double& x, double& y, double& z) const
 {
+  // TODO(ochafik): handle matrix
   if (this->type() != Type::VECTOR) return false;
   const VectorType& v = this->toVector();
   if (v.size() != 3) return false;
@@ -690,6 +882,7 @@ bool Value::getVec3(double& x, double& y, double& z) const
 
 bool Value::getVec3(double& x, double& y, double& z, double defaultval) const
 {
+  // TODO(ochafik): handle matrix
   if (this->type() != Type::VECTOR) return false;
   const VectorType& v = toVector();
   if (v.size() == 2) {
@@ -926,6 +1119,13 @@ public:
     return op1 + op2;
   }
 
+  Value operator()(const MatrixPtr& op1, const MatrixPtr& op2) const {
+    if (auto res = *op1 + *op2) {
+      return MatrixPtr(std::move(res.get()));
+    }
+    return (*this)(op1->toVector(), op2->toVector());
+  }
+
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     VectorType sum(op1.evaluation_session());
     // FIXME: should we really truncate to shortest vector here?
@@ -952,8 +1152,11 @@ public:
     return Value::undef(STR("undefined operation (", getTypeName(op1), " - ", getTypeName(op2), ")"));
   }
 
-  Value operator()(const double& op1, const double& op2) const {
-    return op1 - op2;
+  Value operator()(const MatrixPtr& op1, const MatrixPtr& op2) const {
+    if (auto res = *op1 - *op2) {
+      return MatrixPtr(std::move(res.get()));
+    }
+    return (*this)(op1->toVector(), op2->toVector());
   }
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
@@ -1055,6 +1258,13 @@ public:
   Value operator()(const double& op1, const VectorType& op2) const { return multvecnum(op2, op1); }
   Value operator()(const VectorType& op1, const double& op2) const { return multvecnum(op1, op2); }
 
+  Value operator()(const MatrixPtr& op1, const MatrixPtr& op2) const {
+    if (auto res = *op1 * *op2) {
+      return MatrixPtr(std::move(res.get()));
+    }
+    return (*this)(op1->toVector(), op2->toVector());
+  }
+
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     if (op1.empty() || op2.empty()) return Value::undef("Multiplication is undefined on empty vectors");
     auto first1 = op1.begin(), first2 = op2.begin();
@@ -1109,12 +1319,14 @@ Value Value::operator/(const Value& v) const
     return this->toDouble() / v.toDouble();
   } else if (this->type() == Type::VECTOR && v.type() == Type::NUMBER) {
     VectorType dstv(this->toVector().evaluation_session());
+    dstv.reserve(this->toVector().size());
     for (const auto& vecval : this->toVector()) {
       dstv.emplace_back(vecval / v);
     }
     return std::move(dstv);
   } else if (this->type() == Type::NUMBER && v.type() == Type::VECTOR) {
     VectorType dstv(v.toVector().evaluation_session());
+    dstv.reserve(v.toVector().size());
     for (const auto& vecval : v.toVector()) {
       dstv.emplace_back(*this / vecval);
     }
@@ -1160,6 +1372,7 @@ Value Value::operator^(const Value& v) const
  */
 class bracket_visitor : public boost::static_visitor<Value>
 {
+  // TODO(ochafik): Have a separate int bracket visitor to optimize this use case
 public:
   Value operator()(const str_utf8_wrapper& str, const double& idx) const {
     const auto i = convert_to_uint32(idx);
@@ -1181,6 +1394,12 @@ public:
     const auto i = convert_to_uint32(idx);
     if (i < vec.size()) return vec[i].clone();
     return Value::undef(STR("index ", i, " out of bounds for vector of size ", vec.size()));
+  }
+
+  Value operator()(const MatrixPtr& mat, const double& idx) const {
+    const auto i = convert_to_uint32(idx);
+    if (i < mat->rows()) return (*mat)[i].clone();
+    return Value::undef(STR("index " << i << " out of bounds for matrix with " << mat->rows() << " rows"));
   }
 
   Value operator()(const ObjectType& obj, const str_utf8_wrapper& key) const {
@@ -1212,6 +1431,50 @@ Value Value::operator[](size_t idx) const
 {
   Value v{(double)idx};
   return boost::apply_visitor(bracket_visitor(), this->value, v.value);
+}
+
+struct multibracket_visitor : public boost::static_visitor<Value>
+{
+  const std::vector<size_t> &indices;
+  multibracket_visitor(const std::vector<size_t> &indices) : indices(indices) {}
+  
+  Value operator()(const VectorType& vec) const {
+    VectorBuilder ret;
+    ret.reserve(indices.size());
+    for (auto index : indices) {
+      ret.emplace_back(vec[index].clone());
+    }
+    return std::move(ret.build());
+  }
+
+  bool supports_multibracket(const MatrixPtr& mat) const {
+    if (mat->cols() != 1) {
+      return false;
+    }
+    auto rows = mat->rows();
+    for (auto index : indices) {
+      if (index >= rows) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Value operator()(const MatrixPtr& mat) const {
+    if (!supports_multibracket(mat)) {
+      return (*this)(mat->toVector());
+    }
+    return (*mat)[indices];
+  }
+
+  template <typename T> Value operator()(const T& op1) const {
+    //std::cout << "generic bracket_visitor " << getTypeName(op1) << " " << getTypeName(op2) << "\n";
+    return Value::undef(STR("undefined operation " << getTypeName(op1) << ".swizzle"));
+  }
+};
+
+Value Value::operator[](const std::vector<size_t> &indices) const {
+  return std::move(boost::apply_visitor(multibracket_visitor(indices), this->value));
 }
 
 size_t str_utf8_wrapper::iterator::char_len()

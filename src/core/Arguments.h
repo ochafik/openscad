@@ -15,6 +15,7 @@ struct Argument {
   Argument(Argument&& other) = default;
   Argument& operator=(Argument&& other) = default;
 
+  const Value &operator*() const { return value; }
   const Value *operator->() const { return &value; }
   Value *operator->() { return &value; }
 };
