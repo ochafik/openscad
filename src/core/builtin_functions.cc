@@ -163,7 +163,8 @@ Value builtin_rands(Arguments arguments, const Location& loc)
     deterministic_rng.seed(seed);
   }
 
-  VectorType vec(arguments.session());
+  VectorBuilder vec(arguments.session());
+  vec.reserve(numresults);
   if (min >= max) { // uniform_real_distribution doesn't allow min == max
     for (size_t i = 0; i < numresults; ++i)
       vec.emplace_back(min);
@@ -173,7 +174,7 @@ Value builtin_rands(Arguments arguments, const Location& loc)
       vec.emplace_back(distributor(deterministic_rng));
     }
   }
-  return std::move(vec);
+  return std::move(vec.build());
 }
 
 static std::vector<double> min_max_arguments(const Arguments& arguments, const Location& loc, const char *function_name)
@@ -218,7 +219,7 @@ static std::vector<double> min_max_arguments(const Arguments& arguments, const L
 Value builtin_min(Arguments arguments, const Location& loc)
 {
   if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
-    auto mat = arguments[0]->toMatrix();
+    auto mat = arguments[0]->toMatrixObject();
     if (mat.cols() == 1 && mat.rows() > 0) {
       return Value(mat.minCoeff());
     }
@@ -233,7 +234,7 @@ Value builtin_min(Arguments arguments, const Location& loc)
 Value builtin_max(Arguments arguments, const Location& loc)
 {
   if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
-    auto mat = arguments[0]->toMatrix();
+    auto mat = arguments[0]->toMatrixObject();
     if (mat.cols() == 1 && mat.rows() > 0) {
       return Value(mat.maxCoeff());
     }
@@ -355,7 +356,7 @@ Value builtin_length(Arguments arguments, const Location& loc)
     return {double(arguments[0]->toVector().size())};
   }
   if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
-    return Value(double(arguments[0]->toMatrix().rows()));
+    return Value(double(arguments[0]->toMatrixObject().rows()));
   }
   if (!check_arguments("len", arguments, loc, { Value::Type::STRING })) {
     return Value::undefined.clone();
@@ -437,7 +438,7 @@ Value builtin_concat(Arguments arguments, const Location& /*loc*/)
     if (argument->type() == Value::Type::VECTOR) {
       size += argument->toVector().size();
     } else if (argument->type() == Value::Type::MATRIX) {
-      size += argument->toMatrix().rows();
+      size += argument->toMatrixObject().rows();
     } else {
       size++;
     }
@@ -447,7 +448,7 @@ Value builtin_concat(Arguments arguments, const Location& /*loc*/)
     if (argument->type() == Value::Type::VECTOR) {
       result.flat_emplace_back(std::move(argument->toVectorNonConst()));
     } else if (argument->type() == Value::Type::MATRIX) {
-      result.flat_emplace_back(std::move(argument->toMatrixNonConst()));
+      result.flat_emplace_back(std::move(argument->toMatrixObjectNonConst()));
     } else {
       result.emplace_back(std::move(argument.value));
     }
@@ -457,10 +458,14 @@ Value builtin_concat(Arguments arguments, const Location& /*loc*/)
 
 Value builtin_lookup(Arguments arguments, const Location& loc)
 {
+  if (!check_arguments("lookup", arguments, loc, 2)) {
+    return Value::undefined.clone();
+  }
+  
   Value array = arguments[1]->clone();
   if (try_check_arguments(arguments, { Value::Type::NUMBER, Value::Type::MATRIX })) {
   // TODO(ochafik): optimize MATRIX case
-    array = Value(std::move(array.toMatrix().toVector()));
+    array = Value(std::move(array.toMatrixObject().toVector()));
   }
   
   if (!check_arguments("lookup", arguments, loc, { Value::Type::NUMBER, Value::Type::VECTOR })) {
@@ -766,7 +771,7 @@ Value builtin_parent_module(Arguments arguments, const Location& loc)
 Value builtin_norm(Arguments arguments, const Location& loc)
 {
   if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
-    return Value(arguments[0]->toMatrix().norm());
+    return Value(arguments[0]->toMatrixObject().norm());
   }
   if (!check_arguments("norm", arguments, loc, { Value::Type::VECTOR })) {
     return Value::undefined.clone();
@@ -786,8 +791,9 @@ Value builtin_norm(Arguments arguments, const Location& loc)
 
 Value builtin_cross(Arguments arguments, const Location& loc)
 {
+  // TODO: can we have embedded matrices here??
   if (try_check_arguments(arguments, { Value::Type::MATRIX, Value::Type::MATRIX })) {
-    if (auto ret = arguments[0]->toMatrix().cross(arguments[1]->toMatrix())) {
+    if (auto ret = arguments[0]->toMatrixObject().cross(arguments[1]->toMatrixObject())) {
       return std::move(Value(std::move(ret.get())));
     }
   }

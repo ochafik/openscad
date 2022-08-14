@@ -55,7 +55,7 @@ struct IdentifierVisitor
   ValueIdentifier operator()(double) const { return nullptr; }
   ValueIdentifier operator()(const str_utf8_wrapper&) const { return nullptr; }
   ValueIdentifier operator()(const RangePtr&) const { return nullptr; }
-  ValueIdentifier operator()(const MatrixPtr&) const { return nullptr; }
+  ValueIdentifier operator()(const MatrixType&) const { return nullptr; }
 
   ValueIdentifier operator()(const VectorType& value) const { return value.ptr.get(); }
   ValueIdentifier operator()(const EmbeddedVectorType& value) const { return value.ptr.get(); }
@@ -70,7 +70,7 @@ struct UseCountVisitor
   int operator()(double) const { return 0; }
   int operator()(const str_utf8_wrapper&) const { return 0; }
   int operator()(const RangePtr&) const { return 0; }
-  int operator()(const MatrixPtr&) const { return 0; }
+  int operator()(const MatrixType&) const { return 0; }
 
   int operator()(const VectorType& value) const { return value.ptr.use_count(); }
   int operator()(const EmbeddedVectorType& value) const { return value.ptr.use_count(); }
@@ -85,7 +85,7 @@ struct EmbeddedValuesVisitor
   const std::vector<Value> *operator()(double) const { return nullptr; }
   const std::vector<Value> *operator()(const str_utf8_wrapper&) const { return nullptr; }
   const std::vector<Value> *operator()(const RangePtr&) const { return nullptr; }
-  const std::vector<Value> *operator()(const MatrixPtr&) const { return nullptr; }
+  const std::vector<Value> *operator()(const MatrixType&) const { return nullptr; }
 
   const std::vector<Value> *operator()(const VectorType& value) const { return &value.ptr->vec; }
   const std::vector<Value> *operator()(const EmbeddedVectorType& value) const { return &value.ptr->vec; }
@@ -100,7 +100,7 @@ struct ReferencedContextVisitor
   const std::shared_ptr<const Context> *operator()(double) const { return nullptr; }
   const std::shared_ptr<const Context> *operator()(const str_utf8_wrapper&) const { return nullptr; }
   const std::shared_ptr<const Context> *operator()(const RangePtr&) const { return nullptr; }
-  const std::shared_ptr<const Context> *operator()(const MatrixPtr&) const { return nullptr; }
+  const std::shared_ptr<const Context> *operator()(const MatrixType&) const { return nullptr; }
 
   const std::shared_ptr<const Context> *operator()(const VectorType&) const { return nullptr; }
   const std::shared_ptr<const Context> *operator()(const EmbeddedVectorType&) const { return nullptr; }
