@@ -164,13 +164,15 @@ std::ostream& operator<<(std::ostream& stream, const RangeType& r);
 template <typename T>
 class ValuePtr
 {
-private:
+protected:
   explicit ValuePtr(const std::shared_ptr<T>& val_in) : value(val_in) { }
 public:
   ValuePtr(T&& value) : value(std::make_shared<T>(std::move(value))) { }
   ValuePtr clone() const { return ValuePtr(value); }
 
+  T& operator*() { return *value; }
   const T& operator*() const { return *value; }
+  T *operator->() { return value.get(); }
   const T *operator->() const { return value.get(); }
   const std::shared_ptr<T>& get() const { return value; }
 
@@ -179,7 +181,7 @@ private:
 };
 
 using RangePtr = ValuePtr<RangeType>;
-
+  
 class str_utf8_wrapper
 {
 private:
@@ -339,6 +341,7 @@ public:
     VECTOR,
     EMBEDDED_VECTOR,
     MATRIX,
+    EMBEDDED_MATRIX,
     RANGE,
     FUNCTION,
     OBJECT
@@ -502,7 +505,11 @@ public:
     template <typename ... Args> void emplace_back(Args&&... args) { emplace_back(Value(std::forward<Args>(args)...)); }
   };
 
-  class MatrixType {
+  /**
+   * - If is_vector:  1xM shape; ith value = double in matrix(0, i)
+   * - If !is_vector: NxM shape; ith value = 1xM ith-row
+   */
+  class MatrixObject {
     typedef Eigen::internal::scalar_sum_op<double, double> ScalarSum;
     typedef Eigen::internal::scalar_product_op<double, double> ScalarProduct;
     typedef Eigen::internal::scalar_difference_op<double, double> ScalarDifference;
@@ -544,12 +551,12 @@ public:
     bool is_vector;
 
   public:
-    MatrixType(size_t rows, size_t cols, bool dynamic, bool is_vector);
-    MatrixType(data_t &&data, bool is_vector = false) : data(std::move(data)), is_vector(is_vector) {}
+    MatrixObject(size_t rows, size_t cols, bool dynamic, bool is_vector);
+    MatrixObject(data_t &&data, bool is_vector = false);
 
-    MatrixType clone() const {
+    MatrixObject clone() const {
       data_t copy = data;
-      return std::move(MatrixType(std::move(copy), is_vector));
+      return std::move(MatrixObject(std::move(copy), is_vector));
     }
 
     bool resize(size_t rows);
@@ -558,25 +565,26 @@ public:
     Value operator[](size_t index) const;
     Value operator[](const std::vector<size_t> &indices) const;
     bool set(size_t index, double value);
-    bool set_row(size_t index, const MatrixType& element);
-    bool set_range(size_t index, const MatrixType& element);
+    bool set_row(size_t index, const MatrixObject& element);
+    bool set_range(size_t index, const MatrixObject& element);
 
     size_t cols() const;
     size_t rows() const;
     double operator()(size_t row, size_t col) const;
 
     VectorType toVector(EvaluationSession *session = nullptr, int size = -1) const;
+    EmbeddedVectorType toEmbeddedVector(EvaluationSession *session = nullptr, int size = -1) const;
 
-    bool operator==(const MatrixType& other) const;
-    bool operator!=(const MatrixType& other) const {
+    bool operator==(const MatrixObject& other) const;
+    bool operator!=(const MatrixObject& other) const {
       return !(*this == other);
     }
-    bool operator<(const MatrixType& other) const;
-    bool operator>(const MatrixType& other) const;
-    bool operator>=(const MatrixType& other) const {
+    bool operator<(const MatrixObject& other) const;
+    bool operator>(const MatrixObject& other) const;
+    bool operator>=(const MatrixObject& other) const {
       return !(*this < other);
     }
-    bool operator<=(const MatrixType& other) const {
+    bool operator<=(const MatrixObject& other) const {
       return !(*this > other);
     }
 
@@ -584,12 +592,15 @@ public:
     double minCoeff() const;
     double maxCoeff() const;
 
-    boost::optional<MatrixType> operator+(const MatrixType& other) const;
-    boost::optional<MatrixType> operator-(const MatrixType& other) const;
-    boost::optional<MatrixType> operator*(const MatrixType& other) const;
-    // boost::optional<MatrixType> operator/(const MatrixType& other) const;
-    boost::optional<MatrixType> cross(const MatrixType &other) const;
-    // TODO: cross, dot ops...
+    MatrixObject operator-() const;
+    boost::optional<MatrixObject> operator+(const MatrixObject& other) const;
+    boost::optional<MatrixObject> operator-(const MatrixObject& other) const;
+    boost::optional<MatrixObject> operator*(const MatrixObject& other) const;
+    // boost::optional<MatrixObject> operator/(const MatrixObject& other) const;
+    boost::optional<MatrixObject> cross(const MatrixObject &other) const;
+
+    MatrixObject operator*(double scalar) const;
+    MatrixObject operator/(double scalar) const;
     
     template <class T>
     static T getValue(const T& value) {
@@ -631,12 +642,30 @@ public:
     */
   };
 
+  using MatrixType = ValuePtr<MatrixObject>;
+
+  class EmbeddedMatrixType : public MatrixType
+  {
+private:
+    explicit EmbeddedMatrixType(const shared_ptr<MatrixObject>& copy) : MatrixType(copy) { } // called by clone()
+public:
+    // EmbeddedMatrixType(class EvaluationSession *session) : MatrixType(session) {}
+    EmbeddedMatrixType(const EmbeddedMatrixType&) = delete;
+    EmbeddedMatrixType& operator=(const EmbeddedMatrixType&) = delete;
+    EmbeddedMatrixType(EmbeddedMatrixType&&) = default;
+    EmbeddedMatrixType& operator=(EmbeddedMatrixType&&) = default;
+
+    EmbeddedMatrixType(MatrixType&& v) : MatrixType(std::move(v)) {} // converting constructor
+    EmbeddedMatrixType clone() const { return EmbeddedMatrixType(this->get()); }
+    static Value Empty() { return EmbeddedMatrixType(nullptr); }
+  };
+
   class VectorBuilder {
 private:
     boost::variant<
       boost::blank,
       VectorType,
-      MatrixType // May not be complete
+      MatrixType
     > data;
 
     size_t size;
@@ -650,11 +679,19 @@ public:
 
     void emplace_back(Value &&value);
     void flat_emplace_back(VectorType &&v);
-    void flat_emplace_back(MatrixType &&m);
+    void flat_emplace_back(MatrixObject &&m);
     Value build();
 
-private:
-    VectorType toVector();
+  protected:
+    virtual bool is_embedded() const { return false; }
+  };
+
+  class EmbeddedVectorBuilder : public VectorBuilder {
+  public:
+    EmbeddedVectorBuilder(EvaluationSession *session = nullptr): VectorBuilder(session) {}
+
+  protected:
+    bool is_embedded() const override { return true; }
   };
 
   class EmbeddedVectorType : public VectorType
@@ -730,11 +767,13 @@ public:
   double toDouble() const;
   const str_utf8_wrapper& toStrUtf8Wrapper() const;
   const VectorType& toVector() const;
-  const MatrixType& toMatrix() const;
-  MatrixType& toMatrixNonConst();
+  const MatrixObject& toMatrixObject() const;
+  MatrixObject& toMatrixObjectNonConst();
   const EmbeddedVectorType& toEmbeddedVector() const;
+  const EmbeddedMatrixType& toEmbeddedMatrix() const;
   VectorType& toVectorNonConst();
   EmbeddedVectorType& toEmbeddedVectorNonConst();
+  EmbeddedMatrixType& toEmbeddedMatrixNonConst();
   const RangeType& toRange() const;
   const FunctionType& toFunction() const;
   const ObjectType& toObject() const;
@@ -782,7 +821,6 @@ public:
     return stream;
   }
 
-  using MatrixPtr = ValuePtr<MatrixType>;
 
   typedef boost::variant<
     UndefType,
@@ -791,8 +829,8 @@ public:
     str_utf8_wrapper,
     VectorType,
     EmbeddedVectorType,
-    // MatrixType,
-    MatrixPtr,
+    MatrixType,
+    EmbeddedMatrixType,
     RangePtr,
     FunctionPtr,
     ObjectType> Variant;
@@ -818,7 +856,9 @@ std::ostream& operator<<(std::ostream& stream, const Value::ObjectType& u);
 
 using VectorType = Value::VectorType;
 using EmbeddedVectorType = Value::EmbeddedVectorType;
+using MatrixObject = Value::MatrixObject;
 using MatrixType = Value::MatrixType;
-using MatrixPtr = ValuePtr<MatrixType>;
+using EmbeddedMatrixType = Value::EmbeddedMatrixType;
 using ObjectType = Value::ObjectType;
 using VectorBuilder = Value::VectorBuilder;
+using EmbeddedVectorBuilder = Value::EmbeddedVectorBuilder;
