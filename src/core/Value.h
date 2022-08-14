@@ -50,13 +50,15 @@ std::ostream& operator<<(std::ostream& stream, const Filename& filename);
 template <typename T>
 class ValuePtr
 {
-private:
+protected:
   explicit ValuePtr(std::shared_ptr<T> val_in) : value(std::move(val_in)) { }
 public:
   ValuePtr(T&& value) : value(std::make_shared<T>(std::move(value))) { }
   [[nodiscard]] ValuePtr clone() const { return ValuePtr(value); }
 
+  T& operator*() { return *value; }
   const T& operator*() const { return *value; }
+  T *operator->() { return value.get(); }
   const T *operator->() const { return value.get(); }
   [[nodiscard]] const std::shared_ptr<T>& get() const { return value; }
 
@@ -65,6 +67,104 @@ private:
 };
 
 using RangePtr = ValuePtr<RangeType>;
+  
+// class str_utf8_wrapper
+// {
+// private:
+//   // store the cached length in glong, paired with its string
+//   struct str_utf8_t {
+//     static constexpr glong LENGTH_UNKNOWN = -1;
+//     str_utf8_t() : u8str(), u8len(0) { }
+//     str_utf8_t(const std::string& s) : u8str(s) { }
+//     str_utf8_t(const char *cstr) : u8str(cstr) { }
+//     str_utf8_t(const char *cstr, size_t size, glong u8len) : u8str(cstr, size), u8len(u8len) { }
+//     const std::string u8str;
+//     glong u8len = LENGTH_UNKNOWN;
+//   };
+//   // private constructor for copying members
+//   explicit str_utf8_wrapper(const shared_ptr<str_utf8_t>& str_in) : str_ptr(str_in) { }
+
+// public:
+//   class iterator
+//   {
+// public:
+//     // iterator_traits required types:
+//     using iterator_category = std::forward_iterator_tag;
+//     using value_type = str_utf8_wrapper;
+//     using difference_type = void;
+//     using reference = value_type; // type used by operator*(), not actually a reference
+//     using pointer = void;
+//     iterator() : ptr(&nullterm) {} // DefaultConstructible
+//     iterator(const str_utf8_wrapper& str) : ptr(str.c_str()), len(char_len()) { }
+//     iterator(const str_utf8_wrapper& str, bool /*end*/) : ptr(str.c_str() + str.size()) { }
+
+//     iterator& operator++() { ptr += len; len = char_len(); return *this; }
+//     reference operator*() { return {ptr, len}; } // Note: returns a new str_utf8_wrapper **by value**, representing a single UTF8 character.
+//     bool operator==(const iterator& other) const { return ptr == other.ptr; }
+//     bool operator!=(const iterator& other) const { return ptr != other.ptr; }
+// private:
+//     size_t char_len();
+//     static const char nullterm = '\0';
+//     const char *ptr;
+//     size_t len = 0;
+//   };
+
+//   iterator begin() const { return iterator(*this); }
+//   iterator end() const { return iterator(*this, true); }
+//   str_utf8_wrapper() : str_ptr(make_shared<str_utf8_t>()) { }
+//   str_utf8_wrapper(const std::string& s) : str_ptr(make_shared<str_utf8_t>(s)) { }
+//   str_utf8_wrapper(const char *cstr) : str_ptr(make_shared<str_utf8_t>(cstr)) { }
+//   // for enumerating single utf8 chars from iterator
+//   str_utf8_wrapper(const char *cstr, size_t clen) : str_ptr(make_shared<str_utf8_t>(cstr, clen, 1)) { }
+//   str_utf8_wrapper(const str_utf8_wrapper&) = delete; // never copy, move instead
+//   str_utf8_wrapper& operator=(const str_utf8_wrapper&) = delete; // never copy, move instead
+//   str_utf8_wrapper(str_utf8_wrapper&&) = default;
+//   str_utf8_wrapper& operator=(str_utf8_wrapper&&) = default;
+//   str_utf8_wrapper clone() const { return str_utf8_wrapper(this->str_ptr); } // makes a copy of shared_ptr
+
+//   bool operator==(const str_utf8_wrapper& rhs) const { return this->str_ptr->u8str == rhs.str_ptr->u8str; }
+//   bool operator!=(const str_utf8_wrapper& rhs) const { return this->str_ptr->u8str != rhs.str_ptr->u8str; }
+//   bool operator<(const str_utf8_wrapper& rhs) const { return this->str_ptr->u8str < rhs.str_ptr->u8str; }
+//   bool operator>(const str_utf8_wrapper& rhs) const { return this->str_ptr->u8str > rhs.str_ptr->u8str; }
+//   bool operator<=(const str_utf8_wrapper& rhs) const { return this->str_ptr->u8str <= rhs.str_ptr->u8str; }
+//   bool operator>=(const str_utf8_wrapper& rhs) const { return this->str_ptr->u8str >= rhs.str_ptr->u8str; }
+//   bool empty() const { return this->str_ptr->u8str.empty(); }
+//   const char *c_str() const { return this->str_ptr->u8str.c_str(); }
+//   const std::string& toString() const { return this->str_ptr->u8str; }
+//   size_t size() const { return this->str_ptr->u8str.size(); }
+
+//   glong get_utf8_strlen() const {
+//     if (str_ptr->u8len == str_utf8_t::LENGTH_UNKNOWN) {
+//       str_ptr->u8len = g_utf8_strlen(str_ptr->u8str.c_str(), str_ptr->u8str.size());
+//     }
+//     return str_ptr->u8len;
+//   }
+
+// private:
+//   shared_ptr<str_utf8_t> str_ptr;
+// };
+
+// class FunctionType
+// {
+// public:
+//   FunctionType(std::shared_ptr<const Context> context, std::shared_ptr<Expression> expr, std::shared_ptr<AssignmentList> parameters)
+//     : context(context), expr(expr), parameters(parameters) { }
+//   Value operator==(const FunctionType& other) const;
+//   Value operator!=(const FunctionType& other) const;
+//   Value operator<(const FunctionType& other) const;
+//   Value operator>(const FunctionType& other) const;
+//   Value operator<=(const FunctionType& other) const;
+//   Value operator>=(const FunctionType& other) const;
+
+//   const std::shared_ptr<const Context>& getContext() const { return context; }
+//   const std::shared_ptr<Expression>& getExpr() const { return expr; }
+//   const std::shared_ptr<AssignmentList>& getParameters() const { return parameters; }
+// private:
+//   std::shared_ptr<const Context> context;
+//   std::shared_ptr<Expression> expr;
+//   std::shared_ptr<AssignmentList> parameters;
+// };
+
 using FunctionPtr = ValuePtr<FunctionType>;
 
 /**
@@ -92,6 +192,7 @@ public:
     VECTOR,
     EMBEDDED_VECTOR,
     MATRIX,
+    EMBEDDED_MATRIX,
     RANGE,
     FUNCTION,
     OBJECT
@@ -256,7 +357,11 @@ public:
     template <typename ... Args> void emplace_back(Args&&... args) { emplace_back(Value(std::forward<Args>(args)...)); }
   };
 
-  class MatrixType {
+  /**
+   * - If is_vector:  1xM shape; ith value = double in matrix(0, i)
+   * - If !is_vector: NxM shape; ith value = 1xM ith-row
+   */
+  class MatrixObject {
     typedef Eigen::internal::scalar_sum_op<double, double> ScalarSum;
     typedef Eigen::internal::scalar_product_op<double, double> ScalarProduct;
     typedef Eigen::internal::scalar_difference_op<double, double> ScalarDifference;
@@ -298,12 +403,12 @@ public:
     bool is_vector;
 
   public:
-    MatrixType(size_t rows, size_t cols, bool dynamic, bool is_vector);
-    MatrixType(data_t &&data, bool is_vector = false) : data(std::move(data)), is_vector(is_vector) {}
+    MatrixObject(size_t rows, size_t cols, bool dynamic, bool is_vector);
+    MatrixObject(data_t &&data, bool is_vector = false);
 
-    MatrixType clone() const {
+    MatrixObject clone() const {
       data_t copy = data;
-      return std::move(MatrixType(std::move(copy), is_vector));
+      return std::move(MatrixObject(std::move(copy), is_vector));
     }
 
     bool resize(size_t rows);
@@ -312,25 +417,26 @@ public:
     Value operator[](size_t index) const;
     Value operator[](const std::vector<size_t> &indices) const;
     bool set(size_t index, double value);
-    bool set_row(size_t index, const MatrixType& element);
-    bool set_range(size_t index, const MatrixType& element);
+    bool set_row(size_t index, const MatrixObject& element);
+    bool set_range(size_t index, const MatrixObject& element);
 
     size_t cols() const;
     size_t rows() const;
     double operator()(size_t row, size_t col) const;
 
     VectorType toVector(EvaluationSession *session = nullptr, int size = -1) const;
+    EmbeddedVectorType toEmbeddedVector(EvaluationSession *session = nullptr, int size = -1) const;
 
-    bool operator==(const MatrixType& other) const;
-    bool operator!=(const MatrixType& other) const {
+    bool operator==(const MatrixObject& other) const;
+    bool operator!=(const MatrixObject& other) const {
       return !(*this == other);
     }
-    bool operator<(const MatrixType& other) const;
-    bool operator>(const MatrixType& other) const;
-    bool operator>=(const MatrixType& other) const {
+    bool operator<(const MatrixObject& other) const;
+    bool operator>(const MatrixObject& other) const;
+    bool operator>=(const MatrixObject& other) const {
       return !(*this < other);
     }
-    bool operator<=(const MatrixType& other) const {
+    bool operator<=(const MatrixObject& other) const {
       return !(*this > other);
     }
 
@@ -338,12 +444,15 @@ public:
     double minCoeff() const;
     double maxCoeff() const;
 
-    boost::optional<MatrixType> operator+(const MatrixType& other) const;
-    boost::optional<MatrixType> operator-(const MatrixType& other) const;
-    boost::optional<MatrixType> operator*(const MatrixType& other) const;
-    // boost::optional<MatrixType> operator/(const MatrixType& other) const;
-    boost::optional<MatrixType> cross(const MatrixType &other) const;
-    // TODO: cross, dot ops...
+    MatrixObject operator-() const;
+    boost::optional<MatrixObject> operator+(const MatrixObject& other) const;
+    boost::optional<MatrixObject> operator-(const MatrixObject& other) const;
+    boost::optional<MatrixObject> operator*(const MatrixObject& other) const;
+    // boost::optional<MatrixObject> operator/(const MatrixObject& other) const;
+    boost::optional<MatrixObject> cross(const MatrixObject &other) const;
+
+    MatrixObject operator*(double scalar) const;
+    MatrixObject operator/(double scalar) const;
     
     template <class T>
     static T getValue(const T& value) {
@@ -385,12 +494,30 @@ public:
     */
   };
 
+  using MatrixType = ValuePtr<MatrixObject>;
+
+  class EmbeddedMatrixType : public MatrixType
+  {
+private:
+    explicit EmbeddedMatrixType(const shared_ptr<MatrixObject>& copy) : MatrixType(copy) { } // called by clone()
+public:
+    // EmbeddedMatrixType(class EvaluationSession *session) : MatrixType(session) {}
+    EmbeddedMatrixType(const EmbeddedMatrixType&) = delete;
+    EmbeddedMatrixType& operator=(const EmbeddedMatrixType&) = delete;
+    EmbeddedMatrixType(EmbeddedMatrixType&&) = default;
+    EmbeddedMatrixType& operator=(EmbeddedMatrixType&&) = default;
+
+    EmbeddedMatrixType(MatrixType&& v) : MatrixType(std::move(v)) {} // converting constructor
+    EmbeddedMatrixType clone() const { return EmbeddedMatrixType(this->get()); }
+    static Value Empty() { return EmbeddedMatrixType(nullptr); }
+  };
+
   class VectorBuilder {
 private:
     boost::variant<
       boost::blank,
       VectorType,
-      MatrixType // May not be complete
+      MatrixType
     > data;
 
     size_t size;
@@ -404,11 +531,19 @@ public:
 
     void emplace_back(Value &&value);
     void flat_emplace_back(VectorType &&v);
-    void flat_emplace_back(MatrixType &&m);
+    void flat_emplace_back(MatrixObject &&m);
     Value build();
 
-private:
-    VectorType toVector();
+  protected:
+    virtual bool is_embedded() const { return false; }
+  };
+
+  class EmbeddedVectorBuilder : public VectorBuilder {
+  public:
+    EmbeddedVectorBuilder(EvaluationSession *session = nullptr): VectorBuilder(session) {}
+
+  protected:
+    bool is_embedded() const override { return true; }
   };
 
   class EmbeddedVectorType : public VectorType
@@ -487,11 +622,13 @@ public:
   [[nodiscard]] double toDouble() const;
   [[nodiscard]] const str_utf8_wrapper& toStrUtf8Wrapper() const;
   [[nodiscard]] const VectorType& toVector() const;
-  [[nodiscard]] const MatrixType& toMatrix() const;
-  [[nodiscard]] MatrixType& toMatrixNonConst();
+  [[nodiscard]] const MatrixObject& toMatrixObject() const;
+  [[nodiscard]] MatrixObject& toMatrixObjectNonConst();
   [[nodiscard]] const EmbeddedVectorType& toEmbeddedVector() const;
+  [[nodiscard]] const EmbeddedMatrixType& toEmbeddedMatrix() const;
   [[nodiscard]] VectorType& toVectorNonConst();
   [[nodiscard]] EmbeddedVectorType& toEmbeddedVectorNonConst();
+  [[nodiscard]] EmbeddedMatrixType& toEmbeddedMatrixNonConst();
   [[nodiscard]] const RangeType& toRange() const;
   [[nodiscard]] const FunctionType& toFunction() const;
   [[nodiscard]] const ObjectType& toObject() const;
@@ -539,7 +676,6 @@ public:
     return stream;
   }
 
-  using MatrixPtr = ValuePtr<MatrixType>;
 
   using Variant = std::variant<
     UndefType,
@@ -548,7 +684,8 @@ public:
     str_utf8_wrapper,
     VectorType,
     EmbeddedVectorType,
-    MatrixPtr,
+    MatrixType,
+    EmbeddedMatrixType,
     RangePtr,
     FunctionPtr,
     ObjectType>;
@@ -573,7 +710,9 @@ std::ostream& operator<<(std::ostream& stream, const Value::ObjectType& u);
 
 using VectorType = Value::VectorType;
 using EmbeddedVectorType = Value::EmbeddedVectorType;
+using MatrixObject = Value::MatrixObject;
 using MatrixType = Value::MatrixType;
-using MatrixPtr = ValuePtr<MatrixType>;
+using EmbeddedMatrixType = Value::EmbeddedMatrixType;
 using ObjectType = Value::ObjectType;
 using VectorBuilder = Value::VectorBuilder;
+using EmbeddedVectorBuilder = Value::EmbeddedVectorBuilder;
