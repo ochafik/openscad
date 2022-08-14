@@ -637,7 +637,7 @@ set(CORE_SOURCES
   src/core/LinearExtrudeNode.cc
   src/core/LocalScope.cc
   src/core/ScopeContext.cc
-  src/core/MatrixType.cc
+  src/core/MatrixObject.cc
   src/core/module.cc
   src/core/node.cc
   src/core/NodeDumper.cc
