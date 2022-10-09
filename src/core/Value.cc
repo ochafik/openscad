@@ -590,14 +590,6 @@ VectorType::VectorType(EvaluationSession *session) :
   ptr->evaluation_session = session;
 }
 
-VectorType::VectorType(class EvaluationSession *session, double x, double y, double z) :
-  ptr(shared_ptr<VectorObject>(new VectorObject(), VectorObjectDeleter() ))
-{
-  ptr->evaluation_session = session;
-  emplace_back(x);
-  emplace_back(y);
-  emplace_back(z);
-}
 
 void VectorType::emplace_back(Value&& val)
 {
@@ -688,6 +680,20 @@ void Value::VectorBuilder::reserve(size_t size) {
     }
   } else if (auto pVector = boost::get<VectorType>(&data)) {
     pVector->reserve(size);
+  }
+}
+
+Value VectorBuilder::build(EvaluationSession *session, double x, double y, double z) {
+  if (Feature::ExperimentalFastLinalg.is_enabled()) {
+    VectorType vec(session);
+    vec.reserve(3);
+    vec.emplace_back(x);
+    vec.emplace_back(y);
+    vec.emplace_back(z);
+    return Value(std::move(vec));
+  } else {
+    return Value(MatrixType(std::move(MatrixObject(
+      std::move(std::make_shared<Eigen::Vector3d>(x, y, z))))));
   }
 }
 
@@ -1060,6 +1066,8 @@ public:
   template <typename T, typename U> Value operator()(const T& op1, const U& op2) const { return true; }
   template <typename T> Value operator()(const T& op1, const T& op2) const { return op1 != op2; }
   Value operator()(const UndefType&, const UndefType&) const { return false; }
+  Value operator()(const MatrixType& op1, const VectorType& op2) const { return op1->toVector() != op2; }
+  Value operator()(const VectorType& op1, const MatrixType& op2) const { return op1 != op2->toVector(); }
   Value operator()(const MatrixType& op1, const MatrixType& op2) const { return *op1 != *op2; }
   Value operator()(const EmbeddedMatrixType& op1, const EmbeddedMatrixType& op2) const { return *op1 != *op2; }
   template <typename T> Value operator()(const ValuePtr<T>& op1, const ValuePtr<T>& op2) const { return *op1 != *op2; }
@@ -1071,6 +1079,8 @@ public:
   template <typename T, typename U> Value operator()(const T& op1, const U& op2) const { return false; }
   template <typename T> Value operator()(const T& op1, const T& op2) const { return op1 == op2; }
   Value operator()(const UndefType&, const UndefType&) const { return true; }
+  Value operator()(const MatrixType& op1, const VectorType& op2) const { return op1->toVector() == op2; }
+  Value operator()(const VectorType& op1, const MatrixType& op2) const { return op1 == op2->toVector(); }
   Value operator()(const MatrixType& op1, const MatrixType& op2) const { return *op1 == *op2; }
   Value operator()(const EmbeddedMatrixType& op1, const EmbeddedMatrixType& op2) const { return *op1 == *op2; }
   template <typename T> Value operator()(const ValuePtr<T>& op1, const ValuePtr<T>& op2) const { return *op1 == *op2; }
