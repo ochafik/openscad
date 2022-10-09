@@ -466,11 +466,13 @@ Value builtin_lookup(Arguments arguments, const Location& loc)
   if (try_check_arguments(arguments, { Value::Type::NUMBER, Value::Type::MATRIX })) {
   // TODO(ochafik): optimize MATRIX case
     array = Value(std::move(array.toMatrixObject().toVector()));
-  }
-  
-  if (!check_arguments("lookup", arguments, loc, { Value::Type::NUMBER, Value::Type::VECTOR })) {
+  } else if (!try_check_arguments(arguments, { Value::Type::NUMBER, Value::Type::VECTOR })) {
     return Value::undefined.clone();
   }
+  
+  // if (!check_arguments("lookup", arguments, loc, { Value::Type::NUMBER, Value::Type::VECTOR })) {
+  //   return Value::undefined.clone();
+  // }
   double p = arguments[0]->toDouble();
   if (!std::isfinite(p)) {
     LOG(message_group::Warning, loc, arguments.documentRoot(), "lookup(%1$s, ...) first argument is not a number", arguments[0]->toEchoStringNoThrow());
@@ -832,7 +834,7 @@ Value builtin_cross(Arguments arguments, const Location& loc)
   double y = v0[2].toDouble() * v1[0].toDouble() - v0[0].toDouble() * v1[2].toDouble();
   double z = v0[0].toDouble() * v1[1].toDouble() - v0[1].toDouble() * v1[0].toDouble();
 
-  return VectorType(arguments.session(), x, y, z);
+  return VectorBuilder::build(arguments.session(), x, y, z);
 }
 
 Value builtin_textmetrics(Arguments arguments, const Location& loc)
