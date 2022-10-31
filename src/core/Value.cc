@@ -1452,7 +1452,7 @@ public:
   Value operator()(const MatrixType& mat, const double& idx) const {
     const auto i = convert_to_uint32(idx);
     if (i < mat->rows()) return (*mat)[i].clone();
-    return Value::undef(STR("index " << i << " out of bounds for matrix with " << mat->rows() << " rows"));
+    return Value::undef(STR("index ", i, " out of bounds for matrix with ", mat->rows(), " rows"));
   }
 
   Value operator()(const ObjectType& obj, const str_utf8_wrapper& key) const {
@@ -1525,7 +1525,7 @@ struct multibracket_visitor : public boost::static_visitor<Value>
 
   template <typename T> Value operator()(const T& op1) const {
     //std::cout << "generic bracket_visitor " << getTypeName(op1) << " " << getTypeName(op2) << "\n";
-    return Value::undef(STR("undefined operation " << getTypeName(op1) << ".swizzle"));
+    return Value::undef(STR("undefined operation ", getTypeName(op1), ".swizzle"));
   }
 };
 
