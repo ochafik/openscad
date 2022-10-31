@@ -467,7 +467,6 @@ public:
     };
     using const_iterator = const iterator;
     VectorType(class EvaluationSession *session); // : ptr(shared_ptr<VectorObject>(new VectorObject(), VectorObjectDeleter() )) {}
-    VectorType(class EvaluationSession *session, double x, double y, double z);
     VectorType(const VectorType&) = delete; // never copy, move instead
     VectorType& operator=(const VectorType&) = delete; // never copy, move instead
     VectorType(VectorType&&) = default;
@@ -674,6 +673,8 @@ private:
 
 public:
     VectorBuilder(EvaluationSession *session = nullptr): size(0), capacity(-1), session(session) {}
+
+    static Value build(EvaluationSession *session, double x, double y, double z);
 
     void reserve(size_t size);
 
