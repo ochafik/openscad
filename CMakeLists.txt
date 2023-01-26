@@ -275,9 +275,9 @@ else()
   target_include_directories(OpenSCAD SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
   list(APPEND COMMON_LIBRARIES ${Boost_LIBRARIES})
 
-  find_package(HarfBuzz 0.9.19 REQUIRED QUIET)
+  find_package(HarfBuzz 5.3.1 REQUIRED QUIET)
   message(STATUS "Harfbuzz: ${HARFBUZZ_VERSION}")
-  target_include_directories(OpenSCAD SYSTEM PRIVATE ${HARFBUZZ_INCLUDE_DIRS})
+  target_include_directories(OpenSCAD SYSTEM PRIVATE ${HARFBUZZ_INCLUDE_DIRS}/harfbuzz)
   list(APPEND COMMON_LIBRARIES ${HARFBUZZ_LIBRARIES})
 
   find_package(FontConfig 2.8.0 REQUIRED QUIET)
