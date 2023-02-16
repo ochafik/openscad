@@ -251,8 +251,8 @@ else()
 
   find_package(HarfBuzz 5.3.1 REQUIRED QUIET)
   message(STATUS "Harfbuzz: ${HARFBUZZ_VERSION}")
-  target_include_directories(OpenSCAD SYSTEM PRIVATE ${HARFBUZZ_INCLUDE_DIRS}/harfbuzz)
-  list(APPEND COMMON_LIBRARIES ${HARFBUZZ_LIBRARIES})
+  target_include_directories(OpenSCAD SYSTEM PRIVATE ${HARFBUZZ_INCLUDE_DIRS})
+  target_link_libraries(OpenSCAD PRIVATE ${HARFBUZZ_LIBRARIES})
 
   find_package(FontConfig 2.8.0 REQUIRED QUIET)
   message(STATUS "Fontconfig: ${FONTCONFIG_VERSION}")
