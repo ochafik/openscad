@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <memory>
 #include <cxxabi.h>
+#include <iostream>
 
 #include "Value.h"
 
@@ -102,7 +103,7 @@ MatrixObject::MatrixObject(data_t &&data, bool is_vector) : data(std::move(data)
   assert(!is_vector || cols() == 1);
 }
 
-struct resize_visitor : public boost::static_visitor<bool> 
+struct resize_visitor  
 {
   size_t rows;
   resize_visitor(size_t rows) : rows(rows) {}
@@ -124,7 +125,7 @@ struct resize_visitor : public boost::static_visitor<bool>
 
 bool Value::MatrixObject::resize(size_t rows) {
   std::cerr << "resize(" << rows << ")\n";
-  return boost::apply_visitor(resize_visitor(rows), data);
+  return std::visit(resize_visitor(rows), data);
 }
 
 template <int InputRows, int InputCols, int OutputRows, int OutputCols>
@@ -170,8 +171,7 @@ bool rigidCopy(
   return true;
 }
 
-struct seal_visitor : public boost::static_visitor<data_t> 
-{
+struct seal_visitor {
   size_t sealed_rows;
   seal_visitor(size_t sealed_rows) : sealed_rows(sealed_rows) {}
 
@@ -233,7 +233,7 @@ struct seal_visitor : public boost::static_visitor<data_t>
   }
 };
 
-struct type_to_string_visitor : public boost::static_visitor<std::string> {
+struct type_to_string_visitor {
   template <class A>
   std::string instanceTypeName(const A& a) const {
     return typeName<A>();
@@ -251,15 +251,14 @@ struct type_to_string_visitor : public boost::static_visitor<std::string> {
 };
 
 std::string type_to_string(const data_t &data) {
-  return boost::apply_visitor(type_to_string_visitor(), data);
+  return std::visit(type_to_string_visitor(), data);
 }
 
 void Value::MatrixObject::seal(size_t sealed_rows) {
-  data = boost::apply_visitor(seal_visitor(sealed_rows), data);
+  data = std::visit(seal_visitor(sealed_rows), data);
 }
 
-struct to_vector_visitor : public boost::static_visitor<void> 
-{
+struct to_vector_visitor {
   VectorType &out;
   bool is_vector;
   size_t size;
@@ -294,12 +293,11 @@ struct to_vector_visitor : public boost::static_visitor<void>
 
 VectorType Value::MatrixObject::toVector(EvaluationSession *session, int size) const {
   VectorType out(session);
-  boost::apply_visitor(to_vector_visitor(out, is_vector, size < 0 ? rows() : size), data);
+  std::visit(to_vector_visitor(out, is_vector, size < 0 ? rows() : size), data);
   return std::move(out);
 }
 
-struct get_visitor : public boost::static_visitor<double> 
-{
+struct get_visitor {
   size_t row;
   size_t col;
   get_visitor(size_t row, size_t col) : row(row), col(col) {}
@@ -311,11 +309,10 @@ struct get_visitor : public boost::static_visitor<double>
 };
 
 double Value::MatrixObject::operator()(size_t row, size_t col) const {
-  return boost::apply_visitor(get_visitor(row, col), data);
+  return std::visit(get_visitor(row, col), data);
 }
 
-struct bracket_visitor : public boost::static_visitor<Value> 
-{
+struct bracket_visitor {
   bool is_vector;
   size_t index;
   bracket_visitor(bool is_vector, size_t index) : is_vector(is_vector), index(index) {}
@@ -355,11 +352,10 @@ struct bracket_visitor : public boost::static_visitor<Value>
 
 Value MatrixObject::operator[](size_t index) const
 {
-  return std::move(boost::apply_visitor(bracket_visitor(is_vector, index), data));
+  return std::move(std::visit(bracket_visitor(is_vector, index), data));
 }
 
-struct multibracket_visitor : public boost::static_visitor<Value>
-{
+struct multibracket_visitor {
   const std::vector<size_t> &indices;
   multibracket_visitor(const std::vector<size_t> &indices) : indices(indices) {}
   
@@ -382,11 +378,10 @@ struct multibracket_visitor : public boost::static_visitor<Value>
 
 Value MatrixObject::operator[](const std::vector<size_t> &indices) const
 {
-  return std::move(boost::apply_visitor(multibracket_visitor(indices), data));
+  return std::move(std::visit(multibracket_visitor(indices), data));
 }
 
-struct set_row_visitor : public boost::static_visitor<bool> 
-{
+struct set_row_visitor {
   size_t index;
   bool element_is_vector;
   set_row_visitor(size_t index, bool element_is_vector) : index(index), element_is_vector(element_is_vector) {}
@@ -429,11 +424,10 @@ struct set_row_visitor : public boost::static_visitor<bool>
 };
 
 bool Value::MatrixObject::set_row(size_t index, const MatrixObject& element) {
-  return boost::apply_visitor(set_row_visitor(index, element.is_vector), data, element.data);
+  return std::visit(set_row_visitor(index, element.is_vector), data, element.data);
 }
 
-struct set_range_visitor : public boost::static_visitor<bool> 
-{
+struct set_range_visitor {
   size_t index;
   set_range_visitor(size_t index) : index(index) {}
   
@@ -465,11 +459,10 @@ struct set_range_visitor : public boost::static_visitor<bool>
 };
 
 bool Value::MatrixObject::set_range(size_t index, const MatrixObject& element) {
-  return boost::apply_visitor(set_range_visitor(index), data, element.data);
+  return std::visit(set_range_visitor(index), data, element.data);
 }
 
-struct set_scalar_visitor : public boost::static_visitor<bool> 
-{
+struct set_scalar_visitor {
   size_t index;
   double value;
   set_scalar_visitor(size_t index, double value) : index(index), value(value) {}
@@ -494,7 +487,7 @@ struct set_scalar_visitor : public boost::static_visitor<bool>
 };
 
 bool Value::MatrixObject::set(size_t index, double value) {
-  return boost::apply_visitor(set_scalar_visitor(index, value), data);
+  return std::visit(set_scalar_visitor(index, value), data);
 }
 
 template <class T> struct matrix_traits {};
@@ -505,8 +498,7 @@ template <int N, int M> struct matrix_traits<Eigen::Matrix<double, N, M>> {
 };
 
 template <class Op>
-struct cwise_binary_op_visitor : public boost::static_visitor<boost::optional<MatrixObject>>
-{
+struct cwise_binary_op_visitor {
   const Op &op;
   bool is_vector;
   cwise_binary_op_visitor(const Op &op, bool is_vector) : op(op), is_vector(is_vector) {}
@@ -544,7 +536,7 @@ struct plus_op {
 };
 
 boost::optional<MatrixObject> Value::MatrixObject::operator+(const MatrixObject& other) const {
-  return boost::apply_visitor(cwise_binary_op_visitor<plus_op>(plus_op(), is_vector || other.is_vector), data, other.data);
+  return std::visit(cwise_binary_op_visitor<plus_op>(plus_op(), is_vector || other.is_vector), data, other.data);
 }
 
 struct minus_op {
@@ -555,11 +547,10 @@ struct minus_op {
 };
 
 boost::optional<MatrixObject> Value::MatrixObject::operator-(const MatrixObject& other) const {
-  return boost::apply_visitor(cwise_binary_op_visitor<minus_op>(minus_op(), is_vector || other.is_vector), data, other.data);
+  return std::visit(cwise_binary_op_visitor<minus_op>(minus_op(), is_vector || other.is_vector), data, other.data);
 }
 
-struct unary_minus_visitor : public boost::static_visitor<MatrixObject> 
-{
+struct unary_minus_visitor {
   bool is_vector;
   unary_minus_visitor(bool is_vector) : is_vector(is_vector) {}
   
@@ -572,11 +563,10 @@ struct unary_minus_visitor : public boost::static_visitor<MatrixObject>
 };
 
 MatrixObject Value::MatrixObject::operator-() const {
-  return std::move(boost::apply_visitor(unary_minus_visitor(is_vector), data));
+  return std::move(std::visit(unary_minus_visitor(is_vector), data));
 }
 
-// struct cross_visitor : public boost::static_visitor<boost::optional<MatrixObject>> 
-// {
+// struct cross_visitor {
 //   template <class A, class B>
 //   boost::optional<MatrixObject> operator()(const A& op1, const B& op2) const {
 //     std::cerr << "cross op not supported " << typeName<A>().c_str() << " x " << typeName<B>().c_str();
@@ -606,18 +596,18 @@ MatrixObject Value::MatrixObject::operator-() const {
 
 boost::optional<MatrixObject> Value::MatrixObject::cross(const MatrixObject &other) const {
   return boost::none;
-  // return boost::apply_visitor(cross_visitor(), data, other.data);
+  // return std::visit(cross_visitor(), data, other.data);
 }
 
 #define SCALAR_VISITED_OP_IMPL(type, name) \
-  struct name ## _visitor : public boost::static_visitor<type> { \
+  struct name ## _visitor { \
     template <class T> \
     type operator()(const std::shared_ptr<T>& mat) const { \
       return mat->name(); \
     } \
   }; \
   type Value::MatrixObject::name() const { \
-    return boost::apply_visitor(name ## _visitor() , data); \
+    return std::visit(name ## _visitor() , data); \
   }
 
 SCALAR_VISITED_OP_IMPL(size_t, rows);
@@ -640,8 +630,7 @@ struct matrix_data_traits<rows, cols, std::enable_if_t<!std::is_assignable<Matri
 };
 
 template <bool lhs_is_vector>
-struct product_visitor : public boost::static_visitor<boost::optional<MatrixObject>>
-{
+struct product_visitor {
   bool rhs_is_vector;
   product_visitor(bool rhs_is_vector) : rhs_is_vector(rhs_is_vector) {}
 
@@ -677,13 +666,12 @@ struct product_visitor : public boost::static_visitor<boost::optional<MatrixObje
 
 boost::optional<MatrixObject> Value::MatrixObject::operator*(const MatrixObject& other) const {
   return is_vector
-    ? boost::apply_visitor(product_visitor</* lhs_is_vector= */ true>(/* rhs_is_vector= */ other.is_vector), data, other.data)
-    : boost::apply_visitor(product_visitor</* lhs_is_vector= */ false>(/* rhs_is_vector= */ other.is_vector), data, other.data);
+    ? std::visit(product_visitor</* lhs_is_vector= */ true>(/* rhs_is_vector= */ other.is_vector), data, other.data)
+    : std::visit(product_visitor</* lhs_is_vector= */ false>(/* rhs_is_vector= */ other.is_vector), data, other.data);
 }
 
 template <class Op>
-struct cwise_nullary_op_visitor : public boost::static_visitor<MatrixObject>
-{
+struct cwise_nullary_op_visitor {
   const Op &op;
   bool is_vector;
   cwise_nullary_op_visitor(const Op &op, bool is_vector) : op(op), is_vector(is_vector) {}
@@ -719,14 +707,14 @@ struct divide_op {
 };
 
 MatrixObject Value::MatrixObject::operator*(double scalar) const {
-  return boost::apply_visitor(cwise_nullary_op_visitor<multiply_op>(multiply_op(scalar), is_vector) , data);
+  return std::visit(cwise_nullary_op_visitor<multiply_op>(multiply_op(scalar), is_vector) , data);
 }
 
 MatrixObject Value::MatrixObject::operator/(double scalar) const {
-  return boost::apply_visitor(cwise_nullary_op_visitor<divide_op>(divide_op(scalar), is_vector) , data);
+  return std::visit(cwise_nullary_op_visitor<divide_op>(divide_op(scalar), is_vector) , data);
 }
 
-struct less_visitor : public boost::static_visitor<bool> {
+struct less_visitor {
   template <int Rows1, int Cols1, int Rows2, int Cols2>
   bool operator()(
       const std::shared_ptr<Eigen::Matrix<double, Rows1, Cols1>>& lhs,
@@ -746,10 +734,10 @@ struct less_visitor : public boost::static_visitor<bool> {
 };
 
 bool Value::MatrixObject::operator<(const MatrixObject& other) const {
-  return boost::apply_visitor(less_visitor(), data, other.data);
+  return std::visit(less_visitor(), data, other.data);
 }
 
-struct more_visitor : public boost::static_visitor<bool> {
+struct more_visitor {
   template <int Rows1, int Cols1, int Rows2, int Cols2>
   bool operator()(
       const std::shared_ptr<Eigen::Matrix<double, Rows1, Cols1>>& lhs,
@@ -769,10 +757,10 @@ struct more_visitor : public boost::static_visitor<bool> {
 };
 
 bool Value::MatrixObject::operator>(const MatrixObject& other) const {
-  return boost::apply_visitor(more_visitor(), data, other.data);
+  return std::visit(more_visitor(), data, other.data);
 }
 
-struct equal_op : public boost::static_visitor<bool> {
+struct equal_op {
   template <class A, class B>
   bool operator()(const A&a, const B&b) const {
     return a == b;
@@ -806,5 +794,5 @@ struct equal_op : public boost::static_visitor<bool> {
 };
 
 bool Value::MatrixObject::operator==(const MatrixObject& other) const {
-  return boost::apply_visitor(equal_op(), data, other.data);
+  return std::visit(equal_op(), data, other.data);
 }

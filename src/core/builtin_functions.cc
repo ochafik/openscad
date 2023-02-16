@@ -946,10 +946,9 @@ Value builtin_is_list(Arguments arguments, const Location& loc)
   if (!check_arguments("is_list", arguments, loc, 1)) {
     return Value::undefined.clone();
   }
-  auto arg = arguments[0];
   return Value(
-    arg->isDefinedAs(Value::Type::VECTOR) ||
-    (arg->isDefinedAs(Value::Type::MATRIX) && arg->toMatrix()->is_vector));
+    arguments[0]->isDefinedAs(Value::Type::VECTOR) ||
+    (arguments[0]->isDefinedAs(Value::Type::MATRIX) && arguments[0]->toMatrixObject().isVector()));
 }
 
 Value builtin_is_num(Arguments arguments, const Location& loc)

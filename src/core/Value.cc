@@ -649,12 +649,12 @@ void VectorType::VectorObjectDeleter::operator()(VectorObject *v)
 void Value::VectorBuilder::reserve(size_t size) {
   capacity = size;
 
-  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+  if (auto pMatrix = std::get_if<MatrixType>(&data)) {
     auto rows = (*pMatrix)->rows();
     if (size > rows) {
       (*pMatrix)->resize(size);
     }
-  } else if (auto pVector = boost::get<VectorType>(&data)) {
+  } else if (auto pVector = std::get_if<VectorType>(&data)) {
     pVector->reserve(size);
   }
 }
@@ -674,7 +674,7 @@ Value VectorBuilder::build(EvaluationSession *session, double x, double y, doubl
 }
 
 Value Value::VectorBuilder::build() {
-  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+  if (auto pMatrix = std::get_if<MatrixType>(&data)) {
     if (size != (*pMatrix)->rows()) {
       VectorType vec(std::move((*pMatrix)->toVector(session, size)));
       return is_embedded() ? Value(EmbeddedVectorType(std::move(vec))) : Value(std::move(vec));
@@ -683,7 +683,7 @@ Value Value::VectorBuilder::build() {
       MatrixType mat(std::move(**pMatrix));
       return is_embedded() ? Value(EmbeddedMatrixType(std::move(mat))) : Value(std::move(mat));
     }
-  } else if (auto pVector = boost::get<VectorType>(&data)) {
+  } else if (auto pVector = std::get_if<VectorType>(&data)) {
     VectorType vec(std::move(*pVector));
     return is_embedded() ? Value(EmbeddedVectorType(std::move(vec))) : Value(std::move(vec));
   } else {
@@ -699,7 +699,7 @@ int grow(int size) {
 void Value::VectorBuilder::emplace_back(Value &&value) {
   auto dynamic = capacity < 0;
   
-  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+  if (auto pMatrix = std::get_if<MatrixType>(&data)) {
     if (dynamic && size == (*pMatrix)->rows()) {
       auto rows = grow((*pMatrix)->rows());
       (*pMatrix)->resize(rows);
@@ -719,7 +719,7 @@ void Value::VectorBuilder::emplace_back(Value &&value) {
     data = std::move((*pMatrix)->toVector(session, size));
   }
   
-  if (auto pVector = boost::get<VectorType>(&data)) {
+  if (auto pVector = std::get_if<VectorType>(&data)) {
     pVector->emplace_back(std::move(value));
     size++;
     return;
@@ -733,7 +733,7 @@ void Value::VectorBuilder::emplace_back(Value &&value) {
     // Can we build a column matrix?
     if (value.type() == Value::Type::NUMBER) {
       data = MatrixType(std::move(MatrixObject(rows, 1, dynamic, /* is_vector= */ true)));
-      auto pMatrix = boost::get<MatrixType>(&data);
+      auto pMatrix = std::get_if<MatrixType>(&data);
       (*pMatrix)->set(size++, value.toDouble());
       return;
     }
@@ -743,7 +743,7 @@ void Value::VectorBuilder::emplace_back(Value &&value) {
       auto matrixValue = value.toMatrixObject();
       if (matrixValue.cols() == 1) {
         data = MatrixType(std::move(MatrixObject(rows, matrixValue.rows(), dynamic, /* is_vector= */ false)));
-        auto pMatrix = boost::get<MatrixType>(&data);
+        auto pMatrix = std::get_if<MatrixType>(&data);
         (*pMatrix)->set_row(size++, matrixValue);
         return;
       }
@@ -759,15 +759,15 @@ void Value::VectorBuilder::emplace_back(Value &&value) {
 }
 
 void Value::VectorBuilder::flat_emplace_back(VectorType &&v) {
-  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+  if (auto pMatrix = std::get_if<MatrixType>(&data)) {
     data = (*pMatrix)->toVector(session, size);
   }
   
-  if (data.which() == 0) {
+  if (data.index() == 0) {
     data = VectorType(session);
   }
 
-  auto pVector = boost::get<VectorType>(&data);
+  auto pVector = std::get_if<VectorType>(&data);
 
   size += v.size();
   pVector->emplace_back(EmbeddedVectorType(std::move(v)));
@@ -775,14 +775,14 @@ void Value::VectorBuilder::flat_emplace_back(VectorType &&v) {
 
 void Value::VectorBuilder::flat_emplace_back(MatrixObject &&m) {
   auto dynamic = capacity < 0;
-  if (data.which() == 0) {
+  if (data.index() == 0) {
     auto rows = capacity < m.rows() ? m.rows() : capacity;
 
     // Can we build a column matrix?
     data = MatrixType(std::move(MatrixObject(rows, 1, dynamic, /* is_vector= */ true)));
   }
 
-  if (auto pMatrix = boost::get<MatrixType>(&data)) {
+  if (auto pMatrix = std::get_if<MatrixType>(&data)) {
     if (dynamic && (*pMatrix)->rows() < size + m.rows()) {
       (*pMatrix)->resize(grow(size + m.rows()));
     }
@@ -812,11 +812,11 @@ VectorType& Value::toVectorNonConst()
 const MatrixObject& Value::toMatrixObject() const
 {
   static const MatrixObject empty(0, 0, /* growable= */ true, /* is_vector= */ false); // TODO(ochafik): replace w/ empty data in variant
-  const MatrixType *m = boost::get<MatrixType>(&this->value);
+  const MatrixType *m = std::get_if<MatrixType>(&this->value);
   if (m) {
     return **m;
   }
-  const EmbeddedMatrixType *em = boost::get<EmbeddedMatrixType>(&this->value);
+  const EmbeddedMatrixType *em = std::get_if<EmbeddedMatrixType>(&this->value);
   if (em) {
     return **em;
   }
@@ -825,7 +825,7 @@ const MatrixObject& Value::toMatrixObject() const
 
 MatrixObject& Value::toMatrixObjectNonConst()
 {
-  return *boost::get<MatrixType>(this->value).get().get();
+  return *std::get<MatrixType>(this->value).get().get();
 }
 
 const ObjectType& Value::toObject() const
@@ -842,7 +842,7 @@ EmbeddedVectorType& Value::toEmbeddedVectorNonConst()
 
 EmbeddedMatrixType& Value::toEmbeddedMatrixNonConst()
 {
-  return boost::get<EmbeddedMatrixType>(this->value);
+  return std::get<EmbeddedMatrixType>(this->value);
 }
 
 const EmbeddedVectorType& Value::toEmbeddedVector() const
@@ -852,7 +852,7 @@ const EmbeddedVectorType& Value::toEmbeddedVector() const
 
 const EmbeddedMatrixType& Value::toEmbeddedMatrix() const
 {
-  return boost::get<EmbeddedMatrixType>(this->value);
+  return std::get<EmbeddedMatrixType>(this->value);
 }
 
 boost::optional<Value> Value::asVector() const {
@@ -1486,9 +1486,11 @@ Value Value::operator[](size_t idx) const
   return std::visit(bracket_visitor(), this->value, v.value);
 }
 
-struct multibracket_visitor : public boost::static_visitor<Value>
+class multibracket_visitor
 {
   const std::vector<size_t> &indices;
+
+public:
   multibracket_visitor(const std::vector<size_t> &indices) : indices(indices) {}
   
   Value operator()(const VectorType& vec) const {
@@ -1530,86 +1532,7 @@ struct multibracket_visitor : public boost::static_visitor<Value>
 };
 
 Value Value::operator[](const std::vector<size_t> &indices) const {
-  return std::move(boost::apply_visitor(multibracket_visitor(indices), this->value));
-}
-
-size_t str_utf8_wrapper::iterator::char_len()
-{
-  return g_utf8_next_char(ptr) - ptr;
-}
-
-uint32_t RangeType::numValues() const
-{
-  if (std::isnan(begin_val) || std::isnan(end_val) || std::isnan(step_val)) {
-    return 0;
-  }
-  if (step_val < 0) {
-    if (begin_val < end_val) return 0;
-  } else {
-    if (begin_val > end_val) return 0;
-  }
-  if ((begin_val == end_val) || std::isinf(step_val)) {
-    return 1;
-  }
-  if (std::isinf(begin_val) || std::isinf(end_val) || step_val == 0) {
-    return std::numeric_limits<uint32_t>::max();
-  }
-  // Use nextafter to compensate for possible floating point inaccurary where result is just below a whole number.
-  const uint32_t max = std::numeric_limits<uint32_t>::max();
-  uint32_t num_steps = std::nextafter((end_val - begin_val) / step_val, max);
-  return (num_steps == max) ? max : num_steps + 1;
-}
-
-RangeType::iterator::iterator(const RangeType& range, type_t type) : range(range), val(range.begin_val), type(type),
-  num_values(range.numValues()), i_step(type == type_t::RANGE_TYPE_END ? num_values : 0)
-{
-  update_type();
-}
-
-void RangeType::iterator::update_type()
-{
-  if (range.step_val == 0) {
-    type = type_t::RANGE_TYPE_END;
-  } else if (range.step_val < 0) {
-    if (i_step >= num_values) {
-      type = type_t::RANGE_TYPE_END;
-    }
-  } else {
-    if (i_step >= num_values) {
-      type = type_t::RANGE_TYPE_END;
-    }
-  }
-
-  if (std::isnan(range.begin_val) || std::isnan(range.end_val) || std::isnan(range.step_val)) {
-    type = type_t::RANGE_TYPE_END;
-    i_step = num_values;
-  }
-}
-
-RangeType::iterator::reference RangeType::iterator::operator*()
-{
-  return val;
-}
-
-RangeType::iterator& RangeType::iterator::operator++()
-{
-  val = range.begin_val + range.step_val * ++i_step;
-  update_type();
-  return *this;
-}
-
-bool RangeType::iterator::operator==(const iterator& other) const
-{
-  if (type == type_t::RANGE_TYPE_RUNNING) {
-    return (type == other.type) && (val == other.val) && (range == other.range);
-  } else {
-    return (type == other.type) && (range == other.range);
-  }
-}
-
-bool RangeType::iterator::operator!=(const iterator& other) const
-{
-  return !(*this == other);
+  return std::move(std::visit(multibracket_visitor(indices), this->value));
 }
 
 std::ostream& operator<<(std::ostream& stream, const RangeType& r)
