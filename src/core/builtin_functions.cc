@@ -358,6 +358,9 @@ Value builtin_length(Arguments arguments, const Location& loc)
   if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
     return Value(double(arguments[0]->toMatrixObject().rows()));
   }
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    return Value(double(arguments[0]->toMatrixObject().rows()));
+  }
   if (!check_arguments("len", arguments, loc, { Value::Type::STRING })) {
     return Value::undefined.clone();
   }

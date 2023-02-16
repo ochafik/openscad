@@ -395,6 +395,34 @@ public:
     stream << ']';
   }
 
+  void operator()(const EmbeddedMatrixType& m) const {
+    (*this)(*dynamic_cast<const MatrixType*>(&m));
+  }
+
+  void operator()(const MatrixType& m) const {
+    auto rows = m->rows();
+    auto cols = m->cols();
+    
+    stream << '[';
+    if (m->is_vector) {
+      for (auto row = 0; row < rows; row++) {
+        if (row) stream << ", ";
+        (*this)((*m)(row, 0));
+      }
+    } else {
+      for (auto row = 0; row < rows; row++) {
+        if (row) stream << ", ";
+        stream << '[';
+        for (auto col = 0; col < cols; col++) {
+          if (col) stream << ", ";
+          (*this)((*m)(row, col));
+        }
+        stream << ']';
+      }
+    }
+    stream << ']';
+  }
+
   void operator()(const str_utf8_wrapper& v) const {
     stream << '"' << v.toString() << '"';
   }
@@ -828,6 +856,25 @@ MatrixObject& Value::toMatrixObjectNonConst()
   return *std::get<MatrixType>(this->value).get().get();
 }
 
+const MatrixObject& Value::toMatrixObject() const
+{
+  static const MatrixObject empty(0, 0, /* growable= */ true, /* is_vector= */ false); // TODO(ochafik): replace w/ empty data in variant
+  const MatrixType *m = boost::get<MatrixType>(&this->value);
+  if (m) {
+    return **m;
+  }
+  const EmbeddedMatrixType *em = boost::get<EmbeddedMatrixType>(&this->value);
+  if (em) {
+    return **em;
+  }
+  return empty;
+}
+
+MatrixObject& Value::toMatrixObjectNonConst()
+{
+  return *boost::get<MatrixType>(this->value).get().get();
+}
+
 const ObjectType& Value::toObject() const
 {
   static const ObjectType empty(nullptr);
@@ -845,6 +892,11 @@ EmbeddedMatrixType& Value::toEmbeddedMatrixNonConst()
   return std::get<EmbeddedMatrixType>(this->value);
 }
 
+EmbeddedMatrixType& Value::toEmbeddedMatrixNonConst()
+{
+  return boost::get<EmbeddedMatrixType>(this->value);
+}
+
 const EmbeddedVectorType& Value::toEmbeddedVector() const
 {
   return std::get<EmbeddedVectorType>(this->value);
@@ -853,6 +905,24 @@ const EmbeddedVectorType& Value::toEmbeddedVector() const
 const EmbeddedMatrixType& Value::toEmbeddedMatrix() const
 {
   return std::get<EmbeddedMatrixType>(this->value);
+}
+
+boost::optional<Value> Value::asVector() const {
+  if (type() == Type::VECTOR) {
+    return this->clone();
+  }
+  if (type() == Type::MATRIX) {
+    return Value(std::move(toMatrixObject().toVector()));
+  }
+  // if (type() == Value::Type::EMBEDDED_MATRIX) {
+  //   return Value(std::move(toEmbeddedMatrix().toVector()));
+  // }
+  return boost::none;
+}
+
+const EmbeddedMatrixType& Value::toEmbeddedMatrix() const
+{
+  return boost::get<EmbeddedMatrixType>(this->value);
 }
 
 boost::optional<Value> Value::asVector() const {
