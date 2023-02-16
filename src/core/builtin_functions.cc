@@ -948,7 +948,7 @@ Value builtin_is_list(Arguments arguments, const Location& loc)
   }
   return Value(
     arguments[0]->isDefinedAs(Value::Type::VECTOR) ||
-    (arguments[0]->isDefinedAs(Value::Type::MATRIX) && arguments[0]->toMatrixObject().isVector()));
+    (arguments[0]->isDefinedAs(Value::Type::MATRIX)));
 }
 
 Value builtin_is_num(Arguments arguments, const Location& loc)

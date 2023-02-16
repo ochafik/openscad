@@ -1279,6 +1279,9 @@ public:
   Value operator()(const double& scalar, const MatrixType& mat) const {
     return Value((*mat) * scalar);
   }
+  Value operator()(const VectorType& vec, const MatrixType& mat) const {
+    return (*this)(vec, mat.get()->toVector());
+  }
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
     if (op1.empty() || op2.empty()) return Value::undef("Multiplication is undefined on empty vectors");
