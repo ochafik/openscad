@@ -654,20 +654,12 @@ Value builtin_search(Arguments arguments, const Location& loc)
     return Value::undefined.clone();
   }
 
-  // TODO(ochafik): handle MATRIX properly
-  // Value findThis = arguments[0].value;
-  // if (findThis.type() == Value::Type::MATRIX) {
-  //   findThis = Value(std::move(findThis.toMatrix().toVector()));
-  // }
   const Value& findThis = arguments[0].value;
   const Value& searchTable = arguments[1].value;
   unsigned int num_returns_per_match = (arguments.size() > 2) ? (unsigned int)arguments[2]->toDouble() : 1;
   unsigned int index_col_num = (arguments.size() > 3) ? (unsigned int)arguments[3]->toDouble() : 0;
 
   VectorType returnvec(arguments.session());
-
-  // auto searchTableVec = searchTable.asVector();
-  // throw 0; // TODO(ochafik): DO NOT SUBMIT
 
   if (findThis.type() == Value::Type::NUMBER) {
     unsigned int matchCount = 0;
@@ -688,27 +680,29 @@ Value builtin_search(Arguments arguments, const Location& loc)
     } else {
       returnvec = search(findThis.toStrUtf8Wrapper(), searchTable.toVector(), num_returns_per_match, index_col_num, loc, arguments.session());
     }
-  } else if (auto findVecAsVec = findThis.asVector()) {
-    const auto& findVec = findVecAsVec->toVector();
-    for (const auto& find_value : findVec) {
+  } else if (auto findVec = findThis.asVector()) {
+    for (const auto& find_value : findVec->toVector()) {
       unsigned int matchCount = 0;
       VectorType resultvec(arguments.session());
 
       size_t j = 0;
-      for (const auto& search_element : searchTable.toVector()) {
-        if ((index_col_num == 0 && (find_value == search_element).toBool()) ||
-            (index_col_num < search_element.toVector().size() &&
-             (find_value == search_element.toVector()[index_col_num]).toBool())) {
-          matchCount++;
-          if (num_returns_per_match == 1) {
-            returnvec.emplace_back(double(j));
-            break;
-          } else {
-            resultvec.emplace_back(double(j));
+      if (auto searchTableVec = searchTable.asVector()) {
+        for (const auto& search_element : searchTableVec->toVector()) {
+          LOG(message_group::Warning, Location::NONE, "", "find_value = %1s, search_element = %2s", find_value, search_element);
+          if ((index_col_num == 0 && (find_value == search_element).toBool()) ||
+              (index_col_num < search_element.toVector().size() &&
+              (find_value == search_element.toVector()[index_col_num]).toBool())) {
+            matchCount++;
+            if (num_returns_per_match == 1) {
+              returnvec.emplace_back(double(j));
+              break;
+            } else {
+              resultvec.emplace_back(double(j));
+            }
+            if (num_returns_per_match > 1 && matchCount >= num_returns_per_match) break;
           }
-          if (num_returns_per_match > 1 && matchCount >= num_returns_per_match) break;
+          ++j;
         }
-        ++j;
       }
       if ((num_returns_per_match == 1 && matchCount == 0) ||
           num_returns_per_match == 0 ||
