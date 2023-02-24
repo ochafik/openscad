@@ -64,7 +64,7 @@ public:
   virtual void visit(const CGALHybridPolyhedron& node) = 0;
 #endif
 #ifdef ENABLE_MANIFOLD
-  virtual void visit(const ManifoldGeometry& node);
+  virtual void visit(const ManifoldGeometry& node) = 0;
 #endif
   virtual ~GeometryVisitor() = default;
 };

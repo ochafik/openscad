@@ -276,6 +276,13 @@ void LogVisitor::visit(const CGALHybridPolyhedron& poly)
 }
 #endif // ENABLE_CGAL
 
+#ifdef ENABLE_MANIFOLD
+void LogVisitor::visit(const ManifoldGeometry& mani)
+{
+  assert(false && "not implemented");
+}
+#endif // ENABLE_MANIFOLD
+
 void LogVisitor::printCamera(const Camera& camera)
 {
   if (is_enabled(RenderStatistic::CAMERA)) {
@@ -375,6 +382,13 @@ void StreamVisitor::visit(const CGALHybridPolyhedron& poly)
   }
 }
 #endif // ENABLE_CGAL
+
+#ifdef ENABLE_MANIFOLD
+void StreamVisitor::visit(const ManifoldGeometry& mani)
+{
+  assert(false && "not implemented");
+}
+#endif // ENABLE_MANIFOLD
 
 void StreamVisitor::printCamera(const Camera& camera)
 {

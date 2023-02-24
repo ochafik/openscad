@@ -81,7 +81,7 @@ void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
 void ManifoldGeometry::transform(const Transform3d& mat) {
   assert(false && "not implemented");
 }
-void resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) {
+void ManifoldGeometry::resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) {
   assert(false && "not implemented");
 }
 

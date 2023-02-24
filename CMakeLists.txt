@@ -306,6 +306,9 @@ if(ENABLE_MANIFOLD)
   # link_directories(../manifold/build/src/manifold)
   # target_link_libraries(OpenSCAD PRIVATE manifold)
   target_link_libraries(OpenSCAD PRIVATE /Users/ochafik/Documents/GitHub/manifold/build/src/manifold/libmanifold.a)
+
+  find_library(TBB_LIBRARY tbb)
+  target_link_libraries(OpenSCAD PRIVATE ${TBB_LIBRARY})
   # target_link_libraries(OpenSCAD PRIVATE ../manifold/build/src/manifold/libmanifold.dylib)
 
 endif()
