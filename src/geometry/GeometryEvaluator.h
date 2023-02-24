@@ -9,6 +9,7 @@
 #include <list>
 #include <vector>
 #include <map>
+#include <stack>
 
 class CGAL_Nef_polyhedron;
 class Polygon2d;
@@ -90,6 +91,7 @@ private:
   std::map<int, Geometry::Geometries> visitedchildren;
   const Tree& tree;
   shared_ptr<const Geometry> root;
+  std::stack<Transform3d> worldTransform;
 
 public:
 };

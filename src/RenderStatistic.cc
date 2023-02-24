@@ -35,6 +35,10 @@
 #include "CGALHybridPolyhedron.h"
 #endif // ENABLE_CGAL
 
+#ifdef ENABLE_MANIFOLD
+#include "ManifoldGeometry.h"
+#endif // ENABLE_MANIFOLD
+
 #include "RenderStatistic.h"
 
 class GeometryList;
@@ -69,6 +73,9 @@ struct LogVisitor : public StatisticVisitor
   void visit(const CGAL_Nef_polyhedron& node) override;
   void visit(const CGALHybridPolyhedron& node) override;
 #endif // ENABLE_CGAL
+#ifdef ENABLE_MANIFOLD
+  void visit(const ManifoldGeometry& node) override;
+#endif // ENABLE_MANIFOLD
   void printCamera(const Camera& camera) override;
   void printCacheStatistic() override;
   void printRenderingTime(std::chrono::milliseconds) override;
@@ -91,6 +98,9 @@ struct StreamVisitor : public StatisticVisitor
   void visit(const CGAL_Nef_polyhedron& node) override;
   void visit(const CGALHybridPolyhedron& node) override;
 #endif // ENABLE_CGAL
+#ifdef ENABLE_MANIFOLD
+  void visit(const ManifoldGeometry& node) override;
+#endif // ENABLE_MANIFOLD
   void printCamera(const Camera& camera) override;
   void printCacheStatistic() override;
   void printRenderingTime(std::chrono::milliseconds) override;

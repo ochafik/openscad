@@ -1,0 +1,64 @@
+// Portions of this file are Copyright 2021 Google LLC, and licensed under GPL2+. See COPYING.
+#pragma once
+
+#include "Geometry.h"
+
+namespace manifold {
+  class Manifold;
+  class Mesh;
+}
+
+std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transform3d &transform);
+
+/*! A mutable polyhedron backed by a manifold::Manifold
+ */
+class ManifoldGeometry : public Geometry
+{
+public:
+  VISITABLE_GEOMETRY();
+
+  ManifoldGeometry();
+  ManifoldGeometry(const shared_ptr<manifold::Manifold>& object);
+  ManifoldGeometry(const ManifoldGeometry& other);
+  ManifoldGeometry& operator=(const ManifoldGeometry& other);
+
+  [[nodiscard]] bool isEmpty() const override;
+  [[nodiscard]] size_t numFacets() const override;
+  [[nodiscard]] size_t numVertices() const;
+  // [[nodiscard]] bool isManifold() const;
+  // [[nodiscard]] bool isValid() const;
+  // void clear();
+
+  [[nodiscard]] size_t memsize() const override;
+  [[nodiscard]] BoundingBox getBoundingBox() const override
+  {
+    assert(false && "not implemented");
+    return {};
+  }
+
+  [[nodiscard]] std::string dump() const override;
+  [[nodiscard]] unsigned int getDimension() const override { return 3; }
+  [[nodiscard]] Geometry *copy() const override { return new ManifoldGeometry(*this); }
+
+  // [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
+
+  /*! In-place union (this may also mutate/corefine the other polyhedron). */
+  void operator+=(ManifoldGeometry& other);
+  /*! In-place intersection (this may also mutate/corefine the other polyhedron). */
+  void operator*=(ManifoldGeometry& other);
+  /*! In-place difference (this may also mutate/corefine the other polyhedron). */
+  void operator-=(ManifoldGeometry& other);
+  /*! In-place minkowksi operation. If the other polyhedron is non-convex,
+   * it is also modified during the computation, i.e., it is decomposed into convex pieces.
+   */
+  void minkowski(ManifoldGeometry& other);
+  void transform(const Transform3d& mat) override;
+  void resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) override;
+
+  /*! Iterate over all vertices' points until the function returns true (for done). */
+  // void foreachVertexUntilTrue(const std::function<bool(const point_t& pt)>& f) const;
+
+private:
+
+  shared_ptr<manifold::Manifold> object;
+};

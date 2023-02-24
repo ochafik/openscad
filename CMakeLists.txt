@@ -49,6 +49,7 @@ option(USE_CCACHE "Use ccache to speed up compilation." ON)
 option(ENABLE_CAIRO "Enable support for cairo vector graphics library." ON)
 option(ENABLE_SPNAV "Enable support for libspnav input driver." ON)
 option(ENABLE_HIDAPI "Enable support for HIDAPI input driver." ON)
+option(ENABLE_MANIFOLD "Enable support for Manifold library for CSG." ON)
 option(ALLOW_BUNDLED_HIDAPI "Allow usage of bundled HIDAPI library (Windows only)." OFF)
 include(CMakeDependentOption)
 cmake_dependent_option(APPLE_UNIX "Build OpenSCAD in Unix mode in MacOS X instead of an Apple Bundle" OFF "APPLE" OFF)
@@ -286,6 +287,26 @@ if (${CGAL_MAJOR_VERSION} LESS 5)
 endif()
 message(STATUS "CGAL: ${CGAL_MAJOR_VERSION}.${CGAL_MINOR_VERSION}.${CGAL_BUGFIX_VERSION}")
 target_compile_definitions(OpenSCAD PRIVATE ENABLE_CGAL)
+
+if(ENABLE_MANIFOLD)
+  target_compile_definitions(OpenSCAD PRIVATE ENABLE_MANIFOLD)
+
+  target_include_directories(OpenSCAD SYSTEM PRIVATE
+    ../manifold/src/manifold/include
+    ../manifold/src/polygon/include
+    ../manifold/src/collider/include
+    ../manifold/src/utilities/include
+    ../manifold/src/third_party/glm
+  )
+
+  # TODO!!!
+  # find_library(MANIFOLD_LIBRARY manifold HINTS ../manifold)
+  # target_link_libraries(OpenSCAD PRIVATE ${MANIFOLD_LIBRARY})
+  # target_link_libraries(OpenSCAD PRIVATE manifold)
+  # target_link_libraries(OpenSCAD PRIVATE ../manifold/build/src/manifold/libmanifold.dylib)
+
+endif()
+
 # The macro `CGAL_DEBUG` allows to force CGAL assertions, even if `NDEBUG` is defined,
 # Enabling CGAL assertions is necessary for us to catch them before they cause a crash
 # on bad geometry input.
@@ -831,6 +852,10 @@ set(GUI_HEADERS
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   # Ignore specific warning on external lib
   set_source_files_properties("src/ext/polyclipping/clipper.cpp" PROPERTIES COMPILE_FLAGS "-Wno-class-memaccess")
+endif()
+
+if(ENABLE_MANIFOLD)
+  list(APPEND CGAL_SOURCES src/geometry/cgal/ManifoldGeometry.cc)
 endif()
 
 list(APPEND Sources src/openscad.cc ${CORE_SOURCES} ${CGAL_SOURCES} ${OFFSCREEN_SOURCES})
