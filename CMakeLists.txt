@@ -300,9 +300,11 @@ if(ENABLE_MANIFOLD)
   )
 
   # TODO!!!
+  # ( cd ../manifold && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DMANIFOLD_PAR=TBB -DMANIFOLD_EXPORT=0 -DBUILD_TEST_CGAL=1 .. && make -j )
   # find_library(MANIFOLD_LIBRARY manifold HINTS ../manifold)
   # target_link_libraries(OpenSCAD PRIVATE ${MANIFOLD_LIBRARY})
-  # target_link_libraries(OpenSCAD PRIVATE manifold)
+  link_directories(../manifold/build/src/manifold)
+  target_link_libraries(OpenSCAD PRIVATE manifold)
   # target_link_libraries(OpenSCAD PRIVATE ../manifold/build/src/manifold/libmanifold.dylib)
 
 endif()
