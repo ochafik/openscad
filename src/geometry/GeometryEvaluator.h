@@ -79,11 +79,11 @@ private:
   Polygon2d *applyFill2D(const AbstractNode& node);
   Geometry *applyHull3D(const AbstractNode& node);
   void applyResize3D(CGAL_Nef_polyhedron& N, const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize);
-  Polygon2d *applyToChildren2D(const AbstractNode& node, OpenSCADOperator op);
-  ResultObject applyToChildren3D(const AbstractNode& node, OpenSCADOperator op);
-  ResultObject applyToChildren(const AbstractNode& node, OpenSCADOperator op);
-  shared_ptr<const Geometry> projectionCut(const ProjectionNode& node);
-  shared_ptr<const Geometry> projectionNoCut(const ProjectionNode& node);
+  Polygon2d *applyToChildren2D(const AbstractNode& node, OpenSCADOperator op, const State& state);
+  ResultObject applyToChildren3D(const AbstractNode& node, OpenSCADOperator op, const State& state);
+  ResultObject applyToChildren(const AbstractNode& node, OpenSCADOperator op, const State& state);
+  shared_ptr<const Geometry> projectionCut(const ProjectionNode& node, const State& state);
+  shared_ptr<const Geometry> projectionNoCut(const ProjectionNode& node, const State& state);
 
   void addToParent(const State& state, const AbstractNode& node, const shared_ptr<const Geometry>& geom);
   Response lazyEvaluateRootNode(State& state, const AbstractNode& node);

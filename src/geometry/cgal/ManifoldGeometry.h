@@ -2,13 +2,11 @@
 #pragma once
 
 #include "Geometry.h"
+#include <glm/glm.hpp>
 
 namespace manifold {
   class Manifold;
-  class Mesh;
-}
-
-std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transform3d &transform);
+};
 
 /*! A mutable polyhedron backed by a manifold::Manifold
  */
@@ -40,7 +38,7 @@ public:
   [[nodiscard]] unsigned int getDimension() const override { return 3; }
   [[nodiscard]] Geometry *copy() const override { return new ManifoldGeometry(*this); }
 
-  // [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
+  [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
 
   /*! In-place union (this may also mutate/corefine the other polyhedron). */
   void operator+=(ManifoldGeometry& other);
@@ -56,9 +54,10 @@ public:
   void resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) override;
 
   /*! Iterate over all vertices' points until the function returns true (for done). */
-  // void foreachVertexUntilTrue(const std::function<bool(const point_t& pt)>& f) const;
-
-private:
+  void foreachVertexUntilTrue(const std::function<bool(const glm::vec3& pt)>& f) const;
 
   shared_ptr<manifold::Manifold> object;
+  
+private:
+
 };

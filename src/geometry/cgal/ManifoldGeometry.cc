@@ -2,30 +2,10 @@
 #include "ManifoldGeometry.h"
 #include "manifold.h"
 #include "IndexedMesh.h"
-
-using namespace manifold;
-
-std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transform3d &transform) {
-  IndexedMesh im;
-  im.append_geometry(ps);
-
-  const auto &vertices = im.vertices.getArray();
-  auto mesh = make_shared<manifold::Mesh>();
-  mesh->vertPos.resize(vertices.size());
-  mesh->triVerts.resize(im.indices.size() / 3);
-  for (size_t i = 0, n = vertices.size(); i < n; i++) {
-    auto v = transform * vertices[i];
-    mesh->vertPos[i] = glm::vec3((float) v.x(), (float) v.y(), (float) v.z());
-  }
-  for (size_t i = 0; i < im.numfaces; i++) {
-    auto offset = i * 3;
-    mesh->triVerts[i] = glm::ivec3(im.indices[offset], im.indices[offset + 1], im.indices[offset + 2]);
-  }
-  return mesh;
-}
+#include "cgalutils.h"
 
 
-ManifoldGeometry::ManifoldGeometry() {}
+ManifoldGeometry::ManifoldGeometry() : object(make_shared<manifold::Manifold>()) {}
 ManifoldGeometry::ManifoldGeometry(const shared_ptr<manifold::Manifold>& object) : object(object) {}
 ManifoldGeometry::ManifoldGeometry(const ManifoldGeometry& other) : object(other.object) {}
 ManifoldGeometry& ManifoldGeometry::operator=(const ManifoldGeometry& other) {
@@ -58,19 +38,47 @@ std::string ManifoldGeometry::dump() const {
   return "MANIFOLD";
 }
 
-// [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
+std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
+  auto ps = std::make_shared<PolySet>(3);
+  if (this->object) {
+    manifold::Mesh mesh = this->object->GetMesh();
+    ps->reserve(mesh.triVerts.size());
+    Polygon poly(3);
+    for (const auto &tv : mesh.triVerts) {
+      for (const int j : {0, 1, 2}) {
+        poly[j] = vector_convert<Vector3d>(mesh.vertPos[tv[j]]);
+      }
+      ps->append_poly(poly);
+    }
+  }
+  return ps;
+}
 
 /*! In-place union (this may also mutate/corefine the other polyhedron). */
 void ManifoldGeometry::operator+=(ManifoldGeometry& other) {
-  assert(false && "not implemented");
+  if (!this->object || !other.object) {
+    assert(false && "empty operands!");
+    return;
+  }
+  manifold::Mesh lhs = this->object->GetMesh();
+  manifold::Mesh rhs = other.object->GetMesh();
+  this->object = make_shared<manifold::Manifold>(std::move(this->object->Boolean(*other.object, manifold::Manifold::OpType::Add)));
 }
 /*! In-place intersection (this may also mutate/corefine the other polyhedron). */
 void ManifoldGeometry::operator*=(ManifoldGeometry& other) {
-  assert(false && "not implemented");
+  if (!this->object || !other.object) {
+    assert(false && "empty operands!");
+    return;
+  }
+  this->object = make_shared<manifold::Manifold>(std::move(this->object->Boolean(*other.object, manifold::Manifold::OpType::Intersect)));
 }
 /*! In-place difference (this may also mutate/corefine the other polyhedron). */
 void ManifoldGeometry::operator-=(ManifoldGeometry& other) {
-  assert(false && "not implemented");
+  if (!this->object || !other.object) {
+    assert(false && "empty operands!");
+    return;
+  }
+  this->object = make_shared<manifold::Manifold>(std::move(this->object->Boolean(*other.object, manifold::Manifold::OpType::Subtract)));
 }
 /*! In-place minkowksi operation. If the other polyhedron is non-convex,
   * it is also modified during the computation, i.e., it is decomposed into convex pieces.
@@ -78,14 +86,34 @@ void ManifoldGeometry::operator-=(ManifoldGeometry& other) {
 void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
   assert(false && "not implemented");
 }
+
 void ManifoldGeometry::transform(const Transform3d& mat) {
+  if (!this->object) {
+    assert(false && "empty operands!");
+    return;
+  }
+  glm::mat4x3 glMat;
+  // TODO: convert mat to glMat
   assert(false && "not implemented");
+                                
+  this->object = make_shared<manifold::Manifold>(std::move(this->object->Transform(glMat)));
 }
+
 void ManifoldGeometry::resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) {
   assert(false && "not implemented");
 }
 
 // /*! Iterate over all vertices' points until the function returns true (for done). */
-// void foreachVertexUntilTrue(const std::function<bool(const point_t& pt)>& f) const {
-//   assert(false && "not implemented");
-// }
+void ManifoldGeometry::foreachVertexUntilTrue(const std::function<bool(const glm::vec3& pt)>& f) const {
+  if (!this->object) {
+    assert(false && "empty operands!");
+    return;
+  }
+  // TODO: send PR to std::move the result of Manifold::GetMesh();
+  auto mesh = this->object->GetMesh();
+  for (const auto &pt : mesh.vertPos) {
+    if (f(pt)) {
+      return;
+    }
+  }
+}

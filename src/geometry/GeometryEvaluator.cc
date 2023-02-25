@@ -30,6 +30,9 @@
 #include <ciso646> // C alternative tokens (xor)
 #include <algorithm>
 #include "boost-utils.h"
+#ifdef ENABLE_MANIFOLD
+#include "manifoldutils.h"
+#endif
 
 #include <CGAL/convex_hull_2.h>
 #include <CGAL/Point_2.h>
@@ -65,6 +68,11 @@ shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNod
     if (dynamic_pointer_cast<const CGALHybridPolyhedron>(this->root)) {
       this->root = CGALUtils::getGeometryAsPolySet(this->root);
     }
+#ifdef ENABLE_MANIFOLD
+    if (auto mani = dynamic_pointer_cast<const ManifoldGeometry>(this->root)) {
+      this->root = mani->toPolySet();// CGALUtils::getGeometryAsPolySet(this->root);
+    }
+#endif
 
     if (!allownef) {
       // We cannot render concave polygons, so tessellate any 3D PolySets
@@ -99,14 +107,14 @@ bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem& item, unsigned 
   return true;
 }
 
-GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const AbstractNode& node, OpenSCADOperator op)
+GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const AbstractNode& node, OpenSCADOperator op, const State& state)
 {
   unsigned int dim = 0;
   for (const auto& item : this->visitedchildren[node.index()]) {
     if (!isValidDim(item, dim)) break;
   }
-  if (dim == 2) return {applyToChildren2D(node, op)};
-  else if (dim == 3) return applyToChildren3D(node, op);
+  if (dim == 2) return {applyToChildren2D(node, op, state)};
+  else if (dim == 3) return applyToChildren3D(node, op, state);
   return {};
 }
 
@@ -115,7 +123,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const Abstrac
 
    May return nullptr or any 3D Geometry object (can be either PolySet or CGAL_Nef_polyhedron)
  */
-GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const AbstractNode& node, OpenSCADOperator op)
+GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const AbstractNode& node, OpenSCADOperator op, const State& state)
 {
   Geometry::Geometries children = collectChildren3D(node);
   if (children.size() == 0) return {};
@@ -158,11 +166,21 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
     }
     if (actualchildren.empty()) return {};
     if (actualchildren.size() == 1) return {actualchildren.front().second};
+#ifdef ENABLE_MANIFOLD
+    if (Feature::ExperimentalManifold.is_enabled()) {
+      return {ManifoldUtils::applyUnion3DManifold(actualchildren.begin(), actualchildren.end(), state.matrix())};
+    }
+#endif
     return {CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end())};
     break;
   }
   default:
   {
+#ifdef ENABLE_MANIFOLD
+    if (Feature::ExperimentalManifold.is_enabled()) {
+      return {ManifoldUtils::applyOperator3DManifold(children, op, state.matrix())};
+    }
+#endif
     return {CGALUtils::applyOperator3D(children, op)};
     break;
   }
@@ -361,7 +379,7 @@ Geometry::Geometries GeometryEvaluator::collectChildren3D(const AbstractNode& no
 /*!
 
  */
-Polygon2d *GeometryEvaluator::applyToChildren2D(const AbstractNode& node, OpenSCADOperator op)
+Polygon2d *GeometryEvaluator::applyToChildren2D(const AbstractNode& node, OpenSCADOperator op, const State& state)
 {
   node.progress_report();
   if (op == OpenSCADOperator::MINKOWSKI) {
@@ -441,7 +459,7 @@ Response GeometryEvaluator::visit(State& state, const AbstractNode& node)
   if (state.isPostfix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      geom = applyToChildren(node, OpenSCADOperator::UNION).constptr();
+      geom = applyToChildren(node, OpenSCADOperator::UNION, state).constptr();
     } else {
       geom = smartCacheGet(node, state.preferNef());
     }
@@ -543,7 +561,7 @@ Response GeometryEvaluator::visit(State& state, const OffsetNode& node)
   if (state.isPostfix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+      const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION, state);
       if (geometry) {
         const auto *polygon = dynamic_cast<const Polygon2d *>(geometry);
         // ClipperLib documentation: The formula for the number of steps in a full
@@ -576,7 +594,7 @@ Response GeometryEvaluator::visit(State& state, const RenderNode& node)
   if (state.isPostfix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
+      ResultObject res = applyToChildren(node, OpenSCADOperator::UNION, state);
       auto mutableGeom = res.asMutableGeometry();
       if (mutableGeom) mutableGeom->setConvexity(node.convexity);
       geom = mutableGeom;
@@ -608,8 +626,18 @@ Response GeometryEvaluator::visit(State& state, const LeafNode& node)
           delete geometry;
           geometry = p;
         }
+        geom.reset(geometry);
+      } else {
+#ifdef ENABLE_MANIFOLD
+        const auto *ps = dynamic_cast<const PolySet *>(geometry);
+        if (Feature::ExperimentalManifold.is_enabled() && ps) {
+          geom = ManifoldUtils::createMutableManifoldFromPolySet(*ps, state.matrix());
+        } else 
+#endif
+        {
+          geom.reset(geometry);
+        }
       }
-      geom.reset(geometry);
     } else geom = smartCacheGet(node, state.preferNef());
     addToParent(state, node, geom);
     node.progress_report();
@@ -653,7 +681,7 @@ Response GeometryEvaluator::visit(State& state, const CsgOpNode& node)
   if (state.isPostfix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      geom = applyToChildren(node, node.type).constptr();
+      geom = applyToChildren(node, node.type, state).constptr();
     } else {
       geom = smartCacheGet(node, state.preferNef());
     }
@@ -672,8 +700,18 @@ Response GeometryEvaluator::visit(State& state, const CsgOpNode& node)
  */
 Response GeometryEvaluator::visit(State& state, const TransformNode& node)
 {
-  if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
+  if (state.isPrefix()) {
+    if (Feature::ExperimentalManifold.is_enabled()) {
+      state.setMatrix(state.matrix() * node.matrix);
+    }
+    if (isSmartCached(node)) return Response::PruneTraversal;
+  }
   if (state.isPostfix()) {
+    // if (Feature::ExperimentalManifold.is_enabled()) {
+    //   applyToChildren(state, node, OpenSCADOperator::UNION);
+    //   addToParent(state, node);
+    //   return Response::ContinueTraversal;
+    // }
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
       if (matrix_contains_infinity(node.matrix) || matrix_contains_nan(node.matrix)) {
@@ -681,33 +719,35 @@ Response GeometryEvaluator::visit(State& state, const TransformNode& node)
         LOG(message_group::Warning, node.modinst->location(), this->tree.getDocumentPath(), "Transformation matrix contains Not-a-Number and/or Infinity - removing object.");
       } else {
         // First union all children
-        ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
+        ResultObject res = applyToChildren(node, OpenSCADOperator::UNION, state);
         if ((geom = res.constptr())) {
-          if (geom->getDimension() == 2) {
-            shared_ptr<const Polygon2d> polygons = dynamic_pointer_cast<const Polygon2d>(geom);
-            assert(polygons);
+          if (!Feature::ExperimentalManifold.is_enabled()) {
+            if (geom->getDimension() == 2) {
+              shared_ptr<const Polygon2d> polygons = dynamic_pointer_cast<const Polygon2d>(geom);
+              assert(polygons);
 
-            // If we got a const object, make a copy
-            shared_ptr<Polygon2d> newpoly;
-            if (res.isConst()) newpoly.reset(new Polygon2d(*polygons));
-            else newpoly = dynamic_pointer_cast<Polygon2d>(res.ptr());
+              // If we got a const object, make a copy
+              shared_ptr<Polygon2d> newpoly;
+              if (res.isConst()) newpoly.reset(new Polygon2d(*polygons));
+              else newpoly = dynamic_pointer_cast<Polygon2d>(res.ptr());
 
-            Transform2d mat2;
-            mat2.matrix() <<
-              node.matrix(0, 0), node.matrix(0, 1), node.matrix(0, 3),
-              node.matrix(1, 0), node.matrix(1, 1), node.matrix(1, 3),
-              node.matrix(3, 0), node.matrix(3, 1), node.matrix(3, 3);
-            newpoly->transform(mat2);
-            // A 2D transformation may flip the winding order of a polygon.
-            // If that happens with a sanitized polygon, we need to reverse
-            // the winding order for it to be correct.
-            if (newpoly->isSanitized() && mat2.matrix().determinant() <= 0) {
-              geom.reset(ClipperUtils::sanitize(*newpoly));
+              Transform2d mat2;
+              mat2.matrix() <<
+                node.matrix(0, 0), node.matrix(0, 1), node.matrix(0, 3),
+                node.matrix(1, 0), node.matrix(1, 1), node.matrix(1, 3),
+                node.matrix(3, 0), node.matrix(3, 1), node.matrix(3, 3);
+              newpoly->transform(mat2);
+              // A 2D transformation may flip the winding order of a polygon.
+              // If that happens with a sanitized polygon, we need to reverse
+              // the winding order for it to be correct.
+              if (newpoly->isSanitized() && mat2.matrix().determinant() <= 0) {
+                geom.reset(ClipperUtils::sanitize(*newpoly));
+              }
+            } else if (geom->getDimension() == 3) {
+              auto mutableGeom = res.asMutableGeometry();
+              if (mutableGeom) mutableGeom->transform(node.matrix);
+              geom = mutableGeom;
             }
-          } else if (geom->getDimension() == 3) {
-            auto mutableGeom = res.asMutableGeometry();
-            if (mutableGeom) mutableGeom->transform(node.matrix);
-            geom = mutableGeom;
           }
         }
       }
@@ -1180,7 +1220,7 @@ Response GeometryEvaluator::visit(State& state, const LinearExtrudeNode& node)
         if (p2d) geometry = ClipperUtils::sanitize(*p2d);
         delete p2d;
       } else {
-        geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+        geometry = applyToChildren2D(node, OpenSCADOperator::UNION, state);
       }
       if (geometry) {
         const auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
@@ -1333,7 +1373,7 @@ Response GeometryEvaluator::visit(State& state, const RotateExtrudeNode& node)
         if (p2d) geometry = ClipperUtils::sanitize(*p2d);
         delete p2d;
       } else {
-        geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+        geometry = applyToChildren2D(node, OpenSCADOperator::UNION, state);
       }
       if (geometry) {
         const auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
@@ -1359,10 +1399,10 @@ Response GeometryEvaluator::visit(State& /*state*/, const AbstractPolyNode& /*no
   return Response::AbortTraversal;
 }
 
-shared_ptr<const Geometry> GeometryEvaluator::projectionCut(const ProjectionNode& node)
+shared_ptr<const Geometry> GeometryEvaluator::projectionCut(const ProjectionNode& node, const State& state)
 {
   shared_ptr<const Geometry> geom;
-  shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
+  shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION, state).constptr();
   if (newgeom) {
     auto Nptr = CGALUtils::getNefPolyhedronFromGeometry(newgeom);
     if (Nptr && !Nptr->isEmpty()) {
@@ -1376,7 +1416,7 @@ shared_ptr<const Geometry> GeometryEvaluator::projectionCut(const ProjectionNode
   return geom;
 }
 
-shared_ptr<const Geometry> GeometryEvaluator::projectionNoCut(const ProjectionNode& node)
+shared_ptr<const Geometry> GeometryEvaluator::projectionNoCut(const ProjectionNode& node, const State& state)
 {
   shared_ptr<const Geometry> geom;
   std::vector<const Polygon2d *> tmp_geom;
@@ -1442,9 +1482,9 @@ Response GeometryEvaluator::visit(State& state, const ProjectionNode& node)
       geom = smartCacheGet(node, false);
     } else {
       if (node.cut_mode) {
-        geom = projectionCut(node);
+        geom = projectionCut(node, state);
       } else {
-        geom = projectionNoCut(node);
+        geom = projectionNoCut(node, state);
       }
     }
     addToParent(state, node, geom);
@@ -1467,7 +1507,7 @@ Response GeometryEvaluator::visit(State& state, const CgalAdvNode& node)
     if (!isSmartCached(node)) {
       switch (node.type) {
       case CgalAdvType::MINKOWSKI: {
-        ResultObject res = applyToChildren(node, OpenSCADOperator::MINKOWSKI);
+        ResultObject res = applyToChildren(node, OpenSCADOperator::MINKOWSKI, state);
         geom = res.constptr();
         // If we added convexity, we need to pass it on
         if (geom && geom->getConvexity() != node.convexity) {
@@ -1481,15 +1521,15 @@ Response GeometryEvaluator::visit(State& state, const CgalAdvNode& node)
         break;
       }
       case CgalAdvType::HULL: {
-        geom = applyToChildren(node, OpenSCADOperator::HULL).constptr();
+        geom = applyToChildren(node, OpenSCADOperator::HULL, state).constptr();
         break;
       }
       case CgalAdvType::FILL: {
-        geom = applyToChildren(node, OpenSCADOperator::FILL).constptr();
+        geom = applyToChildren(node, OpenSCADOperator::FILL, state).constptr();
         break;
       }
       case CgalAdvType::RESIZE: {
-        ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
+        ResultObject res = applyToChildren(node, OpenSCADOperator::UNION, state);
         auto editablegeom = res.asMutableGeometry();
         geom = editablegeom;
         if (editablegeom) {
@@ -1519,7 +1559,7 @@ Response GeometryEvaluator::visit(State& state, const AbstractIntersectionNode& 
   if (state.isPostfix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      geom = applyToChildren(node, OpenSCADOperator::INTERSECTION).constptr();
+      geom = applyToChildren(node, OpenSCADOperator::INTERSECTION, state).constptr();
     } else {
       geom = smartCacheGet(node, state.preferNef());
     }
@@ -1551,7 +1591,7 @@ Response GeometryEvaluator::visit(State& state, const RoofNode& node)
   if (state.isPostfix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+      const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION, state);
       if (geometry) {
         auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
         Geometry *roof;

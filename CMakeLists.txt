@@ -861,7 +861,12 @@ if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
 endif()
 
 if(ENABLE_MANIFOLD)
-  list(APPEND CGAL_SOURCES src/geometry/cgal/ManifoldGeometry.cc)
+  list(APPEND CGAL_SOURCES
+    src/geometry/cgal/ManifoldGeometry.cc
+    src/geometry/cgal/manifoldutils.cc
+    src/geometry/cgal/manifold-applyops.cc
+    src/geometry/cgal/manifold-applyops-minkowski.cc
+  )
 endif()
 
 list(APPEND Sources src/openscad.cc ${CORE_SOURCES} ${CGAL_SOURCES} ${OFFSCREEN_SOURCES})
