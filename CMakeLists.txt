@@ -23,8 +23,6 @@ if(POLICY CMP0082) # Install rules from add_subdirectory() calls are interleaved
   cmake_policy(SET CMP0082 NEW)
 endif()
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment version")
-
 include("cmake/Modules/openscad_version.cmake")
 project(OpenSCAD
   VERSION ${PROJECT_VERSION}
@@ -55,6 +53,13 @@ include(CMakeDependentOption)
 cmake_dependent_option(APPLE_UNIX "Build OpenSCAD in Unix mode in MacOS X instead of an Apple Bundle" OFF "APPLE" OFF)
 cmake_dependent_option(ENABLE_QTDBUS "Enable DBus input driver for Qt5." ON "NOT HEADLESS" OFF)
 cmake_dependent_option(ENABLE_GAMEPAD "Enable Qt5Gamepad input driver." ON "NOT HEADLESS" OFF)
+
+if(ENABLE_MANIFOLD)
+  # Requirement from TBB 2021.8.0
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "10.14" CACHE STRING "Minimum OS X deployment version")
+else()
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment version")
+endif()
 
 # GNUInstallDirs must be done before BuildParameters
 include(GNUInstallDirs)
@@ -287,31 +292,6 @@ if (${CGAL_MAJOR_VERSION} LESS 5)
 endif()
 message(STATUS "CGAL: ${CGAL_MAJOR_VERSION}.${CGAL_MINOR_VERSION}.${CGAL_BUGFIX_VERSION}")
 target_compile_definitions(OpenSCAD PRIVATE ENABLE_CGAL)
-
-if(ENABLE_MANIFOLD)
-  target_compile_definitions(OpenSCAD PRIVATE ENABLE_MANIFOLD)
-
-  target_include_directories(OpenSCAD SYSTEM PRIVATE
-    ../manifold/src/manifold/include
-    ../manifold/src/polygon/include
-    ../manifold/src/collider/include
-    ../manifold/src/utilities/include
-    ../manifold/src/third_party/glm
-  )
-
-  # TODO!!!
-  # ( cd ../manifold && mkdir -p build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DMANIFOLD_PAR=TBB -DMANIFOLD_EXPORT=0 -DBUILD_TEST_CGAL=1 .. && make -j )
-  # find_library(MANIFOLD_LIBRARY manifold HINTS ../manifold)
-  # target_link_libraries(OpenSCAD PRIVATE ${MANIFOLD_LIBRARY})
-  # link_directories(../manifold/build/src/manifold)
-  # target_link_libraries(OpenSCAD PRIVATE manifold)
-  target_link_libraries(OpenSCAD PRIVATE /Users/ochafik/Documents/GitHub/manifold/build/src/manifold/libmanifold.a)
-
-  find_library(TBB_LIBRARY tbb)
-  target_link_libraries(OpenSCAD PRIVATE ${TBB_LIBRARY})
-  # target_link_libraries(OpenSCAD PRIVATE ../manifold/build/src/manifold/libmanifold.dylib)
-
-endif()
 
 # The macro `CGAL_DEBUG` allows to force CGAL assertions, even if `NDEBUG` is defined,
 # Enabling CGAL assertions is necessary for us to catch them before they cause a crash
@@ -750,6 +730,30 @@ set(CGAL_SOURCES
   src/io/import_nef.cc
 )
 
+set(MANIFOLD_SOURCES
+  src/geometry/cgal/ManifoldGeometry.cc
+  src/geometry/cgal/manifoldutils.cc
+  src/geometry/cgal/manifold-applyops.cc
+  src/geometry/cgal/manifold-applyops-minkowski.cc
+)
+
+if(ENABLE_MANIFOLD)
+  #
+  # This needs the following:
+  # - tbb or libomp dependency
+  # - Apply local patch:
+  #   ( cd submodules/manifold/ && git submodule update --init && git apply thrust.diff )
+  # - Build w/ parallelism:
+  #   ( mkdir -p build && cd build && cmake -DEXPERIMENTAL=1 -DENABLE_MANIFOLD=1 -DMANIFOLD_PAR=TBB .. && time make -j4 )
+  #
+  
+  add_subdirectory(submodules/manifold)
+  target_link_libraries(OpenSCAD PRIVATE manifold)
+  
+  target_compile_definitions(OpenSCAD PRIVATE ENABLE_MANIFOLD)
+  list(APPEND Sources ${MANIFOLD_SOURCES})
+endif()
+
 #
 # Offscreen OpenGL context source code
 #
@@ -858,15 +862,6 @@ set(GUI_HEADERS
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   # Ignore specific warning on external lib
   set_source_files_properties("src/ext/polyclipping/clipper.cpp" PROPERTIES COMPILE_FLAGS "-Wno-class-memaccess")
-endif()
-
-if(ENABLE_MANIFOLD)
-  list(APPEND CGAL_SOURCES
-    src/geometry/cgal/ManifoldGeometry.cc
-    src/geometry/cgal/manifoldutils.cc
-    src/geometry/cgal/manifold-applyops.cc
-    src/geometry/cgal/manifold-applyops-minkowski.cc
-  )
 endif()
 
 list(APPEND Sources src/openscad.cc ${CORE_SOURCES} ${CGAL_SOURCES} ${OFFSCREEN_SOURCES})
