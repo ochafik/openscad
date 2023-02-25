@@ -66,15 +66,6 @@ std::string describeForDebug(const manifold::Manifold& mani) {
   return stream.str();
 }
 
-const char* opName(manifold::Manifold::OpType opType) {
-  switch (opType) {
-    case manifold::Manifold::OpType::Add: return "Add";
-    case manifold::Manifold::OpType::Intersect: return "AddIntersect";
-    case manifold::Manifold::OpType::Subtract: return "Subtract";
-    default: return "unknown";
-  }
-}
-
 void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::Manifold::OpType opType) {
   if (!lhs.object || !rhs.object) {
     assert(false && "empty operands!");
@@ -99,7 +90,7 @@ void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::Manifold::OpT
   auto resd = describeForDebug(*lhs.object);
   LOG(message_group::None, Location::NONE, "",
         "[manifold] %1$s %2$s %3$s -> %4$s",
-        lhsd, opName(opType), rhsd, resd);
+        lhsd, ManifoldUtils::opTypeToString(opType), rhsd, resd);
 #endif
 }
 

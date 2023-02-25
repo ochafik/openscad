@@ -29,8 +29,16 @@ const char* statusToString(manifold::Manifold::Error status) {
   }
 }
 
+const char* opTypeToString(manifold::Manifold::OpType opType) {
+  switch (opType) {
+    case manifold::Manifold::OpType::Add: return "Add";
+    case manifold::Manifold::OpType::Intersect: return "AddIntersect";
+    case manifold::Manifold::OpType::Subtract: return "Subtract";
+    default: return "unknown";
+  }
+}
+
 std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transform3d &transform) {
-#if 1
   IndexedMesh im;
   {
     PolySet triangulated(3);
@@ -42,35 +50,6 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transfo
   const auto &vertices = im.vertices.getArray();
   const auto &indices = im.indices;
 
-#else
-
-  std::vector<Vector3d> vertices = {
-    {0.0f, 0.0f, 0.0f},  //
-    {1.0f, 0.0f, 0.0f},  //
-    {1.0f, 1.0f, 0.0f},  //
-    {0.0f, 1.0f, 0.0f},  //
-    {0.0f, 0.0f, 1.0f},  //
-    {1.0f, 0.0f, 1.0f},  //
-    {1.0f, 1.0f, 1.0f},  //
-    {0.0f, 1.0f, 1.0f}
-  };
-  std::vector<int> indices = {
-    0, 2, 1, -1,
-    0, 3, 2, -1,
-    4, 5, 6, -1,
-    4, 6, 7, -1,
-    0, 1, 5, -1,
-    0, 5, 4, -1,
-    1, 2, 6, -1,
-    1, 6, 5, -1,
-    2, 3, 7, -1,
-    2, 7, 6, -1,
-    3, 0, 4, -1,
-    3, 4, 7, -1,
-  };
-  auto numfaces = indices.size() / 4;
-#endif
-
   auto mesh = make_shared<manifold::Mesh>();
   mesh->vertPos.resize(vertices.size());
   mesh->triVerts.resize(numfaces);
@@ -81,7 +60,7 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transfo
   const auto vertexCount = mesh->vertPos.size();
   assert(indices.size() == numfaces * 4);
   for (size_t i = 0; i < numfaces; i++) {
-    auto offset = i * 4; // 3 indices of triangle a -1.
+    auto offset = i * 4; // 3 indices of triangle then -1.
     auto i0 = indices[offset];
     auto i1 = indices[offset + 1];
     auto i2 = indices[offset + 2];
