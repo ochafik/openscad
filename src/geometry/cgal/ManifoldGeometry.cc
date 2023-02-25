@@ -56,10 +56,12 @@ std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
 
 std::string describeForDebug(const manifold::Manifold& mani) {
   std::ostringstream stream;
+  auto bbox = mani.BoundingBox();
   stream
     << "{"
     << (mani.Status() == manifold::Manifold::Error::NoError ? "OK" : ManifoldUtils::statusToString(mani.Status())) << " "
-    << mani.NumTri() << " facets"
+    << mani.NumTri() << " facets, "
+    << "bbox {(" << bbox.min.x << ", " << bbox.min.y << ", " << bbox.min.z << ") -> (" << bbox.max.x << ", " << bbox.max.y << ", " << bbox.max.z << ")}"
     << "}";
   return stream.str();
 }
@@ -73,20 +75,33 @@ const char* opName(manifold::Manifold::OpType opType) {
   }
 }
 
-void binOp(ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::Manifold::OpType opType) {
+void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::Manifold::OpType opType) {
   if (!lhs.object || !rhs.object) {
     assert(false && "empty operands!");
     return;
   }
+
+  // if (getenv("MANIFOLD_FORCE_LEAVES")) {
+  //   lhs.object->NumTri(); // Force leaf node
+  //   rhs.object->NumTri(); // Force leaf node
+  // }
   
+#ifdef DEBUG
   auto lhsd = describeForDebug(*lhs.object), rhsd = describeForDebug(*rhs.object);
+#endif
   lhs.object = make_shared<manifold::Manifold>(std::move(lhs.object->Boolean(*rhs.object, opType)));
+
+  // if (getenv("MANIFOLD_FORCE_LEAVES")) {
+  //   lhs.object->NumTri(); // Force leaf node
+  // }
+  
+#ifdef DEBUG
   auto resd = describeForDebug(*lhs.object);
   LOG(message_group::None, Location::NONE, "",
         "[manifold] %1$s %2$s %3$s -> %4$s",
         lhsd, opName(opType), rhsd, resd);
+#endif
 }
-
 
 void ManifoldGeometry::operator+=(ManifoldGeometry& other) {
   binOp(*this, other, manifold::Manifold::OpType::Add);

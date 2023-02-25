@@ -330,6 +330,9 @@ void GeometryEvaluator::smartCacheInsert(const AbstractNode& node,
 
 bool GeometryEvaluator::isSmartCached(const AbstractNode& node)
 {
+  if (Feature::ExperimentalManifold.is_enabled()) {
+    return false;
+  }
   const std::string& key = this->tree.getIdString(node);
   return (GeometryCache::instance()->contains(key) ||
           CGALCache::instance()->contains(key));

@@ -85,6 +85,7 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transfo
     auto i0 = indices[offset];
     auto i1 = indices[offset + 1];
     auto i2 = indices[offset + 2];
+    assert(indices[offset + 3] == -1);
     assert(i0 >= 0 && i0 < vertexCount &&
            i1 >= 0 && i1 < vertexCount &&
            i2 >= 0 && i2 < vertexCount);
