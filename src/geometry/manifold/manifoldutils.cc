@@ -98,8 +98,12 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transfo
 std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps, const Transform3d &transform) {
   auto mesh = meshFromPolySet(ps, transform);
   auto mani = std::make_shared<manifold::Manifold>(*mesh);
-  auto status = ManifoldUtils::statusToString(mani->Status());
-  std::cerr << "STATUS: " << status << "\n";
+  auto status = mani->Status();
+  if (status != manifold::Manifold::Error::NoError) {
+    LOG(message_group::Error, Location::NONE, "",
+        "[manifold] PolySet -> Manifold conversion failed: %1$s", 
+        ManifoldUtils::statusToString(status));
+  }
   return std::make_shared<ManifoldGeometry>(mani);
 }
 

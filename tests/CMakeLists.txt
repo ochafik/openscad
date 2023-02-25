@@ -346,6 +346,9 @@ function(add_cmdline_test TESTCMD_BASENAME)
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=roof" "--enable=lazy-union" "--enable=textmetrics" "--enable=import-function")
     endif()
 
+    # Enable manifold for all tests for now.
+    set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
+    
     # Enable fast-csg for all tests but those that have different expectations or fail for other reasons.
     if (NOT SCADFILE IN_LIST SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
         AND NOT SCADFILE IN_LIST SCADFILES_FAILING_WITH_FAST_CSG

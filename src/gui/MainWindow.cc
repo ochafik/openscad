@@ -2146,7 +2146,11 @@ void MainWindow::cgalRender()
   this->cgalRenderer = nullptr;
   this->root_geom.reset();
 
-  LOG(message_group::None, Location::NONE, "", "Rendering Polygon Mesh using CGAL...");
+  if (Feature::ExperimentalManifold.is_enabled()) {
+    LOG(message_group::None, Location::NONE, "", "Rendering Polygon Mesh using Manifold...");
+  } else {
+    LOG(message_group::None, Location::NONE, "", "Rendering Polygon Mesh using CGAL...");
+  }
 
   this->progresswidget = new ProgressWidget(this);
   connect(this->progresswidget, SIGNAL(requestShow()), this, SLOT(showProgress()));

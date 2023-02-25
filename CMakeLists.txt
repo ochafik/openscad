@@ -407,6 +407,7 @@ target_include_directories(OpenSCAD PRIVATE
   "src/ext/libtess2/Include"
   "src/geometry"
   "src/geometry/cgal"
+  "src/geometry/manifold"
   "src/glview"
   "src/glview/preview"
   "src/glview/cgal"
@@ -731,10 +732,10 @@ set(CGAL_SOURCES
 )
 
 set(MANIFOLD_SOURCES
-  src/geometry/cgal/ManifoldGeometry.cc
-  src/geometry/cgal/manifoldutils.cc
-  src/geometry/cgal/manifold-applyops.cc
-  src/geometry/cgal/manifold-applyops-minkowski.cc
+  src/geometry/manifold/ManifoldGeometry.cc
+  src/geometry/manifold/manifoldutils.cc
+  src/geometry/manifold/manifold-applyops.cc
+  src/geometry/manifold/manifold-applyops-minkowski.cc
 )
 
 if(ENABLE_MANIFOLD)
