@@ -184,22 +184,23 @@ void CGALHybridPolyhedron::operator-=(CGALHybridPolyhedron& other)
 
 bool CGALHybridPolyhedron::canCorefineWith(const CGALHybridPolyhedron& other) const
 {
-  if (Feature::ExperimentalFastCsgTrustCorefinement.is_enabled()) {
-    return true;
-  }
-  const char *reasonWontCorefine = nullptr;
-  if (sharesAnyVertexWith(other)) {
-    reasonWontCorefine = "operands share some vertices";
-  } else if (!isManifold() || !other.isManifold()) {
-    reasonWontCorefine = "non manifoldness detected";
-  }
-  if (reasonWontCorefine) {
+  if (!isManifold() || !other.isManifold()) {
     LOG(message_group::None, Location::NONE, "",
-        "[fast-csg] Performing safer but slower nef operation instead of corefinement because %1$s. "
-        "(can override with fast-csg-trust-corefinement)",
-        reasonWontCorefine);
+        "[fast-csg] Falling back to Nef polyhedra operation instead of corefinement as non manifoldness detected.");
+    return false;
   }
-  return !reasonWontCorefine;
+  if (sharesAnyVertexWith(other)) {
+    if (Feature::ExperimentalFastCsgTrustCorefinement.is_enabled()) {
+      LOG(message_group::None, Location::NONE, "",
+        "[fast-csg] Attempting corefinement despite detection of shared vertices (fast-csg-trust-corefinement). Crashes may occur.");
+      return true;
+    }
+    LOG(message_group::None, Location::NONE, "",
+        "[fast-csg] Performing safer but slower Nef polyhedra operation instead of corefinement because operands share vertices. "
+        "(can override with fast-csg-trust-corefinement)");
+    return false;
+  }
+  return true;
 }
 
 void CGALHybridPolyhedron::minkowski(CGALHybridPolyhedron& other)
