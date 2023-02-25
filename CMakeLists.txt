@@ -743,7 +743,7 @@ if(ENABLE_MANIFOLD)
   # This needs the following:
   # - tbb or libomp dependency
   # - Apply local patch:
-  #   ( cd submodules/manifold/ && git submodule update --init && git apply thrust.diff )
+  #   ( cd submodules/manifold/ && git submodule update --init --recursive && git apply thrust.diff )
   # - Build w/ parallelism:
   #   ( mkdir -p build && cd build && cmake -DEXPERIMENTAL=1 -DENABLE_MANIFOLD=1 -DMANIFOLD_PAR=TBB .. && time make -j4 )
   #
