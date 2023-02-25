@@ -113,10 +113,13 @@ void ManifoldGeometry::transform(const Transform3d& mat) {
     assert(false && "empty operands!");
     return;
   }
-  glm::mat4x3 glMat;
-  // TODO: convert mat to glMat
-  assert(false && "not implemented");
-                                
+  glm::mat4x3 glMat(
+    // Column-major ordering
+    mat(0, 0), mat(1, 0), mat(2, 0),
+    mat(0, 1), mat(1, 1), mat(2, 1),
+    mat(0, 2), mat(1, 2), mat(2, 2),
+    mat(0, 3), mat(1, 3), mat(2, 3)
+  );                            
   this->object = make_shared<manifold::Manifold>(std::move(this->object->Transform(glMat)));
 }
 
