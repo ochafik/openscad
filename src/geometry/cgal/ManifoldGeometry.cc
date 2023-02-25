@@ -3,7 +3,7 @@
 #include "manifold.h"
 #include "IndexedMesh.h"
 #include "cgalutils.h"
-
+#include "manifoldutils.h"
 
 ManifoldGeometry::ManifoldGeometry() : object(make_shared<manifold::Manifold>()) {}
 ManifoldGeometry::ManifoldGeometry(const shared_ptr<manifold::Manifold>& object) : object(object) {}
@@ -54,35 +54,50 @@ std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
   return ps;
 }
 
-/*! In-place union (this may also mutate/corefine the other polyhedron). */
+std::string describeForDebug(const manifold::Manifold& mani) {
+  std::ostringstream stream;
+  stream
+    << "{"
+    << (mani.Status() == manifold::Manifold::Error::NoError ? "OK" : ManifoldUtils::statusToString(mani.Status())) << " "
+    << mani.NumTri() << " facets"
+    << "}";
+  return stream.str();
+}
+
+const char* opName(manifold::Manifold::OpType opType) {
+  switch (opType) {
+    case manifold::Manifold::OpType::Add: return "Add";
+    case manifold::Manifold::OpType::Intersect: return "AddIntersect";
+    case manifold::Manifold::OpType::Subtract: return "Subtract";
+    default: return "unknown";
+  }
+}
+
+void binOp(ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::Manifold::OpType opType) {
+  if (!lhs.object || !rhs.object) {
+    assert(false && "empty operands!");
+    return;
+  }
+  
+  auto lhsd = describeForDebug(*lhs.object), rhsd = describeForDebug(*rhs.object);
+  lhs.object = make_shared<manifold::Manifold>(std::move(lhs.object->Boolean(*rhs.object, opType)));
+  auto resd = describeForDebug(*lhs.object);
+  LOG(message_group::None, Location::NONE, "",
+        "[manifold] %1$s %2$s %3$s -> %4$s",
+        lhsd, opName(opType), rhsd, resd);
+}
+
+
 void ManifoldGeometry::operator+=(ManifoldGeometry& other) {
-  if (!this->object || !other.object) {
-    assert(false && "empty operands!");
-    return;
-  }
-  manifold::Mesh lhs = this->object->GetMesh();
-  manifold::Mesh rhs = other.object->GetMesh();
-  this->object = make_shared<manifold::Manifold>(std::move(this->object->Boolean(*other.object, manifold::Manifold::OpType::Add)));
+  binOp(*this, other, manifold::Manifold::OpType::Add);
 }
-/*! In-place intersection (this may also mutate/corefine the other polyhedron). */
 void ManifoldGeometry::operator*=(ManifoldGeometry& other) {
-  if (!this->object || !other.object) {
-    assert(false && "empty operands!");
-    return;
-  }
-  this->object = make_shared<manifold::Manifold>(std::move(this->object->Boolean(*other.object, manifold::Manifold::OpType::Intersect)));
+  binOp(*this, other, manifold::Manifold::OpType::Intersect);
 }
-/*! In-place difference (this may also mutate/corefine the other polyhedron). */
 void ManifoldGeometry::operator-=(ManifoldGeometry& other) {
-  if (!this->object || !other.object) {
-    assert(false && "empty operands!");
-    return;
-  }
-  this->object = make_shared<manifold::Manifold>(std::move(this->object->Boolean(*other.object, manifold::Manifold::OpType::Subtract)));
+  binOp(*this, other, manifold::Manifold::OpType::Subtract);
 }
-/*! In-place minkowksi operation. If the other polyhedron is non-convex,
-  * it is also modified during the computation, i.e., it is decomposed into convex pieces.
-  */
+
 void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
   assert(false && "not implemented");
 }

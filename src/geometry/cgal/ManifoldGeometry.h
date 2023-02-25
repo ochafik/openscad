@@ -40,11 +40,11 @@ public:
 
   [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
 
-  /*! In-place union (this may also mutate/corefine the other polyhedron). */
+  /*! In-place union. */
   void operator+=(ManifoldGeometry& other);
-  /*! In-place intersection (this may also mutate/corefine the other polyhedron). */
+  /*! In-place intersection. */
   void operator*=(ManifoldGeometry& other);
-  /*! In-place difference (this may also mutate/corefine the other polyhedron). */
+  /*! In-place difference. */
   void operator-=(ManifoldGeometry& other);
   /*! In-place minkowksi operation. If the other polyhedron is non-convex,
    * it is also modified during the computation, i.e., it is decomposed into convex pieces.
@@ -59,5 +59,4 @@ public:
   shared_ptr<manifold::Manifold> object;
   
 private:
-
 };
