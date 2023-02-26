@@ -60,8 +60,8 @@ std::string describeForDebug(const manifold::Manifold& mani) {
   stream
     << "{"
     << (mani.Status() == manifold::Manifold::Error::NoError ? "OK" : ManifoldUtils::statusToString(mani.Status())) << " "
-    << mani.NumTri() << " facets, "
-    << "bbox {(" << bbox.min.x << ", " << bbox.min.y << ", " << bbox.min.z << ") -> (" << bbox.max.x << ", " << bbox.max.y << ", " << bbox.max.z << ")}"
+    << mani.NumTri() << " facets"
+    // << ", bbox {(" << bbox.min.x << ", " << bbox.min.y << ", " << bbox.min.z << ") -> (" << bbox.max.x << ", " << bbox.max.y << ", " << bbox.max.z << ")}"
     << "}";
   return stream.str();
 }
