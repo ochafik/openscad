@@ -41,6 +41,7 @@ bool createMeshFromPolySet(const PolySet& ps, TriangleMesh& mesh)
 }
 
 template bool createMeshFromPolySet(const PolySet& ps, CGAL_HybridMesh& mesh);
+template bool createMeshFromPolySet(const PolySet& ps, CGAL_DoubleMesh& mesh);
 
 template <class TriangleMesh>
 bool createPolySetFromMesh(const TriangleMesh& mesh, PolySet& ps)
@@ -65,6 +66,7 @@ bool createPolySetFromMesh(const TriangleMesh& mesh, PolySet& ps)
 }
 
 template bool createPolySetFromMesh(const CGAL_HybridMesh& mesh, PolySet& ps);
+template bool createPolySetFromMesh(const CGAL_DoubleMesh& mesh, PolySet& ps);
 
 template <class InputKernel, class OutputKernel>
 void copyMesh(
@@ -104,6 +106,7 @@ template void copyMesh(const CGAL_HybridMesh& input, CGAL_HybridMesh& output);
 template void copyMesh(const CGAL::Surface_mesh<CGAL_Point_3>& input, CGAL_HybridMesh& output);
 template void copyMesh(const CGAL_HybridMesh& input, CGAL::Surface_mesh<CGAL_Point_3>& output);
 template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>>& input, CGAL_HybridMesh& output);
+template void copyMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>>& input, CGAL_DoubleMesh& output);
 
 template <typename K>
 void convertNefPolyhedronToTriangleMesh(const CGAL::Nef_polyhedron_3<K>& nef, CGAL::Surface_mesh<CGAL::Point_3<K>>& mesh)

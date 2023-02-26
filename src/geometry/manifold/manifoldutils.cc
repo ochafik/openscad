@@ -7,6 +7,8 @@
 #include "printutils.h"
 #include "cgalutils.h"
 #include "PolySetUtils.h"
+#include "CGALHybridPolyhedron.h"
+#include <CGAL/convex_hull_3.h>
 
 // using namespace manifold;
 
@@ -75,7 +77,53 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transfo
 }
 
 std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps, const Transform3d &transform) {
+#if 1
+  PolySet psq(ps);
+  std::vector<Vector3d> points3d;
+  psq.quantizeVertices(&points3d);
+  PolySet ps_tri(3, psq.convexValue());
+  PolySetUtils::tessellate_faces(psq, ps_tri);
+  
+  CGAL_DoubleMesh m;
+
+  if (ps_tri.is_convex()) {
+    using K = CGAL::Epick;
+    // Collect point cloud
+    std::vector<K::Point_3> points(points3d.size());
+    for (size_t i = 0, n = points3d.size(); i < n; i++) {
+      points[i] = vector_convert<K::Point_3>(points3d[i]);
+    }
+    if (points.size() <= 3) return make_shared<ManifoldGeometry>();
+
+    // Apply hull
+    CGAL::Surface_mesh<CGAL::Point_3<K>> r;
+    CGAL::convex_hull_3(points.begin(), points.end(), r);
+    // auto r_exact = make_shared<CGAL_HybridMesh>();
+    // copyMesh(r, *r_exact);
+    CGALUtils::copyMesh(r, m);
+  } else {
+    CGALUtils::createMeshFromPolySet(ps_tri, m);
+  }
+
+  if (!ps_tri.is_convex()) {
+    if (CGALUtils::isClosed(m)) {
+      CGALUtils::orientToBoundAVolume(m);
+    } else {
+      LOG(message_group::Error, Location::NONE, "", "[manifold] Input mesh is not closed!");
+    }
+  }
+
+  PolySet pps(3, ps.convexValue());
+  // TODO: create method to build a manifold::Mesh from a CGAL::Surface_mesh
+  CGALUtils::createPolySetFromMesh(m, pps);
+  auto mesh = meshFromPolySet(pps, transform);
+#elif 0
+  // Here we get orientation and other tweaks for free:
+  auto pps = CGALUtils::createHybridPolyhedronFromPolySet(ps)->toPolySet();
+  auto mesh = meshFromPolySet(*pps, transform);
+#else
   auto mesh = meshFromPolySet(ps, transform);
+#endif
   auto mani = std::make_shared<manifold::Manifold>(*mesh);
   auto status = mani->Status();
   if (status != manifold::Manifold::Error::NoError) {
