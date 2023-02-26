@@ -20,8 +20,7 @@ Location getLocation(const std::shared_ptr<const AbstractNode>& node)
 
 shared_ptr<const Geometry> applyUnion3DManifold(
   const Geometry::Geometries::const_iterator& chbegin,
-  const Geometry::Geometries::const_iterator& chend,
-  const Transform3d& transform)
+  const Geometry::Geometries::const_iterator& chend)
 {
   using QueueItem = std::pair<shared_ptr<ManifoldGeometry>, int>;
   struct QueueItemGreater {
@@ -47,7 +46,7 @@ shared_ptr<const Geometry> applyUnion3DManifold(
       if (!chgeom || chgeom->isEmpty()) {
         continue;
       }
-      auto poly = createMutableManifoldFromGeometry(chgeom, transform);
+      auto poly = createMutableManifoldFromGeometry(chgeom);
       if (!poly) {
         continue;
       }
@@ -87,7 +86,7 @@ shared_ptr<const Geometry> applyUnion3DManifold(
    Applies op to all children and returns the result.
    The child list should be guaranteed to contain non-NULL 3D or empty Geometry objects
  */
-shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op, const Transform3d& transform)
+shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op)
 {
   shared_ptr<ManifoldGeometry> N;
 
@@ -96,7 +95,7 @@ shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& c
 
   // try {
     for (const auto& item : children) {
-      auto chN = item.second ? createMutableManifoldFromGeometry(item.second, transform) : nullptr;
+      auto chN = item.second ? createMutableManifoldFromGeometry(item.second) : nullptr;
       // Initialize N with first expected geometric object
       if (!foundFirst) {
         if (chN) {

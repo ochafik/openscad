@@ -23,7 +23,7 @@ namespace ManifoldUtils {
 /*!
    children cannot contain nullptr objects
  */
-shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children, const Transform3d& transform)
+shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children)
 {
   assert(false && "not implemented");
   return nullptr;

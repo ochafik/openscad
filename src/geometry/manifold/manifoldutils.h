@@ -20,17 +20,16 @@ namespace ManifoldUtils {
   const char* statusToString(manifold::Manifold::Error status);
   const char* opTypeToString(manifold::Manifold::OpType opType);
 
-  std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps, const Transform3d &transform);
+  std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps);
 
-  std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps, const Transform3d &transform);
-  std::shared_ptr<ManifoldGeometry> createMutableManifoldFromGeometry(const std::shared_ptr<const Geometry>& geom, const Transform3d &transform);
+  std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps);
+  std::shared_ptr<ManifoldGeometry> createMutableManifoldFromGeometry(const std::shared_ptr<const Geometry>& geom);
 
   std::shared_ptr<const Geometry> applyUnion3DManifold(
     const Geometry::Geometries::const_iterator& chbegin,
-    const Geometry::Geometries::const_iterator& chend,
-    const Transform3d& transform);
+    const Geometry::Geometries::const_iterator& chend);
 
-  std::shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op, const Transform3d& transform);
+  std::shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op);
 
-  std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children, const Transform3d& transform);
+  std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children);
 };
