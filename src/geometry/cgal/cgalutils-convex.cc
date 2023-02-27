@@ -48,6 +48,7 @@ bool is_weakly_convex(const CGAL::Polyhedron_3<K>& p) {
 }
 
 template bool is_weakly_convex(const CGAL::Polyhedron_3<CGAL_Kernel3>& p);
+template bool is_weakly_convex(const CGAL::Polyhedron_3<CGAL::Epick>& p);
 
 
 template <typename K>

@@ -69,6 +69,7 @@ using CGAL_HybridKernel3 = CGAL::Epeck;
 
 using CGAL_HybridPoint = CGAL::Point_3<CGAL_HybridKernel3>;
 using CGAL_HybridNef = CGAL::Nef_polyhedron_3<CGAL_HybridKernel3>;
+using CGAL_HybridPolyhedron = CGAL::Polyhedron_3<CGAL_HybridKernel3>;
 using CGAL_HybridMesh = CGAL::Surface_mesh<CGAL_HybridPoint>;
 
 using CGAL_DoubleKernel = CGAL::Cartesian<double>;
