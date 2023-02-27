@@ -21,6 +21,8 @@ namespace ManifoldUtils {
   const char* opTypeToString(manifold::Manifold::OpType opType);
 
   std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps);
+  // template <class TriangleMesh>
+  // std::shared_ptr<manifold::Mesh> meshFromSurfaceMesh(const TriangleMesh& sm);
 
   std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps);
   std::shared_ptr<ManifoldGeometry> createMutableManifoldFromGeometry(const std::shared_ptr<const Geometry>& geom);

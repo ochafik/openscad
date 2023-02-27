@@ -40,6 +40,41 @@ const char* opTypeToString(manifold::Manifold::OpType opType) {
   }
 }
 
+// template <class TriangleMesh>
+// std::shared_ptr<manifold::Mesh> meshFromSurfaceMesh(const TriangleMesh& sm)
+// {
+//   auto mesh = make_shared<manifold::Mesh>();
+//   mesh->vertPos.resize(sm.number_of_vertices());
+//   mesh->triVerts.resize(sm.number_of_faces());
+
+//   int vidx = -1;
+//   for (auto vert : sm.vertices()) {
+//     vidx++;
+//     auto& v = sm.point(vert);
+//     double x = CGAL::to_double(v.x());
+//     double y = CGAL::to_double(v.y());
+//     double z = CGAL::to_double(v.z());
+//     mesh->vertPos[vidx] = glm::vec3((float) x, (float) y, (float) z);
+//   }
+  
+//   int fidx = -1;
+//   for (auto& f : sm.faces()) {
+//     fidx++;
+//     CGAL::Vertex_around_target_circulator<TriangleMesh> vit(sm.halfedge(f), sm), vend(vit);
+//     auto i0 = *(vit++);
+//     if (vit == vend) continue; // Only 1 vertex
+//     auto i1 = *(vit++);
+//     if (vit == vend) continue; // Only 2 vertices
+//     auto i2 = *(vit++);
+//     if (vit != vend) continue; // Mode than 3 vertices
+    
+//     mesh->triVerts[fidx++] = glm::ivec3(i0, i1, i2);
+//   }
+//   return mesh;
+// }
+
+// template std::shared_ptr<manifold::Mesh> meshFromSurfaceMesh(const CGAL_DoubleMesh& mesh);
+
 std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps) {
   IndexedMesh im;
   {
