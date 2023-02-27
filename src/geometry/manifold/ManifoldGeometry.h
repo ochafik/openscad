@@ -40,6 +40,9 @@ public:
 
   [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
 
+  template <class Polyhedron>
+  std::shared_ptr<Polyhedron> toPolyhedron() const;
+
   /*! In-place union. */
   void operator+=(ManifoldGeometry& other);
   /*! In-place intersection. */
