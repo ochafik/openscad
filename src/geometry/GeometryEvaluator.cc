@@ -166,7 +166,8 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
     if (actualchildren.size() == 1) return {actualchildren.front().second};
 #ifdef ENABLE_MANIFOLD
     if (Feature::ExperimentalManifold.is_enabled()) {
-      return {ManifoldUtils::applyUnion3DManifold(actualchildren.begin(), actualchildren.end())};
+      return {ManifoldUtils::applyOperator3DManifold(actualchildren, op)};
+      // return {ManifoldUtils::applyUnion3DManifold(actualchildren.begin(), actualchildren.end())};
     }
 #endif
     return {CGALUtils::applyUnion3D(actualchildren.begin(), actualchildren.end())};

@@ -18,6 +18,7 @@ Location getLocation(const std::shared_ptr<const AbstractNode>& node)
   return node && node->modinst ? node->modinst->location() : Location::NONE;
 }
 
+/*
 shared_ptr<const Geometry> applyUnion3DManifold(
   const Geometry::Geometries::const_iterator& chbegin,
   const Geometry::Geometries::const_iterator& chend)
@@ -81,6 +82,7 @@ shared_ptr<const Geometry> applyUnion3DManifold(
   // }
   return nullptr;
 }
+*/
 
 /*!
    Applies op to all children and returns the result.
@@ -90,7 +92,7 @@ shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& c
 {
   shared_ptr<ManifoldGeometry> N;
 
-  assert(op != OpenSCADOperator::UNION && "use applyUnion3D() instead of applyOperator3D()");
+  // assert(op != OpenSCADOperator::UNION && "use applyUnion3D() instead of applyOperator3D()");
   bool foundFirst = false;
 
   // try {
@@ -114,9 +116,12 @@ shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& c
       }
 
       // empty op <something> => empty
-      if (!N || N->isEmpty()) continue;
+      // if (!N || N->isEmpty()) continue;
 
       switch (op) {
+      case OpenSCADOperator::UNION:
+        *N += *chN;
+        break;
       case OpenSCADOperator::INTERSECTION:
         *N *= *chN;
         break;

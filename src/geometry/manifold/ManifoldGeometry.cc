@@ -126,21 +126,21 @@ void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::Manifold::OpT
   //   rhs.object->NumTri(); // Force leaf node
   // }
   
-#ifdef DEBUG
-  auto lhsd = describeForDebug(*lhs.object), rhsd = describeForDebug(*rhs.object);
-#endif
+// #ifdef DEBUG
+//   auto lhsd = describeForDebug(*lhs.object), rhsd = describeForDebug(*rhs.object);
+// #endif
   lhs.object = make_shared<manifold::Manifold>(std::move(lhs.object->Boolean(*rhs.object, opType)));
 
   // if (getenv("MANIFOLD_FORCE_LEAVES")) {
   //   lhs.object->NumTri(); // Force leaf node
   // }
   
-#ifdef DEBUG
-  auto resd = describeForDebug(*lhs.object);
-  LOG(message_group::None, Location::NONE, "",
-        "[manifold] %1$s %2$s %3$s -> %4$s",
-        lhsd, ManifoldUtils::opTypeToString(opType), rhsd, resd);
-#endif
+// #ifdef DEBUG
+//   auto resd = describeForDebug(*lhs.object);
+//   LOG(message_group::None, Location::NONE, "",
+//         "[manifold] %1$s %2$s %3$s -> %4$s",
+//         lhsd, ManifoldUtils::opTypeToString(opType), rhsd, resd);
+// #endif
 }
 
 void ManifoldGeometry::operator+=(ManifoldGeometry& other) {
