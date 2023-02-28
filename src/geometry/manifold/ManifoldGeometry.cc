@@ -101,6 +101,7 @@ shared_ptr<Polyhedron> ManifoldGeometry::toPolyhedron() const
 }
 
 template shared_ptr<CGAL::Polyhedron_3<CGAL::Epick>> ManifoldGeometry::toPolyhedron() const;
+template shared_ptr<CGAL::Polyhedron_3<CGAL::Epeck>> ManifoldGeometry::toPolyhedron() const;
 
 std::string describeForDebug(const manifold::Manifold& mani) {
   std::ostringstream stream;

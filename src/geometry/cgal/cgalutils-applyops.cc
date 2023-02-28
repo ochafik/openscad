@@ -242,9 +242,11 @@ bool applyHull(const Geometry::Geometries& children, PolySet& result)
  */
 shared_ptr<const Geometry> applyMinkowski(const Geometry::Geometries& children)
 {
+#if 0 // Not working yet! 
   if (Feature::ExperimentalManifold.is_enabled()) {
     return ManifoldUtils::applyMinkowskiManifold(children);
   }
+#endif
   if (Feature::ExperimentalFastCsg.is_enabled()) {
     return applyMinkowskiHybrid(children);
   }
