@@ -346,8 +346,11 @@ function(add_cmdline_test TESTCMD_BASENAME)
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=roof" "--enable=lazy-union" "--enable=textmetrics" "--enable=import-function")
     endif()
 
-    # Enable manifold for all tests for now.
-    set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
+    # Enable manifold for all tests except those marked as skipped
+    if (NOT SCADFILE IN_LIST SCADFILES_FAILING_MANIFOLD
+        AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD)
+      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
+    endif()
     
     # Enable fast-csg for all tests but those that have different expectations or fail for other reasons.
     if (NOT SCADFILE IN_LIST SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
@@ -870,6 +873,61 @@ list(APPEND SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
   ${TEST_SCAD_DIR}/misc/rotate-empty-bbox.scad
   # Less broken and no green faces
   ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad
+)
+
+list(APPEND SCADFILES_FAILING_MANIFOLD
+  # Empty output???
+  ${TEST_SCAD_DIR}/3D/issues/issue911.scad
+
+  # Exception
+  ${TEST_SCAD_DIR}/3D/issues/issue1671.scad
+
+  # Crashes with Input mesh not closed! / NoManifold
+  ${TEST_SCAD_DIR}/3D/issues/issue964.scad
+  ${TEST_SCAD_DIR}/misc/nonmanifold-polyhedron.scad  
+  ${TEST_SCAD_DIR}/3D/issues/issue964b.scad  
+  ${TEST_SCAD_DIR}/3D/issues/issue1105b.scad  
+  ${TEST_SCAD_DIR}/3D/issues/issue1105d.scad  
+  ${TEST_SCAD_DIR}/3D/issues/issue1137.scad
+
+  # CSG rendering artefact / possible convexity issue
+  ${TEST_SCAD_DIR}/3D/features/background-modifier.scad
+  ${TEST_SCAD_DIR}/3D/features/background-modifier2.scad
+  ${TEST_SCAD_DIR}/3D/features/child-background.scad
+  ${TEST_SCAD_DIR}/3D/features/child-modifier.scad
+  ${TEST_SCAD_DIR}/3D/features/highlight-modifier.scad
+  ${TEST_SCAD_DIR}/3D/features/highlight-modifier2.scad
+  ${TEST_SCAD_DIR}/3D/features/highlight-and-background-modifier.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1005.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1833.scad
+
+  # Different vertex order
+  ${TEST_SCAD_DIR}/3mf/3mf-export.scad
+
+  # No green color in difference
+  ${TEST_SCAD_DIR}/3D/features/difference-tests.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1105.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1215c.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1803.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue3158.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue835.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue913.scad
+  ${TEST_SCAD_DIR}/misc/internal-cavity-polyhedron.sca
+  ${TEST_SCAD_DIR}/misc/internal-cavity.scad
+  ${TEST_SCAD_DIR}/misc/let-module-tests.scad
+
+  # Manifold stack overflow (https://github.com/elalish/manifold/pull/368)
+  ${TEST_SCAD_DIR}/issues/issue2342.scad
+
+  # Misc
+  ${TEST_SCAD_DIR}/3D/issues/issue1069.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1089.scad
+)
+
+list(APPEND TESTS_FAILING_WITH_MANIFOLD
+  # Misc
+  cgalstlcgalpngtest_mirror-tests
+  cgalbinstlcgalpngtest_mirror-tests
 )
 
 ###################################
