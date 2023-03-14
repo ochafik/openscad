@@ -67,8 +67,8 @@ shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNod
       this->root = CGALUtils::getGeometryAsPolySet(this->root);
     }
 #ifdef ENABLE_MANIFOLD
-    if (auto mani = dynamic_pointer_cast<const ManifoldGeometry>(this->root)) {
-      this->root = mani->toPolySet();// CGALUtils::getGeometryAsPolySet(this->root);
+    if (dynamic_pointer_cast<const ManifoldGeometry>(this->root)) {
+      this->root = CGALUtils::getGeometryAsPolySet(this->root);
     }
 #endif
 

@@ -25,6 +25,9 @@
 #include "Reindexer.h"
 #include "GeometryUtils.h"
 #include "CGALHybridPolyhedron.h"
+#ifdef ENABLE_MANIFOLD
+#include "ManifoldGeometry.h"
+#endif
 
 #include <map>
 #include <queue>
@@ -498,6 +501,11 @@ shared_ptr<const PolySet> getGeometryAsPolySet(const shared_ptr<const Geometry>&
   if (auto hybrid = dynamic_pointer_cast<const CGALHybridPolyhedron>(geom)) {
     return hybrid->toPolySet();
   }
+#ifdef ENABLE_MANIFOLD
+  if (auto mani = dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
+    return mani->toPolySet();
+  }
+#endif
   return nullptr;
 }
 

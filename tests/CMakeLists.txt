@@ -879,10 +879,6 @@ list(APPEND SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
 list(APPEND SCADFILES_FAILING_MANIFOLD
   # 2D not working
   ${TEST_SCAD_DIR}/2D/features/projection-cut-tests.scad
-  ${TEST_SCAD_DIR}/2D/features/projection-tests.scad
-
-  # CGAL Surface_mesh error(?)
-  ${TEST_SCAD_DIR}/amf/split_pyramid.scad
 
   # Crashes with Input mesh not closed! / NoManifold
   ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad
