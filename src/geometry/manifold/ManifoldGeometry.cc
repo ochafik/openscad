@@ -159,7 +159,7 @@ void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
 
 void ManifoldGeometry::transform(const Transform3d& mat) {
   if (!this->object) {
-    assert(false && "empty operands!");
+    assert(false && "no manifold!");
     return;
   }
   glm::mat4x3 glMat(
@@ -172,8 +172,19 @@ void ManifoldGeometry::transform(const Transform3d& mat) {
   this->object = make_shared<manifold::Manifold>(std::move(this->object->Transform(glMat)));
 }
 
+BoundingBox ManifoldGeometry::getBoundingBox() const
+{
+  BoundingBox result;
+  if (this->object) {
+    manifold::Box bbox = this->object->BoundingBox();
+    result.extend(vector_convert<Eigen::Vector3d>(bbox.min));
+    result.extend(vector_convert<Eigen::Vector3d>(bbox.max));
+  }
+  return result;
+}
+
 void ManifoldGeometry::resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) {
-  assert(false && "not implemented");
+  this->transform(GeometryUtils::getResizeTransform(this->getBoundingBox(), newsize, autosize));
 }
 
 // /*! Iterate over all vertices' points until the function returns true (for done). */

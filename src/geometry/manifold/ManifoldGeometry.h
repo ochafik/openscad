@@ -28,11 +28,7 @@ public:
   // void clear();
 
   [[nodiscard]] size_t memsize() const override;
-  [[nodiscard]] BoundingBox getBoundingBox() const override
-  {
-    assert(false && "not implemented");
-    return {};
-  }
+  [[nodiscard]] BoundingBox getBoundingBox() const override;
 
   [[nodiscard]] std::string dump() const override;
   [[nodiscard]] unsigned int getDimension() const override { return 3; }
