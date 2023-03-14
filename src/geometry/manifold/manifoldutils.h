@@ -27,10 +27,6 @@ namespace ManifoldUtils {
   std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps);
   std::shared_ptr<ManifoldGeometry> createMutableManifoldFromGeometry(const std::shared_ptr<const Geometry>& geom);
 
-  std::shared_ptr<const Geometry> applyUnion3DManifold(
-    const Geometry::Geometries::const_iterator& chbegin,
-    const Geometry::Geometries::const_iterator& chend);
-
   std::shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op);
 
   std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children);

@@ -215,7 +215,8 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
           fake_children.push_back(std::make_pair(std::shared_ptr<const AbstractNode>(),
                                                  partToGeom(part)));
         }
-        auto N = CGALUtils::applyUnion3D(fake_children.begin(), fake_children.end());
+        auto N = ManifoldUtils::applyOperator3DManifold(fake_children, OpenSCADOperator::UNION);
+        
         // FIXME: This should really never throw.
         // Assert once we figured out what went wrong with issue #1069?
         if (!N) throw 0;
@@ -234,7 +235,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
     return operands[0];
   } catch (const std::exception& e) {
     LOG(message_group::Warning, Location::NONE, "",
-        "[fast-csg] Minkowski failed with error, falling back to Nef operation: %1$s\n", e.what());
+        "[manifold] Minkowski failed with error, falling back to Nef operation: %1$s\n", e.what());
 
     auto N = shared_ptr<const Geometry>(applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI));
     return N;
