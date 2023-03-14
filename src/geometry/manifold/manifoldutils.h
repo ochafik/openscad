@@ -18,7 +18,7 @@ namespace manifold {
 namespace ManifoldUtils {
 
   const char* statusToString(manifold::Manifold::Error status);
-  const char* opTypeToString(manifold::Manifold::OpType opType);
+  const char* opTypeToString(manifold::OpType opType);
 
   std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps);
   // template <class TriangleMesh>

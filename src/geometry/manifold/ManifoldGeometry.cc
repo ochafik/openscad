@@ -115,7 +115,7 @@ std::string describeForDebug(const manifold::Manifold& mani) {
   return stream.str();
 }
 
-void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::Manifold::OpType opType) {
+void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::OpType opType) {
   if (!lhs.object || !rhs.object) {
     assert(false && "empty operands!");
     return;
@@ -144,13 +144,13 @@ void binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::Manifold::OpT
 }
 
 void ManifoldGeometry::operator+=(ManifoldGeometry& other) {
-  binOp(*this, other, manifold::Manifold::OpType::Add);
+  binOp(*this, other, manifold::OpType::Add);
 }
 void ManifoldGeometry::operator*=(ManifoldGeometry& other) {
-  binOp(*this, other, manifold::Manifold::OpType::Intersect);
+  binOp(*this, other, manifold::OpType::Intersect);
 }
 void ManifoldGeometry::operator-=(ManifoldGeometry& other) {
-  binOp(*this, other, manifold::Manifold::OpType::Subtract);
+  binOp(*this, other, manifold::OpType::Subtract);
 }
 
 void ManifoldGeometry::minkowski(ManifoldGeometry& other) {

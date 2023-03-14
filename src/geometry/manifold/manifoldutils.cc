@@ -31,11 +31,11 @@ const char* statusToString(manifold::Manifold::Error status) {
   }
 }
 
-const char* opTypeToString(manifold::Manifold::OpType opType) {
+const char* opTypeToString(manifold::OpType opType) {
   switch (opType) {
-    case manifold::Manifold::OpType::Add: return "Add";
-    case manifold::Manifold::OpType::Intersect: return "AddIntersect";
-    case manifold::Manifold::OpType::Subtract: return "Subtract";
+    case manifold::OpType::Add: return "Add";
+    case manifold::OpType::Intersect: return "AddIntersect";
+    case manifold::OpType::Subtract: return "Subtract";
     default: return "unknown";
   }
 }
