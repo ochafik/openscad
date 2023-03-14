@@ -348,7 +348,8 @@ function(add_cmdline_test TESTCMD_BASENAME)
 
     # Enable manifold for all tests except those marked as skipped
     if (NOT SCADFILE IN_LIST SCADFILES_FAILING_MANIFOLD
-        AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD)
+        AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD
+        AND NOT TESTCMD_BASENAME MATCHES "^fastcsg-.*")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
     endif()
     
