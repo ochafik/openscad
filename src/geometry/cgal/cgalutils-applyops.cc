@@ -11,7 +11,6 @@
 #include "progress.h"
 #include "CGALHybridPolyhedron.h"
 #ifdef ENABLE_MANIFOLD
-#include "ManifoldGeometry.h"
 #include "manifoldutils.h"
 #endif
 #include "node.h"
@@ -269,8 +268,9 @@ shared_ptr<const Geometry> applyMinkowski(const Geometry::Geometries& children)
 
         auto ps = dynamic_pointer_cast<const PolySet>(operands[i]);
         auto nef = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(operands[i]);
-        if (auto hybrid = dynamic_pointer_cast<const CGALHybridPolyhedron>(operands[i])) {
-          nef = CGALUtils::createNefPolyhedronFromHybrid(*hybrid);
+
+        if (!nef) {
+          nef = CGALUtils::getNefPolyhedronFromGeometry(operands[i]);
         }
 
         if (ps) CGALUtils::createPolyhedronFromPolySet(*ps, poly);
