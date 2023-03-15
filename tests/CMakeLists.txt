@@ -349,6 +349,8 @@ function(add_cmdline_test TESTCMD_BASENAME)
     # Enable manifold for all tests except those marked as skipped
     if (NOT SCADFILE IN_LIST SCADFILES_FAILING_MANIFOLD
         AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD
+        AND NOT TESTCMD_BASENAME MATCHES "^(stlexport|objexport)$"
+        AND NOT TESTCMD_BASENAME MATCHES "^openscad-viewoptions-.*"
         AND NOT TESTCMD_BASENAME MATCHES "^fastcsg-.*"
         AND NOT TESTCMD_BASENAME MATCHES "^remesh-.*")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
@@ -878,17 +880,11 @@ list(APPEND SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
 )
 
 list(APPEND SCADFILES_FAILING_MANIFOLD
-  # Empty output?
-  ${TEST_SCAD_DIR}/3D/issues/issue1138.scad
-  ${TEST_SCAD_DIR}/3D/features/projection-extrude-tests.scad
-
   # 2D not working
   ${TEST_SCAD_DIR}/2D/features/projection-cut-tests.scad
 
   # Crashes with weird return code
-  # ${TEST_SCAD_DIR}/3D/issues/issue666.scad
-  # ${TEST_SCAD_DIR}/3D/issues/issue911.scad
-  # ${TEST_SCAD_DIR}/3D/issues/issue1671.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1671.scad
   
   # Crashes with Input mesh not closed! / NoManifold
   ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad
