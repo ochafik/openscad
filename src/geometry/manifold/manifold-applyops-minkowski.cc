@@ -31,7 +31,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
   using Hull_kernel = CGAL::Epick;
   using Hull_Polyhedron = CGAL::Polyhedron_3<Hull_kernel>;
   using Hull_Mesh = CGAL::Surface_mesh<CGAL::Point_3<Hull_kernel>>;
-  using K = CGAL_Kernel3;
+  using Nef_kernel = CGAL_Kernel3;
   using Polyhedron = CGAL_Polyhedron;
   using Nef = CGAL_Nef_polyhedron3;
 
@@ -102,7 +102,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
       std::vector<Hull_kernel::Point_3> points[2];
       std::vector<Hull_kernel::Point_3> minkowski_points;
 
-      CGAL::Cartesian_converter<K, Hull_kernel> conv;
+      CGAL::Cartesian_converter<Nef_kernel, Hull_kernel> conv;
 
       for (size_t i = 0; i < P[0].size(); ++i) {
         for (size_t j = 0; j < P[1].size(); ++j) {
@@ -228,7 +228,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
         t.reset();
         operands[0] = N;
       } else {
-        operands[0] = shared_ptr<const Geometry>(new CGAL_Nef_polyhedron());
+        operands[0] = make_shared<const ManifoldGeometry>();
       }
     }
 
@@ -240,7 +240,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
     LOG(message_group::Warning, Location::NONE, "",
         "[manifold] Minkowski failed with error, falling back to Nef operation: %1$s\n", e.what());
 
-    auto N = shared_ptr<const Geometry>(applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI));
+    auto N = applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI);
     return N;
   }
 }
