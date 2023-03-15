@@ -747,7 +747,11 @@ if(ENABLE_MANIFOLD)
   # - Build w/ parallelism:
   #   ( mkdir -p build && cd build && cmake -DEXPERIMENTAL=1 -DENABLE_MANIFOLD=1 -DMANIFOLD_PAR=TBB .. && time make -j4 )
   #
-  
+
+  if(NOT DEFINED MANIFOLD_PAR)
+    set(MANIFOLD_PAR "TBB")
+  endif()
+
   add_subdirectory(submodules/manifold)
   target_link_libraries(OpenSCAD PRIVATE manifold)
   
