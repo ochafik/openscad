@@ -346,14 +346,16 @@ function(add_cmdline_test TESTCMD_BASENAME)
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=roof" "--enable=lazy-union" "--enable=textmetrics" "--enable=import-function")
     endif()
 
-    # Enable manifold for all tests except those marked as skipped
-    if (NOT SCADFILE IN_LIST SCADFILES_FAILING_MANIFOLD
-        AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD
-        AND NOT TESTCMD_BASENAME MATCHES "^(stlexport|objexport)$"
-        AND NOT TESTCMD_BASENAME MATCHES "^openscad-viewoptions-.*"
-        AND NOT TESTCMD_BASENAME MATCHES "^fastcsg-.*"
-        AND NOT TESTCMD_BASENAME MATCHES "^remesh-.*")
-      set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
+    if (ENABLE_MANIFOLD)
+      # Enable manifold for all tests except those marked as skipped
+      if (NOT SCADFILE IN_LIST SCADFILES_FAILING_MANIFOLD
+          AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD
+          AND NOT TESTCMD_BASENAME MATCHES "^(stlexport|objexport)$"
+          AND NOT TESTCMD_BASENAME MATCHES "^openscad-viewoptions-.*"
+          AND NOT TESTCMD_BASENAME MATCHES "^fastcsg-.*"
+          AND NOT TESTCMD_BASENAME MATCHES "^remesh-.*")
+        set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
+      endif()
     endif()
     
     # Enable fast-csg for all tests but those that have different expectations or fail for other reasons.
