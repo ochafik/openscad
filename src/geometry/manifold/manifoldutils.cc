@@ -9,6 +9,7 @@
 #include "PolySetUtils.h"
 #include "CGALHybridPolyhedron.h"
 #include <CGAL/convex_hull_3.h>
+#include <CGAL/Surface_mesh.h>
 
 // using namespace manifold;
 
@@ -37,6 +38,16 @@ const char* opTypeToString(manifold::OpType opType) {
     case manifold::OpType::Intersect: return "AddIntersect";
     case manifold::OpType::Subtract: return "Subtract";
     default: return "unknown";
+  }
+}
+
+void checkStatus(const manifold::Manifold &mani, const char* context) {
+  auto status = mani.Status();
+  if (status != manifold::Manifold::Error::NoError) {
+    LOG(message_group::Error, Location::NONE, "",
+        "[manifold] %1$s failed: %2$s", 
+        context,
+        ManifoldUtils::statusToString(status));
   }
 }
 
@@ -111,6 +122,40 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps) {
   return mesh;
 }
 
+template <class TriangleMesh>
+std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const TriangleMesh& tm)
+{
+  typedef typename TriangleMesh::Vertex_index vertex_descriptor;
+  typedef typename TriangleMesh::Face_index face_descriptor;
+
+  manifold::Mesh mesh;
+
+  mesh.vertPos.resize(tm.number_of_vertices());
+  for (vertex_descriptor vd : tm.vertices()){
+    const auto &v = tm.point(vd);
+    mesh.vertPos[vd] = glm::vec3((float) v.x(), (float) v.y(), (float) v.z());
+  }
+  
+  mesh.triVerts.resize(tm.number_of_faces());
+  for (auto& f : tm.faces()) {
+    size_t idx[3];
+    size_t i = 0;
+    for (vertex_descriptor vd : vertices_around_face(tm.halfedge(f), tm)) {
+      if (i >= 3) {
+        assert(false && "Mesh was not triangular!");
+        break;
+      }
+      idx[i++] = vd;
+    }
+    mesh.triVerts[f] = glm::ivec3(idx[0], idx[1], idx[2]);
+  }
+  auto mani = std::make_shared<manifold::Manifold>(std::move(mesh));
+  checkStatus(*mani, "Surface_mesh -> Manifold conversion");
+  return std::make_shared<ManifoldGeometry>(mani);
+}
+
+template std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>> &tm);
+
 std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps) {
 #if 1
   PolySet psq(ps);
@@ -159,13 +204,8 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet
 #else
   auto mesh = meshFromPolySet(ps);
 #endif
-  auto mani = std::make_shared<manifold::Manifold>(*mesh);
-  auto status = mani->Status();
-  if (status != manifold::Manifold::Error::NoError) {
-    LOG(message_group::Error, Location::NONE, "",
-        "[manifold] PolySet -> Manifold conversion failed: %1$s", 
-        ManifoldUtils::statusToString(status));
-  }
+  auto mani = std::make_shared<manifold::Manifold>(std::move(*mesh));
+  checkStatus(*mani, "PolySet -> Manifold conversion");
   return std::make_shared<ManifoldGeometry>(mani);
 }
 

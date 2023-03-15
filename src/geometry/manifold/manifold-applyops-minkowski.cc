@@ -28,9 +28,12 @@ namespace ManifoldUtils {
  */
 shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children)
 {
-  using K = CGAL::Epick;
-  using Polyhedron = CGAL::Polyhedron_3<K>;
-  using Nef = CGAL::Nef_polyhedron_3<K>;
+  using Hull_kernel = CGAL::Epick;
+  using Hull_Polyhedron = CGAL::Polyhedron_3<Hull_kernel>;
+  using Hull_Mesh = CGAL::Surface_mesh<CGAL::Point_3<Hull_kernel>>;
+  using K = CGAL_Kernel3;
+  using Polyhedron = CGAL_Polyhedron;
+  using Nef = CGAL_Nef_polyhedron3;
 
   auto polyhedronFromGeometry = [](const shared_ptr<const Geometry>& geom, bool *pIsConvexOut) -> shared_ptr<Polyhedron> 
   {
@@ -60,7 +63,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
       operands[1] = it->second;
 
       std::list<shared_ptr<Polyhedron>> P[2];
-      std::list<shared_ptr<Polyhedron>> result_parts;
+      std::list<shared_ptr<Hull_Polyhedron>> result_parts;
 
       for (size_t i = 0; i < 2; ++i) {
         bool is_convex;
@@ -76,12 +79,6 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
         } else {
           PRINTDB("Minkowski: child %d is nonconvex, decomposing...", i);
           auto decomposed_nef = make_shared<Nef>(*poly);
-
-          // if (auto mesh = hybrid->getMesh()) {
-          //   decomposed_nef = make_shared<Nef>(*mesh);
-          // } else if (auto nef = hybrid->getNefPolyhedron()) {
-          //   decomposed_nef = make_shared<Nef>(*nef);
-          // }
 
           t.start();
           CGAL::convex_decomposition_3(*decomposed_nef);
@@ -102,10 +99,10 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
         }
       }
 
-      std::vector<K::Point_3> points[2];
-      std::vector<K::Point_3> minkowski_points;
+      std::vector<Hull_kernel::Point_3> points[2];
+      std::vector<Hull_kernel::Point_3> minkowski_points;
 
-      // CGAL::Cartesian_converter<CGAL_HybridKernel3, K> conv;
+      CGAL::Cartesian_converter<K, Hull_kernel> conv;
 
       for (size_t i = 0; i < P[0].size(); ++i) {
         for (size_t j = 0; j < P[1].size(); ++j) {
@@ -121,8 +118,8 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
             points[k].reserve(poly->size_of_vertices());
 
             for (auto pi = poly->vertices_begin(); pi != poly->vertices_end(); ++pi) {
-              Polyhedron::Point_3 const& p = pi->point();
-              points[k].push_back(p);
+              const Polyhedron::Point_3 &p = pi->point();
+              points[k].push_back(conv(p));
             }
           }
 
@@ -139,7 +136,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
             continue;
           }
 
-          auto result = make_shared<Polyhedron>();
+          auto result = make_shared<Hull_Polyhedron>();
           t.stop();
           PRINTDB("Minkowski: Point cloud creation (%d ⨉ %d -> %d) took %f ms", points[0].size() % points[1].size() % minkowski_points.size() % (t.time() * 1000));
           t.reset();
@@ -148,7 +145,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
 
           CGAL::convex_hull_3(minkowski_points.begin(), minkowski_points.end(), *result);
 
-          std::vector<K::Point_3> strict_points;
+          std::vector<Hull_kernel::Point_3> strict_points;
           strict_points.reserve(minkowski_points.size());
 
           for (auto i = result->vertices_begin(); i != result->vertices_end(); ++i) {
@@ -199,11 +196,17 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
       if (it != std::next(children.begin())) operands[0].reset();
 
       auto partToGeom = [&](auto& poly) -> shared_ptr<const Geometry> {
-          auto mesh = make_shared<CGAL_HybridMesh>();
-          CGAL::copy_face_graph(*poly, *mesh);
-          CGALUtils::triangulateFaces(*mesh);
-          return make_shared<CGALHybridPolyhedron>(mesh);
-        };
+        auto mesh = make_shared<Hull_Mesh>();
+        CGAL::copy_face_graph(*poly, *mesh);
+        CGALUtils::triangulateFaces(*mesh);
+#if 1
+        return ManifoldUtils::createMutableManifoldFromSurfaceMesh(*mesh);
+#else
+        PolySet ps(3);
+        CGALUtils::createPolySetFromMesh(*mesh, ps);
+        return ManifoldUtils::createMutableManifoldFromPolySet(ps);
+#endif
+      };
 
       if (result_parts.size() == 1) {
         operands[0] = partToGeom(*result_parts.begin());
