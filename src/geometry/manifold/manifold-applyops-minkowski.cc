@@ -20,6 +20,12 @@
 #include <queue>
 #include <unordered_set>
 
+#ifdef PARALLELIZE_MANIFOLD_MINKOWSKI
+#include <thrust/transform.h>
+#include <thrust/functional.h>
+#include <thrust/execution_policy.h>
+#endif
+
 namespace ManifoldUtils {
 
 
@@ -31,6 +37,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
   using Hull_kernel = CGAL::Epick;
   using Hull_Polyhedron = CGAL::Polyhedron_3<Hull_kernel>;
   using Hull_Mesh = CGAL::Surface_mesh<CGAL::Point_3<Hull_kernel>>;
+  using Hull_Points = std::vector<Hull_kernel::Point_3>;
   using Nef_kernel = CGAL_Kernel3;
   using Polyhedron = CGAL_Polyhedron;
   using Nef = CGAL_Nef_polyhedron3;
@@ -58,12 +65,24 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
   auto it = children.begin();
   t_tot.start();
   shared_ptr<const Geometry> operands[2] = {it->second, shared_ptr<const Geometry>()};
+
+  CGAL::Cartesian_converter<Nef_kernel, Hull_kernel> conv;
+  auto getHullPoints = [&](const Polyhedron &poly) {
+    std::vector<Hull_kernel::Point_3> out;
+    out.reserve(poly.size_of_vertices());
+    for (auto pi = poly.vertices_begin(); pi != poly.vertices_end(); ++pi) {
+      out.push_back(conv(pi->point()));
+    }
+    return std::move(out);
+  };
+
   try {
+    // Note: we could parallelize more, e.g. compute all decompositions ahead of time instead of doing them 2 by 2,
+    // but this could use substantially more memory.
     while (++it != children.end()) {
       operands[1] = it->second;
 
-      std::list<shared_ptr<Polyhedron>> P[2];
-      std::list<shared_ptr<Hull_Polyhedron>> result_parts;
+      std::list<Hull_Points> part_points[2];
 
       for (size_t i = 0; i < 2; ++i) {
         bool is_convex;
@@ -75,161 +94,148 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
 
         if (is_convex) {
           PRINTDB("Minkowski: child %d is convex and %s", i % (dynamic_pointer_cast<const PolySet>(operands[i])?"PolySet":"Hybrid"));
-          P[i].push_back(poly);
+          part_points[i].emplace_back(getHullPoints(*poly));
         } else {
           PRINTDB("Minkowski: child %d is nonconvex, decomposing...", i);
-          auto decomposed_nef = make_shared<Nef>(*poly);
+          Nef decomposed_nef(*poly);
 
           t.start();
-          CGAL::convex_decomposition_3(*decomposed_nef);
+          CGAL::convex_decomposition_3(decomposed_nef);
 
           // the first volume is the outer volume, which ignored in the decomposition
-          Nef::Volume_const_iterator ci = ++decomposed_nef->volumes_begin();
-          for (; ci != decomposed_nef->volumes_end(); ++ci) {
+          Nef::Volume_const_iterator ci = ++decomposed_nef.volumes_begin();
+          for (; ci != decomposed_nef.volumes_end(); ++ci) {
             if (ci->mark()) {
-              auto poly = make_shared<Polyhedron>();
-              decomposed_nef->convert_inner_shell_to_polyhedron(ci->shells_begin(), *poly);
-              P[i].push_back(poly);
+              Polyhedron poly;
+              decomposed_nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), poly);
+              part_points[i].emplace_back(getHullPoints(poly));
             }
           }
 
-          PRINTDB("Minkowski: decomposed into %d convex parts", P[i].size());
+          PRINTDB("Minkowski: decomposed into %d convex parts", part_points[i].size());
           t.stop();
           PRINTDB("Minkowski: decomposition took %f s", t.time());
         }
       }
 
-      std::vector<Hull_kernel::Point_3> points[2];
       std::vector<Hull_kernel::Point_3> minkowski_points;
+      
+      auto combineParts = [&](const Hull_Points &points0, const Hull_Points &points1) -> shared_ptr<const ManifoldGeometry> {
+        CGAL::Timer t;
 
-      CGAL::Cartesian_converter<Nef_kernel, Hull_kernel> conv;
+        t.start();
+        std::vector<Hull_kernel::Point_3> minkowski_points;
 
-      for (size_t i = 0; i < P[0].size(); ++i) {
-        for (size_t j = 0; j < P[1].size(); ++j) {
-          t.start();
-          points[0].clear();
-          points[1].clear();
-
-          for (int k = 0; k < 2; ++k) {
-            auto it = P[k].begin();
-            std::advance(it, k == 0?i:j);
-
-            auto& poly = *it;
-            points[k].reserve(poly->size_of_vertices());
-
-            for (auto pi = poly->vertices_begin(); pi != poly->vertices_end(); ++pi) {
-              const Polyhedron::Point_3 &p = pi->point();
-              points[k].push_back(conv(p));
-            }
+        minkowski_points.reserve(points0.size() * points1.size());
+        for (size_t i = 0; i < points0.size(); ++i) {
+          for (size_t j = 0; j < points1.size(); ++j) {
+            minkowski_points.push_back(points0[i] + (points1[j] - CGAL::ORIGIN));
           }
+        }
 
-          minkowski_points.clear();
-          minkowski_points.reserve(points[0].size() * points[1].size());
-          for (size_t i = 0; i < points[0].size(); ++i) {
-            for (size_t j = 0; j < points[1].size(); ++j) {
-              minkowski_points.push_back(points[0][i] + (points[1][j] - CGAL::ORIGIN));
-            }
-          }
-
-          if (minkowski_points.size() <= 3) {
-            t.stop();
-            continue;
-          }
-
-          auto result = make_shared<Hull_Polyhedron>();
+        if (minkowski_points.size() <= 3) {
           t.stop();
-          PRINTDB("Minkowski: Point cloud creation (%d ⨉ %d -> %d) took %f ms", points[0].size() % points[1].size() % minkowski_points.size() % (t.time() * 1000));
-          t.reset();
+          return make_shared<const ManifoldGeometry>();
+        }
 
-          t.start();
+        t.stop();
+        PRINTDB("Minkowski: Point cloud creation (%d ⨉ %d -> %d) took %f ms", points0.size() % points1.size() % minkowski_points.size() % (t.time() * 1000));
+        t.reset();
 
-          CGAL::convex_hull_3(minkowski_points.begin(), minkowski_points.end(), *result);
+        t.start();
 
-          std::vector<Hull_kernel::Point_3> strict_points;
-          strict_points.reserve(minkowski_points.size());
+        Hull_Mesh mesh;
+        CGAL::convex_hull_3(minkowski_points.begin(), minkowski_points.end(), mesh);
 
-          for (auto i = result->vertices_begin(); i != result->vertices_end(); ++i) {
-            auto& p = i->point();
+        std::vector<Hull_kernel::Point_3> strict_points;
+        strict_points.reserve(minkowski_points.size());
 
-            auto h = i->halfedge();
-            auto e = h;
-            bool collinear = false;
-            bool coplanar = true;
+        for (auto v : mesh.vertices()) {
+          auto &p = mesh.point(v);
 
-            do {
-              auto& q = h->opposite()->vertex()->point();
-              if (coplanar && !CGAL::coplanar(p, q,
-                                              h->next_on_vertex()->opposite()->vertex()->point(),
-                                              h->next_on_vertex()->next_on_vertex()->opposite()->vertex()->point())) {
-                coplanar = false;
+          auto h = mesh.halfedge(v);
+          auto e = h;
+          bool collinear = false;
+          bool coplanar = true;
+
+          do {
+            auto &q = mesh.point(mesh.target(mesh.opposite(h)));
+            if (coplanar && !CGAL::coplanar(p, q,
+                                            mesh.point(mesh.target(mesh.next(h))),
+                                            mesh.point(mesh.target(mesh.next(mesh.opposite(mesh.next(h))))))) {
+              coplanar = false;
+            }
+
+
+            for (auto j = mesh.opposite(mesh.next(h));
+                  j != h && !collinear && !coplanar;
+                  j = mesh.opposite(mesh.next(j))) {
+
+              auto& r = mesh.point(mesh.target(mesh.opposite(j)));
+              if (CGAL::collinear(p, q, r)) {
+                collinear = true;
               }
+            }
 
+            h = mesh.opposite(mesh.next(h));
+          } while (h != e && !collinear);
 
-              for (auto j = h->next_on_vertex();
-                   j != h && !collinear && !coplanar;
-                   j = j->next_on_vertex()) {
+          if (!collinear && !coplanar) strict_points.push_back(p);
+        }
 
-                auto& r = j->opposite()->vertex()->point();
-                if (CGAL::collinear(p, q, r)) {
-                  collinear = true;
-                }
-              }
+        mesh.clear();
+        CGAL::convex_hull_3(strict_points.begin(), strict_points.end(), mesh);
 
-              h = h->next_on_vertex();
-            } while (h != e && !collinear);
+        t.stop();
+        PRINTDB("Minkowski: Computing convex hull took %f s", t.time());
+        t.reset();
 
-            if (!collinear && !coplanar) strict_points.push_back(p);
-          }
+        CGALUtils::triangulateFaces(mesh);
+        return ManifoldUtils::createMutableManifoldFromSurfaceMesh(mesh);
+      };
 
-          result->clear();
-          CGAL::convex_hull_3(strict_points.begin(), strict_points.end(), *result);
-
-
-          t.stop();
-          PRINTDB("Minkowski: Computing convex hull took %f s", t.time());
-          t.reset();
-
-          result_parts.push_back(result);
+#ifdef PARALLELIZE_MANIFOLD_MINKOWSKI
+      std::vector<std::pair<const Hull_Points*, const Hull_Points*>> points_pairs;
+      for (const auto &points0 : part_points[0]) {
+        for (const auto &points1 : part_points[1]) {
+          points_pairs.emplace_back(&points0, &points1);
         }
       }
+      std::vector<shared_ptr<const ManifoldGeometry>> result_parts(points_pairs.size());
+
+      thrust::transform(points_pairs.begin(), points_pairs.end(), result_parts.begin(), [&](const auto &pair) {
+        return combineParts(*pair.first, *pair.second);
+      });
+#else
+      std::vector<shared_ptr<const ManifoldGeometry>> result_parts;
+      result_parts.reserve(part_points[0].size() * part_points[1].size());
+
+      for (const auto &points0 : part_points[0]) {
+        for (const auto &points1 : part_points[1]) {
+          result_parts.push_back(combineParts(points0, points1));
+        }
+      }
+#endif
 
       if (it != std::next(children.begin())) operands[0].reset();
 
-      auto partToGeom = [&](auto& poly) -> shared_ptr<const Geometry> {
-        auto mesh = make_shared<Hull_Mesh>();
-        CGAL::copy_face_graph(*poly, *mesh);
-        CGALUtils::triangulateFaces(*mesh);
-#if 1
-        return ManifoldUtils::createMutableManifoldFromSurfaceMesh(*mesh);
-#else
-        PolySet ps(3);
-        CGALUtils::createPolySetFromMesh(*mesh, ps);
-        return ManifoldUtils::createMutableManifoldFromPolySet(ps);
-#endif
-      };
-
-      if (result_parts.size() == 1) {
-        operands[0] = partToGeom(*result_parts.begin());
-      } else if (!result_parts.empty()) {
-        t.start();
-        PRINTDB("Minkowski: Computing union of %d parts", result_parts.size());
-        Geometry::Geometries fake_children;
-        for (const auto& part : result_parts) {
-          fake_children.push_back(std::make_pair(std::shared_ptr<const AbstractNode>(),
-                                                 partToGeom(part)));
-        }
-        auto N = ManifoldUtils::applyOperator3DManifold(fake_children, OpenSCADOperator::UNION);
-        
-        // FIXME: This should really never throw.
-        // Assert once we figured out what went wrong with issue #1069?
-        if (!N) throw 0;
-        t.stop();
-        PRINTDB("Minkowski: Union done: %f s", t.time());
-        t.reset();
-        operands[0] = N;
-      } else {
-        operands[0] = make_shared<const ManifoldGeometry>();
+      t.start();
+      PRINTDB("Minkowski: Computing union of %d parts", result_parts.size());
+      Geometry::Geometries fake_children;
+      for (const auto& part : result_parts) {
+        fake_children.push_back(std::make_pair(std::shared_ptr<const AbstractNode>(),
+                                                part));
       }
+      auto N = ManifoldUtils::applyOperator3DManifold(fake_children, OpenSCADOperator::UNION);
+        
+      // FIXME: This should really never throw.
+      // Assert once we figured out what went wrong with issue #1069?
+      if (!N) throw 0;
+      t.stop();
+      PRINTDB("Minkowski: Union done: %f s", t.time());
+      t.reset();
+
+      operands[0] = N;
     }
 
     t_tot.stop();
@@ -240,8 +246,12 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
     LOG(message_group::Warning, Location::NONE, "",
         "[manifold] Minkowski failed with error, falling back to Nef operation: %1$s\n", e.what());
 
-    auto N = applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI);
-    return N;
+    return ManifoldUtils::applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI);
+  } catch (...) {
+    LOG(message_group::Warning, Location::NONE, "",
+        "[manifold] Minkowski hard-crashed, falling back to Nef operation.");
+
+    return ManifoldUtils::applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI);
   }
 }
 

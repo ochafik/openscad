@@ -158,7 +158,14 @@ void ManifoldGeometry::operator-=(ManifoldGeometry& other) {
 }
 
 void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
-  assert(false && "not implemented");
+  auto lhs = shared_ptr<CGAL_Nef_polyhedron>(CGALUtils::createNefPolyhedronFromPolySet(*this->toPolySet()));
+  auto rhs = shared_ptr<CGAL_Nef_polyhedron>(CGALUtils::createNefPolyhedronFromPolySet(*other.toPolySet()));
+  lhs->minkowski(*rhs);
+
+  auto ps = CGALUtils::getGeometryAsPolySet(lhs);
+  this->object = ps
+      ? make_shared<manifold::Manifold>(std::move(*ManifoldUtils::meshFromPolySet(*ps)))
+      : make_shared<manifold::Manifold>();
 }
 
 void ManifoldGeometry::transform(const Transform3d& mat) {

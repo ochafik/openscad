@@ -24,7 +24,7 @@ Location getLocation(const std::shared_ptr<const AbstractNode>& node)
  */
 shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op)
 {
-  shared_ptr<ManifoldGeometry> N;
+  auto N = make_shared<ManifoldGeometry>();
 
   // assert(op != OpenSCADOperator::UNION && "use applyUnion3D() instead of applyOperator3D()");
   bool foundFirst = false;
