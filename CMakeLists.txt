@@ -739,17 +739,15 @@ set(MANIFOLD_SOURCES
 )
 
 if(ENABLE_MANIFOLD)
-  #
   # This needs the following:
   # - tbb or libomp dependency
   # - Apply local patch:
   #   ( cd submodules/manifold/ && git submodule update --init --recursive && git apply thrust.diff )
   # - Build w/ parallelism:
   #   ( mkdir -p build && cd build && cmake -DEXPERIMENTAL=1 -DENABLE_MANIFOLD=1 -DMANIFOLD_PAR=TBB .. && time make -j4 )
-  #
 
   if(NOT DEFINED MANIFOLD_PAR)
-    set(MANIFOLD_PAR "TBB")
+    message(STATUS "No parallel backend selected for Manifold. Please set MANIFOLD_PAR for multithreading.")
   endif()
 
   add_subdirectory(submodules/manifold)
