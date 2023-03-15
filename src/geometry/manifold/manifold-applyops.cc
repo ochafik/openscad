@@ -32,20 +32,24 @@ shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& c
   // try {
     for (const auto& item : children) {
       auto chN = item.second ? createMutableManifoldFromGeometry(item.second) : nullptr;
-      // Initialize N with first expected geometric object
-      if (!foundFirst) {
-        if (chN) {
-          N = chN;
-        } else { // first child geometry might be empty/null
-          N = nullptr;
-        }
-        foundFirst = true;
-        continue;
-      }
 
       // Intersecting something with nothing results in nothing
       if (!chN || chN->isEmpty()) {
-        if (op == OpenSCADOperator::INTERSECTION) N = nullptr;
+        if (op == OpenSCADOperator::INTERSECTION) {
+          N = nullptr;
+          break;
+        }
+        if (op == OpenSCADOperator::DIFFERENCE && !foundFirst) {
+          N = nullptr;
+          break;
+        }
+        continue;
+      }
+
+      // Initialize N with first expected geometric object
+      if (!foundFirst) {
+        N = chN;
+        foundFirst = true;
         continue;
       }
 

@@ -24,7 +24,10 @@ size_t ManifoldGeometry::numVertices() const {
   if (!this->object) return 0;
   return this->object->NumVert();
 }
-// bool ManifoldGeometry::isManifold() const {}
+bool ManifoldGeometry::isManifold() const {
+  if (!this->object) return true;
+  return this->object->Status() == manifold::Manifold::Error::NoError;
+}
 // bool ManifoldGeometry::isValid() const {}
 // void clear();
 

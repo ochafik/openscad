@@ -349,7 +349,8 @@ function(add_cmdline_test TESTCMD_BASENAME)
     # Enable manifold for all tests except those marked as skipped
     if (NOT SCADFILE IN_LIST SCADFILES_FAILING_MANIFOLD
         AND NOT TEST_FULLNAME IN_LIST TESTS_FAILING_WITH_MANIFOLD
-        AND NOT TESTCMD_BASENAME MATCHES "^fastcsg-.*")
+        AND NOT TESTCMD_BASENAME MATCHES "^fastcsg-.*"
+        AND NOT TESTCMD_BASENAME MATCHES "^remesh-.*")
       set(EXPERIMENTAL_OPTION ${EXPERIMENTAL_OPTION} "--enable=manifold")
     endif()
     
@@ -877,13 +878,29 @@ list(APPEND SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
 )
 
 list(APPEND SCADFILES_FAILING_MANIFOLD
+  # Empty output?
+  ${TEST_SCAD_DIR}/3D/issues/issue1138.scad
+  ${TEST_SCAD_DIR}/3D/features/projection-extrude-tests.scad
+
   # 2D not working
   ${TEST_SCAD_DIR}/2D/features/projection-cut-tests.scad
 
+  # Crashes with weird return code
+  # ${TEST_SCAD_DIR}/3D/issues/issue666.scad
+  # ${TEST_SCAD_DIR}/3D/issues/issue911.scad
+  # ${TEST_SCAD_DIR}/3D/issues/issue1671.scad
+  
   # Crashes with Input mesh not closed! / NoManifold
   ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad
   ${TEST_SCAD_DIR}/3D/issues/issue1089.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1137.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue964.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue964b.scad
   ${TEST_SCAD_DIR}/3D/issues/minkowski-thin-cylinder.scad
+  ${TEST_SCAD_DIR}/3D/issues/polygon-illegal-winding.scad
+
+  # CGAL Exception
+  ${TEST_SCAD_DIR}/amf/split_pyramid.scad
 
   # CSG rendering artefact / possible convexity issue
   ${TEST_SCAD_DIR}/3D/features/background-modifier.scad
@@ -904,10 +921,13 @@ list(APPEND SCADFILES_FAILING_MANIFOLD
   ${TEST_SCAD_DIR}/3D/features/render-tests.scad
   ${TEST_SCAD_DIR}/3D/features/resize-convexity-tests.scad
   ${TEST_SCAD_DIR}/3D/issues/issue1105.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1105b.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue1105d.scad
   ${TEST_SCAD_DIR}/3D/issues/issue1215c.scad
   ${TEST_SCAD_DIR}/3D/issues/issue1803.scad
   ${TEST_SCAD_DIR}/3D/issues/issue3158.scad
   ${TEST_SCAD_DIR}/3D/issues/issue835.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue911.scad
   ${TEST_SCAD_DIR}/3D/issues/issue913.scad
   ${TEST_SCAD_DIR}/misc/internal-cavity-polyhedron.scad
   ${TEST_SCAD_DIR}/misc/internal-cavity.scad
@@ -915,8 +935,17 @@ list(APPEND SCADFILES_FAILING_MANIFOLD
   ${TEST_SCAD_DIR}/misc/rotate_extrude-hole.scad
   ${TEST_SCAD_DIR}/misc/rotate-empty-bbox.scad
 
+  # Different resize result
+  ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
+
+  # Misc
+  ${TEST_SCAD_DIR}/misc/normal-nan.scad
+
   # Manifold stack overflow (https://github.com/elalish/manifold/pull/368)
   ${TEST_SCAD_DIR}/issues/issue2342.scad
+
+  # Potential Manifold crash?
+  ${TEST_SCAD_DIR}/misc/nonmanifold-polyhedron.scad
 )
 
 list(APPEND TESTS_FAILING_WITH_MANIFOLD

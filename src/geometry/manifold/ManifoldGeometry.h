@@ -23,7 +23,7 @@ public:
   [[nodiscard]] bool isEmpty() const override;
   [[nodiscard]] size_t numFacets() const override;
   [[nodiscard]] size_t numVertices() const;
-  // [[nodiscard]] bool isManifold() const;
+  [[nodiscard]] bool isManifold() const;
   // [[nodiscard]] bool isValid() const;
   // void clear();
 
