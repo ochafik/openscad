@@ -155,9 +155,10 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const Tri
 }
 
 template std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>> &tm);
+template std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const CGAL_DoubleMesh &tm);
 
-std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps) {
-#if 1
+std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet& ps)
+{
   PolySet psq(ps);
   std::vector<Vector3d> points3d;
   psq.quantizeVertices(&points3d);
@@ -178,8 +179,6 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet
     // Apply hull
     CGAL::Surface_mesh<CGAL::Point_3<K>> r;
     CGAL::convex_hull_3(points.begin(), points.end(), r);
-    // auto r_exact = make_shared<CGAL_HybridMesh>();
-    // copyMesh(r, *r_exact);
     CGALUtils::copyMesh(r, m);
   } else {
     CGALUtils::createMeshFromPolySet(ps_tri, m);
@@ -193,27 +192,12 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet
     }
   }
 
-  PolySet pps(3, ps.convexValue());
-  // TODO: create method to build a manifold::Mesh from a CGAL::Surface_mesh
-  CGALUtils::createPolySetFromMesh(m, pps);
-  auto mesh = meshFromPolySet(pps);
-#elif 0
-  // Here we get orientation and other tweaks for free:
-  auto pps = CGALUtils::createHybridPolyhedronFromPolySet(ps)->toPolySet();
-  auto mesh = meshFromPolySet(*pps);
-#else
-  auto mesh = meshFromPolySet(ps);
-#endif
-  auto mani = std::make_shared<manifold::Manifold>(std::move(*mesh));
-  checkStatus(*mani, "PolySet -> Manifold conversion");
-  return std::make_shared<ManifoldGeometry>(mani);
+  return createMutableManifoldFromSurfaceMesh(m);
 }
 
 std::shared_ptr<ManifoldGeometry> createMutableManifoldFromGeometry(const std::shared_ptr<const Geometry>& geom) {
   if (auto mani = dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    auto result = std::make_shared<ManifoldGeometry>(*mani);
-    // result->transform(transform);
-    return result;
+    return std::make_shared<ManifoldGeometry>(*mani);
   }
 
   auto ps = CGALUtils::getGeometryAsPolySet(geom);
