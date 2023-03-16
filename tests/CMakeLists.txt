@@ -936,9 +936,6 @@ list(APPEND SCADFILES_FAILING_MANIFOLD
   # Misc
   ${TEST_SCAD_DIR}/misc/normal-nan.scad
 
-  # Manifold stack overflow (https://github.com/elalish/manifold/pull/368)
-  ${TEST_SCAD_DIR}/issues/issue2342.scad
-
   # Potential Manifold crash?
   ${TEST_SCAD_DIR}/misc/nonmanifold-polyhedron.scad
 )
