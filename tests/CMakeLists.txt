@@ -931,7 +931,7 @@ list(APPEND SCADFILES_FAILING_MANIFOLD
   ${TEST_SCAD_DIR}/misc/rotate-empty-bbox.scad
 
   # Different resize result
-  # ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
+  ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
 
   # Misc
   ${TEST_SCAD_DIR}/misc/normal-nan.scad
