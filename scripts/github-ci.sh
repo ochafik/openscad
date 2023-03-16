@@ -10,14 +10,6 @@ BUILDDIR=b
 GCOVRDIR=c
 TESTDIR=tests
 
-CMAKE_ARGS=(
-  -DCMAKE_BUILD_TYPE=Release
-  -DEXPERIMENTAL=ON
-  -DPROFILE=ON
-  -DENABLE_MANIFOLD=ON
-  -DMANIFOLD_PAR=TBB
-)
-
 do_build() {
 	echo "do_build()"
 
@@ -25,7 +17,7 @@ do_build() {
 	mkdir "$BUILDDIR"
 	(
 		cd "$BUILDDIR"
-		cmake "${CMAKE_ARGS[@]}" .. && make $PARALLEL_MAKE
+		cmake -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DPROFILE=ON .. && make $PARALLEL_MAKE
 	)
 	if [[ $? != 0 ]]; then
 		echo "Build failure"

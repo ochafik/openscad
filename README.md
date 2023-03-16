@@ -233,7 +233,7 @@ For a 32-bit Windows cross-build, replace 64 with 32 in the above instructions.
 
 ### Compilation
 
-First, run `mkdir build && cd build && cmake .. -DEXPERIMENTAL=1 -DENABLE_MANIFOLD=1 -DMANIFOLD_PAR=TBB` to generate a Makefile.
+First, run `mkdir build && cd build && cmake .. -DEXPERIMENTAL=1` to generate a Makefile.
 
 Then run `make -j`. Finally, on Linux you might run `make install` as root.
 

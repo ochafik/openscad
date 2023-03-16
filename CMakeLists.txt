@@ -22,6 +22,9 @@ endif()
 if(POLICY CMP0082) # Install rules from add_subdirectory() calls are interleaved with those in caller.
   cmake_policy(SET CMP0082 NEW)
 endif()
+if(POLICY CMP0077) # Let parent project set child project options (used to skip python lookup from manifold & force TBB)
+  cmake_policy(SET CMP0079 NEW)
+endif()
 
 include("cmake/Modules/openscad_version.cmake")
 project(OpenSCAD
@@ -749,9 +752,13 @@ if(ENABLE_TBB AND ENABLE_MANIFOLD)
 endif()
 
 if(ENABLE_MANIFOLD)
+
   if(NOT DEFINED MANIFOLD_PAR)
-    message(STATUS "No parallel backend selected for Manifold. Please set MANIFOLD_PAR for multithreading.")
+    set(MANIFOLD_PAR TBB CACHE STRING "Parallel backend, either \"TBB\" or \"OpenMP\" or \"NONE\"" FORCE)
   endif()
+
+  set(PYBIND11_FINDPYTHON OFF)
+  set(MANIFOLD_PYBIND OFF)
 
   add_subdirectory(submodules/manifold)
   target_link_libraries(OpenSCAD PRIVATE manifold)

@@ -127,7 +127,7 @@ case $OS in
 esac
 
 if [ "`echo $* | grep snapshot`" ]; then
-  CMAKE_CONFIG="$CMAKE_CONFIG -DSNAPSHOT=ON -DEXPERIMENTAL=ON -DENABLE_MANIFOLD=ON -DMANIFOLD_PAR=TBB"
+  CMAKE_CONFIG="$CMAKE_CONFIG -DSNAPSHOT=ON -DEXPERIMENTAL=ON"
   BUILD_TYPE="Release"
   OPENSCAD_COMMIT=`git log -1 --pretty=format:"%h"`
 else
