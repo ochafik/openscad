@@ -626,15 +626,7 @@ Response GeometryEvaluator::visit(State& state, const LeafNode& node)
         }
         geom.reset(geometry);
       } else {
-#ifdef ENABLE_MANIFOLD
-        const auto *ps = dynamic_cast<const PolySet *>(geometry);
-        if (Feature::ExperimentalManifold.is_enabled() && ps) {
-          geom = ManifoldUtils::createMutableManifoldFromPolySet(*ps);
-        } else 
-#endif
-        {
-          geom.reset(geometry);
-        }
+        geom.reset(geometry);
       }
     } else geom = smartCacheGet(node, state.preferNef());
     addToParent(state, node, geom);

@@ -51,41 +51,6 @@ void checkStatus(const manifold::Manifold &mani, const char* context) {
   }
 }
 
-// template <class TriangleMesh>
-// std::shared_ptr<manifold::Mesh> meshFromSurfaceMesh(const TriangleMesh& sm)
-// {
-//   auto mesh = make_shared<manifold::Mesh>();
-//   mesh->vertPos.resize(sm.number_of_vertices());
-//   mesh->triVerts.resize(sm.number_of_faces());
-
-//   int vidx = -1;
-//   for (auto vert : sm.vertices()) {
-//     vidx++;
-//     auto& v = sm.point(vert);
-//     double x = CGAL::to_double(v.x());
-//     double y = CGAL::to_double(v.y());
-//     double z = CGAL::to_double(v.z());
-//     mesh->vertPos[vidx] = glm::vec3((float) x, (float) y, (float) z);
-//   }
-  
-//   int fidx = -1;
-//   for (auto& f : sm.faces()) {
-//     fidx++;
-//     CGAL::Vertex_around_target_circulator<TriangleMesh> vit(sm.halfedge(f), sm), vend(vit);
-//     auto i0 = *(vit++);
-//     if (vit == vend) continue; // Only 1 vertex
-//     auto i1 = *(vit++);
-//     if (vit == vend) continue; // Only 2 vertices
-//     auto i2 = *(vit++);
-//     if (vit != vend) continue; // Mode than 3 vertices
-    
-//     mesh->triVerts[fidx++] = glm::ivec3(i0, i1, i2);
-//   }
-//   return mesh;
-// }
-
-// template std::shared_ptr<manifold::Mesh> meshFromSurfaceMesh(const CGAL_DoubleMesh& mesh);
-
 std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps) {
   IndexedMesh im;
   {
@@ -117,7 +82,7 @@ std::shared_ptr<manifold::Mesh> meshFromPolySet(const PolySet& ps) {
            i1 >= 0 && i1 < vertexCount &&
            i2 >= 0 && i2 < vertexCount);
     assert(i0 != i1 && i0 != i2 && i1 != i2);
-    mesh->triVerts[i] = glm::ivec3(i0, i1, i2);
+    mesh->triVerts[i] = {i0, i1, i2};
   }
   return mesh;
 }
@@ -136,18 +101,18 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const Tri
     mesh.vertPos[vd] = glm::vec3((float) v.x(), (float) v.y(), (float) v.z());
   }
   
-  mesh.triVerts.resize(tm.number_of_faces());
+  mesh.triVerts.reserve(tm.number_of_faces());
   for (auto& f : tm.faces()) {
-    size_t idx[3];
-    size_t i = 0;
-    for (vertex_descriptor vd : vertices_around_face(tm.halfedge(f), tm)) {
-      if (i >= 3) {
-        assert(false && "Mesh was not triangular!");
-        break;
-      }
-      idx[i++] = vd;
-    }
-    mesh.triVerts[f] = glm::ivec3(idx[0], idx[1], idx[2]);
+    CGAL::Vertex_around_target_circulator<TriangleMesh> vit(tm.halfedge(f), tm), vend(vit);
+    auto i0 = *(vit++);
+    // TODO: log errors
+    if (vit == vend) continue; // Only 1 vertex
+    auto i1 = *(vit++);
+    if (vit == vend) continue; // Only 2 vertices
+    auto i2 = *(vit++);
+    if (vit != vend) continue; // Mode than 3 vertices
+
+    mesh.triVerts.emplace_back(i0, i1, i2);
   }
   auto mani = std::make_shared<manifold::Manifold>(std::move(mesh));
   checkStatus(*mani, "Surface_mesh -> Manifold conversion");
