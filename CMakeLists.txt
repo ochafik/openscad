@@ -673,6 +673,7 @@ set(CORE_SOURCES
   src/io/import_3mf.cc
   src/io/import_amf.cc
   src/io/import_stl.cc
+  src/io/import_obj.cc
   src/io/import_off.cc
   src/io/import_svg.cc
   src/io/import_json.cc
@@ -818,6 +819,7 @@ set(GUI_SOURCES
   src/gui/Editor.cc
   src/gui/ErrorLog.cc
   src/gui/EventFilter.h
+  src/gui/ExportPdfDialog.cc
   src/gui/FontListDialog.cc
   src/gui/FontListTableView.cc
   src/gui/InitConfigurator.cc
