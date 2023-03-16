@@ -103,16 +103,20 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const Tri
   
   mesh.triVerts.reserve(tm.number_of_faces());
   for (auto& f : tm.faces()) {
-    CGAL::Vertex_around_target_circulator<TriangleMesh> vit(tm.halfedge(f), tm), vend(vit);
-    auto i0 = *(vit++);
-    // TODO: log errors
-    if (vit == vend) continue; // Only 1 vertex
-    auto i1 = *(vit++);
-    if (vit == vend) continue; // Only 2 vertices
-    auto i2 = *(vit++);
-    if (vit != vend) continue; // Mode than 3 vertices
-
-    mesh.triVerts.emplace_back(i0, i1, i2);
+    size_t idx[3];
+    size_t i = 0;
+    for (vertex_descriptor vd : vertices_around_face(tm.halfedge(f), tm)) {
+      if (i >= 3) {
+        assert(false && "Mesh was not triangular!");
+        break;
+      }
+      idx[i++] = vd;
+    }
+    if (i < 3) {
+      assert(false && "Mesh was not triangular!");
+      continue;
+    }
+    mesh.triVerts.emplace_back(idx[0], idx[1], idx[2]);
   }
   auto mani = std::make_shared<manifold::Manifold>(std::move(mesh));
   checkStatus(*mani, "Surface_mesh -> Manifold conversion");
