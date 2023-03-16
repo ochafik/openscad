@@ -52,6 +52,6 @@ sudo apt-get purge -qq libzip4 $(apt-cache rdepends --installed libzip4 | tail -
 sudo apt-get install -qq $PACKAGES1 $PACKAGES2 $PACKAGES3 $PACKAGES4 $PACKAGES5
 
 if [[ "$DIST" == "bionic" ]]; then
-    update-alternatives --remove python /usr/bin/python2
-    update-alternatives --install /usr/bin/python python /usr/bin/python3 10
+    sudo update-alternatives --remove python /usr/bin/python2
+    sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 fi
