@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PARALLEL_USE_TBB
+#ifdef ENABLE_TBB
 #include <thrust/transform.h>
 #include <thrust/functional.h>
 #include <thrust/execution_policy.h>
@@ -12,7 +12,7 @@ void parallelizable_transform(
   OutputIterator out, 
   const Operation &op)
 {
-#ifdef PARALLEL_USE_TBB
+#ifdef ENABLE_TBB
   if (!getenv("OPENSCAD_NO_PARALLEL")) {
     thrust::transform(begin1, end1, out, op);
   }
@@ -30,7 +30,7 @@ void parallelizable_cross_product_transform(
   OutputIterator out, 
   const Operation &op)
 {
-#ifdef PARALLEL_USE_TBB
+#ifdef ENABLE_TBB
   if (!getenv("OPENSCAD_NO_PARALLEL")) {
     struct ReferencePair {
       decltype(*cont1.begin()) first;

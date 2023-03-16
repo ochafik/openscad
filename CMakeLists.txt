@@ -48,6 +48,7 @@ option(ENABLE_CAIRO "Enable support for cairo vector graphics library." ON)
 option(ENABLE_SPNAV "Enable support for libspnav input driver." ON)
 option(ENABLE_HIDAPI "Enable support for HIDAPI input driver." ON)
 option(ENABLE_MANIFOLD "Enable support for Manifold library for CSG." ON)
+option(ENABLE_TBB "Enable support for oneAPI Threading Building Blocks." ON)
 option(ALLOW_BUNDLED_HIDAPI "Allow usage of bundled HIDAPI library (Windows only)." OFF)
 include(CMakeDependentOption)
 cmake_dependent_option(APPLE_UNIX "Build OpenSCAD in Unix mode in MacOS X instead of an Apple Bundle" OFF "APPLE" OFF)
@@ -738,24 +739,19 @@ set(MANIFOLD_SOURCES
   src/geometry/manifold/manifold-applyops-minkowski.cc
 )
 
-if(ENABLE_MANIFOLD)
-  # This needs the following:
-  # - tbb or libomp dependency
-  # - Apply local patch:
-  #   ( cd submodules/manifold/ && git submodule update --init --recursive && git apply thrust.diff )
-  # - Build w/ parallelism:
-  #   ( mkdir -p build && cd build && cmake -DEXPERIMENTAL=1 -DENABLE_MANIFOLD=1 -DMANIFOLD_PAR=TBB .. && time make -j4 )
+if(ENABLE_TBB AND ENABLE_MANIFOLD)
+  # Note: currently only Manifold-related code makes use of TBB parallelization
+  # ("exact" CGAL numerics are not thread-safe)
+  target_compile_options(OpenSCAD PRIVATE 
+    -DENABLE_TBB
+    -DTHRUST_HOST_SYSTEM=THRUST_HOST_SYSTEM_TBB
+  )
+endif()
 
+if(ENABLE_MANIFOLD)
   if(NOT DEFINED MANIFOLD_PAR)
     message(STATUS "No parallel backend selected for Manifold. Please set MANIFOLD_PAR for multithreading.")
   endif()
-
-  # Note: this isn't for Manifold itself (it uses the device backends anyway) but for our parallel ops,
-  # which we are only safe when not using thread-unsafe CGAL kernels.
-  target_compile_options(OpenSCAD PRIVATE 
-    -DPARALLEL_USE_TBB
-    -DTHRUST_HOST_SYSTEM=THRUST_HOST_SYSTEM_TBB
-  )
 
   add_subdirectory(submodules/manifold)
   target_link_libraries(OpenSCAD PRIVATE manifold)

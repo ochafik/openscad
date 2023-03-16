@@ -87,7 +87,7 @@ jobs:
               git submodule update --init --recursive
               ( cd submodules/manifold && git apply thrust.diff )
               mkdir build && cd build
-              cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DOPENSCAD_VERSION="$OPENSCAD_VERSION" -DOPENSCAD_COMMIT="$OPENSCAD_COMMIT"
+              cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release -DEXPERIMENTAL=ON -DSNAPSHOT=ON -DENABLE_MANIFOLD=ON -DMANIFOLD_PAR=TBB -DOPENSCAD_VERSION="$OPENSCAD_VERSION" -DOPENSCAD_COMMIT="$OPENSCAD_COMMIT"
               make -j4
               make install DESTDIR=../AppDir
               cd ..
@@ -196,7 +196,7 @@ jobs:
             # Pick up our own Qt
             export PATH=$OPENSCAD_LIBRARIES/bin:$PATH
             # Build universal binaries and limit to 30 minutes
-            ./scripts/macosx-build-dependencies.sh -l 30 -x -a -d double_conversion eigen gmp mpfr glew gettext libffi freetype ragel harfbuzz libzip libxml2 libuuid fontconfig hidapi lib3mf pixman cairo glib2 boost cgal qt5 opencsg qscintilla sparkle
+            ./scripts/macosx-build-dependencies.sh -l 30 -x -a -d double_conversion eigen gmp mpfr glew gettext libffi freetype ragel harfbuzz libzip libxml2 libuuid fontconfig hidapi lib3mf pixman cairo glib2 boost cgal qt5 opencsg qscintilla sparkle onetbb
       - run:
           name: Package Dependencies as an artifact
           command: |
