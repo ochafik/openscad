@@ -22,7 +22,7 @@ Location getLocation(const std::shared_ptr<const AbstractNode>& node)
    Applies op to all children and returns the result.
    The child list should be guaranteed to contain non-NULL 3D or empty Geometry objects
  */
-shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op)
+shared_ptr<const ManifoldGeometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op)
 {
   auto N = make_shared<ManifoldGeometry>();
 

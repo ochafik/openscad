@@ -750,9 +750,10 @@ if(ENABLE_MANIFOLD)
     message(STATUS "No parallel backend selected for Manifold. Please set MANIFOLD_PAR for multithreading.")
   endif()
 
-  # Note: this isn't for Manifold itself (it uses the device backends anyway) but for applyMinkowskiManifold.
+  # Note: this isn't for Manifold itself (it uses the device backends anyway) but for our parallel ops,
+  # which we are only safe when not using thread-unsafe CGAL kernels.
   target_compile_options(OpenSCAD PRIVATE 
-    -DPARALLELIZE_MANIFOLD_MINKOWSKI
+    -DPARALLEL_USE_TBB
     -DTHRUST_HOST_SYSTEM=THRUST_HOST_SYSTEM_TBB
   )
 

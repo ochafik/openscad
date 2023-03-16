@@ -11,6 +11,7 @@
 #include "node.h"
 #include "manifoldutils.h"
 #include "ManifoldGeometry.h"
+#include "parallel.h"
 
 #include <CGAL/convex_hull_3.h>
 
@@ -20,14 +21,7 @@
 #include <queue>
 #include <unordered_set>
 
-#ifdef PARALLELIZE_MANIFOLD_MINKOWSKI
-#include <thrust/transform.h>
-#include <thrust/functional.h>
-#include <thrust/execution_policy.h>
-#endif
-
 namespace ManifoldUtils {
-
 
 /*!
    children cannot contain nullptr objects
@@ -64,7 +58,7 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
   assert(children.size() >= 2);
   auto it = children.begin();
   t_tot.start();
-  shared_ptr<const Geometry> operands[2] = {it->second, shared_ptr<const Geometry>()};
+  std::vector<shared_ptr<const Geometry>> operands = {it->second, shared_ptr<const Geometry>()};
 
   CGAL::Cartesian_converter<Nef_kernel, Hull_kernel> conv;
   auto getHullPoints = [&](const Polyhedron &poly) {
@@ -82,21 +76,23 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
     while (++it != children.end()) {
       operands[1] = it->second;
 
-      std::list<Hull_Points> part_points[2];
+      std::vector<std::list<Hull_Points>> part_points(2);
 
-      for (size_t i = 0; i < 2; ++i) {
+      parallelizable_transform(operands.begin(), operands.begin() + 2, part_points.begin(), [&](const auto &operand) {
+        std::list<Hull_Points> part_points;
+
         bool is_convex;
-        auto poly = polyhedronFromGeometry(operands[i], &is_convex);
+        auto poly = polyhedronFromGeometry(operand, &is_convex);
         if (!poly) throw 0;
         if (poly->empty()) {
           throw 0;
         }
 
         if (is_convex) {
-          PRINTDB("Minkowski: child %d is convex and %s", i % (dynamic_pointer_cast<const PolySet>(operands[i])?"PolySet":"Hybrid"));
-          part_points[i].emplace_back(getHullPoints(*poly));
+          // PRINTDB("Minkowski: child %d is convex and %s", i % (dynamic_pointer_cast<const PolySet>(operand)?"PolySet":"Hybrid"));
+          part_points.emplace_back(getHullPoints(*poly));
         } else {
-          PRINTDB("Minkowski: child %d is nonconvex, decomposing...", i);
+          // PRINTDB("Minkowski: child %d is nonconvex, decomposing...", i);
           Nef decomposed_nef(*poly);
 
           t.start();
@@ -108,15 +104,16 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
             if (ci->mark()) {
               Polyhedron poly;
               decomposed_nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), poly);
-              part_points[i].emplace_back(getHullPoints(poly));
+              part_points.emplace_back(getHullPoints(poly));
             }
           }
 
-          PRINTDB("Minkowski: decomposed into %d convex parts", part_points[i].size());
+          PRINTDB("Minkowski: decomposed into %d convex parts", part_points.size());
           t.stop();
           PRINTDB("Minkowski: decomposition took %f s", t.time());
         }
-      }
+        return std::move(part_points);
+      });
 
       std::vector<Hull_kernel::Point_3> minkowski_points;
       
@@ -194,28 +191,11 @@ shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& ch
         return ManifoldUtils::createMutableManifoldFromSurfaceMesh(mesh);
       };
 
-#ifdef PARALLELIZE_MANIFOLD_MINKOWSKI
-      std::vector<std::pair<const Hull_Points*, const Hull_Points*>> points_pairs;
-      for (const auto &points0 : part_points[0]) {
-        for (const auto &points1 : part_points[1]) {
-          points_pairs.emplace_back(&points0, &points1);
-        }
-      }
-      std::vector<shared_ptr<const ManifoldGeometry>> result_parts(points_pairs.size());
-
-      thrust::transform(points_pairs.begin(), points_pairs.end(), result_parts.begin(), [&](const auto &pair) {
-        return combineParts(*pair.first, *pair.second);
-      });
-#else
-      std::vector<shared_ptr<const ManifoldGeometry>> result_parts;
-      result_parts.reserve(part_points[0].size() * part_points[1].size());
-
-      for (const auto &points0 : part_points[0]) {
-        for (const auto &points1 : part_points[1]) {
-          result_parts.push_back(combineParts(points0, points1));
-        }
-      }
-#endif
+      std::vector<shared_ptr<const ManifoldGeometry>> result_parts(part_points[0].size() * part_points[1].size());
+      parallelizable_cross_product_transform(
+          part_points[0], part_points[1],
+          result_parts.begin(),
+          combineParts);
 
       if (it != std::next(children.begin())) operands[0].reset();
 

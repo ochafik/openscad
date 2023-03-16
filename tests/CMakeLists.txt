@@ -884,9 +884,6 @@ list(APPEND SCADFILES_WITH_DIFFERENT_FAST_CSG_EXPECTATIONS
 list(APPEND SCADFILES_FAILING_MANIFOLD
   # 2D not working
   ${TEST_SCAD_DIR}/2D/features/projection-cut-tests.scad
-
-  # Crashes with weird return code
-  ${TEST_SCAD_DIR}/3D/issues/issue1671.scad
   
   # Crashes with Input mesh not closed! / NoManifold
   ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad
@@ -934,7 +931,7 @@ list(APPEND SCADFILES_FAILING_MANIFOLD
   ${TEST_SCAD_DIR}/misc/rotate-empty-bbox.scad
 
   # Different resize result
-  ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
+  # ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
 
   # Misc
   ${TEST_SCAD_DIR}/misc/normal-nan.scad

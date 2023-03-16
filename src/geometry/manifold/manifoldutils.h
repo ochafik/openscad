@@ -30,7 +30,7 @@ namespace ManifoldUtils {
   template <class TriangleMesh>
   std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const TriangleMesh& mesh);
 
-  std::shared_ptr<const Geometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op);
+  std::shared_ptr<const ManifoldGeometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op);
 
   std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children);
 };

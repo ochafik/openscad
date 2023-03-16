@@ -160,6 +160,10 @@ void ManifoldGeometry::operator-=(ManifoldGeometry& other) {
 void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
   auto lhs = shared_ptr<CGAL_Nef_polyhedron>(CGALUtils::createNefPolyhedronFromPolySet(*this->toPolySet()));
   auto rhs = shared_ptr<CGAL_Nef_polyhedron>(CGALUtils::createNefPolyhedronFromPolySet(*other.toPolySet()));
+  if (lhs->isEmpty() || rhs->isEmpty()) {
+    this->object = make_shared<manifold::Manifold>();
+    return;
+  }
   lhs->minkowski(*rhs);
 
   auto ps = CGALUtils::getGeometryAsPolySet(lhs);
