@@ -27,6 +27,7 @@
 #include "export.h"
 #include "PolySet.h"
 #include "PolySetUtils.h"
+#include "parallel.h"
 #ifdef ENABLE_MANIFOLD
 #include "ManifoldGeometry.h"
 #endif
@@ -76,13 +77,10 @@ void write_vector(std::ostream& output, const Vector3f& v) {
 
 uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
 {
-  uint64_t triangle_count = 0;
   PolySet triangulated(3);
   PolySetUtils::tessellate_faces(ps, triangulated);
 
-  auto processTriangle = [&](const std::array<Vector3d, 3>& p) {
-      triangle_count++;
-
+  auto processTriangle = [&](const std::array<Vector3d, 3>& p, std::ostream& output) {
       if (binary) {
         Vector3f p0 = p[0].cast<float>();
         Vector3f p1 = p[1].cast<float>();
@@ -143,19 +141,63 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
     };
 
   if (Feature::ExperimentalSortStl.is_enabled()) {
+    uint64_t triangle_count = 0;
     Export::ExportMesh exportMesh { triangulated };
     exportMesh.foreach_triangle([&](const auto& pts) {
-        processTriangle({ toVector(pts[0]), toVector(pts[1]), toVector(pts[2]) });
+        triangle_count++;
+        processTriangle({ toVector(pts[0]), toVector(pts[1]), toVector(pts[2]) }, output);
         return true;
       });
+    return triangle_count;
+  } else if (Feature::ExperimentalParallelStl.is_enabled()) {
+    auto batch_size = 10000;
+    struct Batch {
+      Polygons::const_iterator begin;
+      Polygons::const_iterator end;
+      std::ostringstream out;
+      Batch() {}
+      Batch(Polygons::const_iterator begin, Polygons::const_iterator end) : begin(begin), end(end) {}
+    };
+    uint64_t batch_count = (uint64_t) ceil(triangulated.polygons.size() / (float)batch_size);
+    std::vector<Batch> batches;
+    batches.reserve(batch_count);
+
+    std::vector<uint64_t> triangle_counts(batch_count);
+    auto begin = triangulated.polygons.begin();
+    auto poly_count = triangulated.polygons.size();
+    for (int i = 0; i < batch_count; i++) {
+      auto offset = i * batch_size;
+      auto end_offset = (i + 1) * batch_size;
+      if (poly_count < end_offset) end_offset = poly_count;
+      batches.push_back(Batch(begin + offset, begin + end_offset));
+    }
+    parallelizable_transform(batches.begin(), batches.end(), triangle_counts.begin(), 
+      [&](auto &batch) {
+        auto triangle_count = 0;
+        for (auto it = batch.begin; it != batch.end; ++it) {
+          const auto& p = *it;
+          assert(p.size() == 3); // STL only allows triangles
+          triangle_count++;
+          processTriangle({ p[0], p[1], p[2] }, batch.out);
+        }
+        return triangle_count;
+      });
+    uint64_t triangle_count = 0;
+    for (auto i = 0; i < batch_count; i++) {
+      const auto &batch = batches[i];
+      output << batch.out.str();
+      triangle_count += triangle_counts[i];
+    }
+    return triangle_count;
   } else {
+    uint64_t triangle_count = 0;
     for (const auto& p : triangulated.polygons) {
       assert(p.size() == 3); // STL only allows triangles
-      processTriangle({ p[0], p[1], p[2] });
+      triangle_count++;
+      processTriangle({ p[0], p[1], p[2] }, output);
     }
+    return triangle_count;
   }
-
-  return triangle_count;
 }
 
 /*!
