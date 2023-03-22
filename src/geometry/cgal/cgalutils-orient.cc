@@ -19,6 +19,7 @@ void reverseFaceOrientations(Polyhedron& polyhedron)
 }
 
 template void orientToBoundAVolume(CGAL_DoubleMesh& polyhedron);
+template void orientToBoundAVolume(CGAL_FloatMesh& polyhedron);
 template void orientToBoundAVolume(CGAL_HybridMesh& polyhedron);
 template void reverseFaceOrientations(CGAL_HybridMesh& polyhedron);
 

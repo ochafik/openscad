@@ -34,6 +34,13 @@ double KernelConverter<CGAL::Epick, CGAL_DoubleKernel>::operator()(
 }
 
 template <>
+float KernelConverter<CGAL::Epick, CGAL_FloatKernel>::operator()(
+  const double& n) const
+{
+  return (float) n;
+}
+
+template <>
 CGAL::Epick::FT KernelConverter<CGAL_HybridKernel3, CGAL::Epick>::operator()(
   const CGAL_HybridKernel3::FT& n) const
 {

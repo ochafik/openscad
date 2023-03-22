@@ -75,4 +75,8 @@ using CGAL_DoubleKernel = CGAL::Cartesian<double>;
 using CGAL_DoublePoint3 = CGAL_DoubleKernel::Point_3;
 using CGAL_DoubleMesh = CGAL::Surface_mesh<CGAL_DoublePoint3>;
 
+using CGAL_FloatKernel = CGAL::Cartesian<float>;
+using CGAL_FloatPoint3 = CGAL_FloatKernel::Point_3;
+using CGAL_FloatMesh = CGAL::Surface_mesh<CGAL_FloatPoint3>;
+
 #endif /* ENABLE_CGAL */
