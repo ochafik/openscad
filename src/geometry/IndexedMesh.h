@@ -32,6 +32,8 @@
 #include "PolySet.h"
 #include "Reindexer.h"
 
+class ManifoldGeometry;
+
 struct IndexedMesh {
   IndexedMesh() = default;
 
@@ -40,6 +42,9 @@ struct IndexedMesh {
   size_t numfaces{0};
 
   void append_geometry(const PolySet& ps);
+#ifdef ENABLE_MANIFOLD
+  void append_geometry(const ManifoldGeometry& ps);
+#endif
   void append_geometry(const shared_ptr<const Geometry>& geom);
 };
 

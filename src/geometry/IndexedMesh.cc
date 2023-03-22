@@ -29,6 +29,7 @@
 
 #ifdef ENABLE_MANIFOLD
 #include "ManifoldGeometry.h"
+#include "manifold.h"
 #endif
 
 #ifdef ENABLE_CGAL
@@ -42,15 +43,37 @@
 
 void IndexedMesh::append_geometry(const PolySet& ps)
 {
-  IndexedMesh& mesh = *this;
+  indices.reserve(indices.capacity() + ps.polygons.size() * 4);
   for (const auto& p : ps.polygons) {
     for (const auto& v : p) {
-      mesh.indices.push_back(mesh.vertices.lookup(v));
+      indices.push_back(vertices.lookup(v));
     }
-    mesh.numfaces++;
-    mesh.indices.push_back(-1);
+    numfaces++;
+    indices.push_back(-1);
   }
 }
+
+#ifdef ENABLE_MANIFOLD
+void IndexedMesh::append_geometry(const ManifoldGeometry& mani)
+{
+  auto mesh = mani.getManifold().GetMesh();
+
+  std::vector<int> remapping(mesh.vertPos.size());
+  std::transform(mesh.vertPos.begin(), mesh.vertPos.end(), remapping.begin(),
+    [&](const auto &v) {
+      return vertices.lookup(vector_convert<Vector3d>(v));
+    });
+
+  indices.reserve(indices.capacity() + mesh.triVerts.size() * 4);
+  for (const auto &tri : mesh.triVerts) {
+    for (auto j : {0, 1, 2}) {
+      indices.push_back(remapping[tri[j]]);
+    }
+    numfaces++;
+    indices.push_back(-1);
+  }
+}
+#endif
 
 void IndexedMesh::append_geometry(const shared_ptr<const Geometry>& geom)
 {
@@ -74,7 +97,7 @@ void IndexedMesh::append_geometry(const shared_ptr<const Geometry>& geom)
     mesh.append_geometry(hybrid->toPolySet());
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    mesh.append_geometry(mani->toPolySet());
+    mesh.append_geometry(*mani);
 #endif
   } else if (dynamic_pointer_cast<const Polygon2d>(geom)) { // NOLINT(bugprone-branch-clone)
     assert(false && "Unsupported file format");
