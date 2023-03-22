@@ -64,16 +64,13 @@ shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNod
       this->traverse(node);
     }
 
-    if (dynamic_pointer_cast<const CGALHybridPolyhedron>(this->root)) {
-      this->root = CGALUtils::getGeometryAsPolySet(this->root);
-    }
+    auto tesselate = !allownef;
 #ifdef ENABLE_MANIFOLD
     if (dynamic_pointer_cast<const ManifoldGeometry>(this->root)) {
-      this->root = CGALUtils::getGeometryAsPolySet(this->root);
+      tesselate = false;
     }
 #endif
-
-    if (!allownef) {
+    if (tesselate) {
       // We cannot render concave polygons, so tessellate any 3D PolySets
       auto ps = CGALUtils::getGeometryAsPolySet(this->root);
       if (ps && !ps->isEmpty()) {
@@ -617,16 +614,20 @@ Response GeometryEvaluator::visit(State& state, const LeafNode& node)
   if (state.isPrefix()) {
     shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      const Geometry *geometry = node.createGeometry();
-      assert(geometry);
-      if (const auto *polygon = dynamic_cast<const Polygon2d *>(geometry)) {
+      geom.reset(node.createGeometry());
+      assert(geom);
+      if (const auto polygon = dynamic_pointer_cast<const Polygon2d>(geom)) {
         if (!polygon->isSanitized()) {
-          Polygon2d *p = ClipperUtils::sanitize(*polygon);
-          delete geometry;
-          geometry = p;
+          geom.reset(ClipperUtils::sanitize(*polygon));
         }
+#ifdef ENABLE_MANIFOLD
+      } else if (Feature::ExperimentalManifold.is_enabled()) {
+        // Convert PolySet early, as Manifold is indexed and will be faster to transform.
+        if (const auto ps = dynamic_pointer_cast<const PolySet>(geom)) {
+          geom = ManifoldUtils::createMutableManifoldFromPolySet(*ps);
+        }
+#endif
       }
-      geom.reset(geometry);
     } else geom = smartCacheGet(node, state.preferNef());
     addToParent(state, node, geom);
     node.progress_report();
