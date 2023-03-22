@@ -116,7 +116,6 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet
   PolySet ps_tri(3, psq.convexValue());
   PolySetUtils::tessellate_faces(psq, ps_tri);
   
-  CGAL_DoubleMesh m;
   CGAL_FloatMesh m;
 
   if (ps_tri.is_convex()) {
