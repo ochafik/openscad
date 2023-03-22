@@ -251,6 +251,7 @@ void sortMesh(const TriangleMesh& tm, TriangleMesh& out)
 template void sortMesh(const CGAL_DoubleMesh& tm, CGAL_DoubleMesh &out);
 template void sortMesh(const CGAL_FloatMesh& tm, CGAL_FloatMesh &out);
 template void sortMesh(const CGAL_HybridMesh& tm, CGAL_HybridMesh &out);
+template void sortMesh(const CGAL_SurfaceMesh& tm, CGAL_SurfaceMesh &out);
 
 #ifdef ENABLE_MANIFOLD
 template <>
