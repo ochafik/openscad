@@ -180,9 +180,10 @@ bool export_param(SourceFile *root, const fs::path& path, std::ostream& output);
 
 namespace Export {
 
+template <class Index = size_t>
 struct Triangle {
-  std::array<int, 3> key;
-  Triangle(int p1, int p2, int p3)
+  std::array<Index, 3> key;
+  Triangle(Index p1, Index p2, Index p3)
   {
     // sort vertices with smallest value first without
     // changing winding order of the triangle.
@@ -212,12 +213,15 @@ public:
   ExportMesh(const PolySet& ps);
 
   bool foreach_vertex(const std::function<bool(const Vertex&)>& callback) const;
-  bool foreach_indexed_triangle(const std::function<bool(const std::array<int, 3>&)>& callback) const;
+  bool foreach_indexed_triangle(const std::function<bool(const std::array<size_t, 3>&)>& callback) const;
   bool foreach_triangle(const std::function<bool(const std::array<Vertex, 3>&)>& callback) const;
 
 private:
   std::vector<Vertex> vertices;
-  std::vector<Triangle> triangles;
+  std::vector<Triangle<size_t>> triangles;
 };
+
+template <class TriangleMesh>
+void sortMesh(const TriangleMesh& tm, TriangleMesh& out);
 
 } // namespace Export

@@ -28,6 +28,7 @@
 #include "PolySet.h"
 #include "printutils.h"
 #include "Geometry.h"
+#include "cgalutils.h"
 
 #include <fstream>
 
@@ -148,7 +149,8 @@ double normalize(double x) {
   return x == -0 ? 0 : x;
 }
 
-ExportMesh::Vertex vectorToVertex(const Vector3d& pt) {
+template <class V>
+ExportMesh::Vertex vectorToVertex(const V& pt) {
   return {normalize(pt.x()), normalize(pt.y()), normalize(pt.z())};
 }
 
@@ -173,13 +175,78 @@ ExportMesh::ExportMesh(const PolySet& ps)
     indexTranslationMap[e.second] = index++;
   }
 
+  triangles.reserve(triangleIndices.size());
   for (const auto& i : triangleIndices) {
     triangles.emplace_back(indexTranslationMap[i[0]], indexTranslationMap[i[1]], indexTranslationMap[i[2]]);
   }
-  std::sort(triangles.begin(), triangles.end(), [](const Triangle& t1, const Triangle& t2) -> bool {
+  std::sort(triangles.begin(), triangles.end(), [](const auto& t1, const auto& t2) -> bool {
       return t1.key < t2.key;
     });
 }
+
+template <class TriangleMesh>
+void sortMesh(const TriangleMesh& tm, TriangleMesh& out)
+{
+  using Vertex_index = typename TriangleMesh::Vertex_index;
+  using Point = typename TriangleMesh::Point;
+
+  auto comparePoints = [](const auto &a, const auto &b) {
+    auto d = a.x() - b.x();
+    if (d != 0) return d < 0;
+
+    d = a.y() - b.y();
+    if (d != 0) return d < 0;
+
+    return a.z() < b.z();
+  };
+
+  assert(out.is_empty());
+  out.reserve(tm.number_of_vertices(), tm.number_of_edges(), tm.number_of_faces());
+
+  std::vector<std::pair<Vertex_index, size_t>> vertex_indices(tm.number_of_vertices());
+  for (auto v : tm.vertices()) {
+    vertex_indices[v] = std::make_pair(v, v);
+  }
+  std::sort(vertex_indices.begin(), vertex_indices.end(), [&](const auto &p1, const auto &p2) {
+    return comparePoints(tm.point(p1.first), tm.point(p2.first));
+  });
+
+  std::vector<Vertex_index> vertex_map(vertex_indices.size());
+  for (size_t i = 0, n = vertex_indices.size(); i < n; i++) {
+    const auto &pair = vertex_indices[i];
+    const auto &p = tm.point(pair.first);
+    vertex_map[pair.second] = out.add_vertex(vector_convert<Point>(p));
+  }
+
+  std::vector<Triangle<Vertex_index>> triangles;
+  triangles.reserve(tm.number_of_faces());
+  
+  std::array<Vertex_index, 3> triangle;
+  for (auto f : tm.faces()) {
+    size_t i = 0;
+    CGAL::Vertex_around_face_iterator<TriangleMesh> it, end;
+    for (boost::tie(it, end) = vertices_around_face(tm.halfedge(f), tm); it != end;
+          ++it) {
+      if (i >= 3) {
+        assert(false && !"Mesh is not triangular!");
+        break;
+      }
+      triangle[i++] = vertex_map[*it];
+    }
+    triangles.emplace_back(triangle[0], triangle[1], triangle[2]);
+  }
+
+  std::sort(triangles.begin(), triangles.end(), [](const auto& t1, const auto& t2) -> bool {
+      return t1.key < t2.key;
+    });
+  for (auto &t : triangles) {
+    out.add_face(t.key[0], t.key[1], t.key[2]);
+  }
+}
+
+template void sortMesh(const CGAL_DoubleMesh& tm, CGAL_DoubleMesh &out);
+template void sortMesh(const CGAL_FloatMesh& tm, CGAL_FloatMesh &out);
+template void sortMesh(const CGAL_HybridMesh& tm, CGAL_HybridMesh &out);
 
 bool ExportMesh::foreach_vertex(const std::function<bool(const Vertex&)>& callback) const
 {
@@ -191,7 +258,7 @@ bool ExportMesh::foreach_vertex(const std::function<bool(const Vertex&)>& callba
   return true;
 }
 
-bool ExportMesh::foreach_indexed_triangle(const std::function<bool(const std::array<int, 3>&)>& callback) const
+bool ExportMesh::foreach_indexed_triangle(const std::function<bool(const std::array<size_t, 3>&)>& callback) const
 {
   for (const auto& t : triangles) {
     if (!callback(t.key)) {

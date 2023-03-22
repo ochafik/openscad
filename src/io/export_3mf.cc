@@ -89,7 +89,7 @@ static bool append_polyset(const PolySet& ps, PLib3MFModelMeshObject *& model)
       return lib3mf_meshobject_addvertex(mesh, &v, nullptr) == LIB3MF_OK;
     };
 
-  auto triangleFunc = [&](const std::array<int, 3>& indices) -> bool {
+  auto triangleFunc = [&](const std::array<size_t, 3>& indices) -> bool {
       MODELMESHTRIANGLE t{(DWORD)indices[0], (DWORD)indices[1], (DWORD)indices[2]};
       return lib3mf_meshobject_addtriangle(mesh, &t, nullptr) == LIB3MF_OK;
     };
@@ -250,7 +250,7 @@ static bool append_polyset(const PolySet& ps, Lib3MF::PWrapper& wrapper, Lib3MF:
         return true;
       };
 
-    auto triangleFunc = [&](const std::array<int, 3>& indices) -> bool {
+    auto triangleFunc = [&](const std::array<size_t, 3>& indices) -> bool {
         try {
           Lib3MF::sTriangle t{(Lib3MF_uint32)indices[0], (Lib3MF_uint32)indices[1], (Lib3MF_uint32)indices[2]};
           mesh->AddTriangle(t);
