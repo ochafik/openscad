@@ -31,6 +31,7 @@
 #include "CGALHybridPolyhedron.h"
 #ifdef ENABLE_MANIFOLD
 #include "ManifoldGeometry.h"
+#include "manifold.h"
 #endif
 
 #ifdef ENABLE_LIB3MF
@@ -115,6 +116,47 @@ static bool append_polyset(const PolySet& ps, PLib3MFModelMeshObject *& model)
   return true;
 }
 
+#ifdef ENABLE_MANIFOLD
+static bool append_manifold(const ManifoldGeometry& mani, PLib3MFModelMeshObject *& model)
+{
+  PLib3MFModelMeshObject *mesh;
+  if (lib3mf_model_addmeshobject(model, &mesh) != LIB3MF_OK) {
+    export_3mf_error("Can't add mesh to 3MF model.", model);
+    return false;
+  }
+  if (lib3mf_object_setnameutf8(mesh, "OpenSCAD Model") != LIB3MF_OK) {
+    export_3mf_error("Can't set name for 3MF model.", model);
+    return false;
+  }
+
+  manifold::Mesh maniMesh;
+  Export::sortMesh(mani.getManifold().GetMesh(), maniMesh);
+
+  for (const auto &p : maniMesh.vertPos) {
+    MODELMESHVERTEX v{p[0], p[1], p[2]};
+    if (lib3mf_meshobject_addvertex(mesh, &v, nullptr) != LIB3MF_OK) {
+      export_3mf_error("Can't add vertex to 3MF model.", model);
+      return false;
+    }
+  }
+  for (const auto &tri : maniMesh.triVerts) {
+    MODELMESHTRIANGLE t{(DWORD)tri[0], (DWORD)tri[1], (DWORD)tri[2]};
+    if (lib3mf_meshobject_addtriangle(mesh, &t, nullptr) != LIB3MF_OK) {
+      export_3mf_error("Can't add triangle to 3MF model.", model);
+      return false;
+    }
+  };
+
+  PLib3MFModelBuildItem *builditem;
+  if (lib3mf_model_addbuilditem(model, mesh, nullptr, &builditem) != LIB3MF_OK) {
+    export_3mf_error("Can't add build item to 3MF model.", model);
+    return false;
+  }
+
+  return true;
+}
+#endif
+
 static bool append_nef(const CGAL_Nef_polyhedron& root_N, PLib3MFModelMeshObject *& model)
 {
   if (!root_N.p3) {
@@ -148,7 +190,7 @@ static bool append_3mf(const shared_ptr<const Geometry>& geom, PLib3MFModelMeshO
     return append_polyset(*hybrid->toPolySet(), model);
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    return append_polyset(*mani->toPolySet(), model);
+    return append_manifold(*mani, model);
 #endif
   } else if (const auto ps = dynamic_pointer_cast<const PolySet>(geom)) {
     PolySet triangulated(3);
@@ -286,6 +328,50 @@ static bool append_polyset(const PolySet& ps, Lib3MF::PWrapper& wrapper, Lib3MF:
   return true;
 }
 
+#ifdef ENABLE_MANIFOLD
+static bool append_polyset(const ManifoldGeometry& mani, Lib3MF::PWrapper& wrapper, Lib3MF::PModel& model)
+{
+  try {
+    auto mesh = model->AddMeshObject();
+    if (!mesh) return false;
+    mesh->SetName("OpenSCAD Model");
+
+    manifold::Mesh maniMesh;
+    Export::sortMesh(mani.getManifold().GetMesh(), maniMesh);
+
+    for (const auto &p : maniMesh.vertPos) {
+      try {
+        Lib3MF::sPosition v{(Lib3MF_single)p[0], (Lib3MF_single)p[1], (Lib3MF_single)p[2]};
+        mesh->AddVertex(v);
+      } catch (Lib3MF::ELib3MFException& e) {
+        export_3mf_error(e.what());
+        return false;
+      }
+    }
+    for (const auto &tri : maniMesh.triVerts) {
+      try {
+        Lib3MF::sTriangle t{(Lib3MF_uint32)tri[0], (Lib3MF_uint32)tri[1], (Lib3MF_uint32)tri[2]};
+        mesh->AddTriangle(t);
+      } catch (Lib3MF::ELib3MFException& e) {
+        export_3mf_error(e.what());
+        return false;
+      }
+    };
+
+    Lib3MF::PBuildItem builditem;
+    try {
+      model->AddBuildItem(mesh.get(), wrapper->GetIdentityTransform());
+    } catch (Lib3MF::ELib3MFException& e) {
+      export_3mf_error(e.what());
+    }
+  } catch (Lib3MF::ELib3MFException& e) {
+    export_3mf_error(e.what());
+    return false;
+  }
+  return true;
+}
+#endif
+
 static bool append_nef(const CGAL_Nef_polyhedron& root_N, Lib3MF::PWrapper& wrapper, Lib3MF::PModel& model)
 {
   if (!root_N.p3) {
@@ -319,7 +405,7 @@ static bool append_3mf(const shared_ptr<const Geometry>& geom, Lib3MF::PWrapper&
     return append_polyset(*hybrid->toPolySet(), wrapper, model);
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    return append_polyset(*mani->toPolySet(), wrapper, model);
+    return append_manifold(*mani, wrapper, model);
 #endif
   } else if (const auto ps = dynamic_pointer_cast<const PolySet>(geom)) {
     PolySet triangulated(3);
