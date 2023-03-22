@@ -32,6 +32,10 @@
 
 #include <fstream>
 
+#ifdef ENABLE_MANIFOLD
+#include "manifold.h"
+#endif
+
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
@@ -247,6 +251,57 @@ void sortMesh(const TriangleMesh& tm, TriangleMesh& out)
 template void sortMesh(const CGAL_DoubleMesh& tm, CGAL_DoubleMesh &out);
 template void sortMesh(const CGAL_FloatMesh& tm, CGAL_FloatMesh &out);
 template void sortMesh(const CGAL_HybridMesh& tm, CGAL_HybridMesh &out);
+
+#ifdef ENABLE_MANIFOLD
+template <>
+void sortMesh(const manifold::Mesh& mesh, manifold::Mesh& out)
+{
+  auto comparePoints = [](const auto &a, const auto &b) {
+    auto d = a.x - b.x;
+    if (d) return d < 0;
+
+    d = a.y - b.y;
+    if (d) return d < 0;
+
+    return a.z < b.z;
+  };
+
+  assert(out.vertPos.empty() && out.triVerts.empty());
+  auto num_vert = mesh.vertPos.size();
+  auto num_tri = mesh.triVerts.size();
+  out.vertPos.reserve(num_vert);
+  out.triVerts.reserve(num_tri);
+
+  std::vector<std::pair<size_t, size_t>> vertex_indices(num_vert);
+  for (size_t i = 0; i < num_vert; i++) {
+    vertex_indices[i] = std::make_pair(i, i);
+  }
+  std::sort(vertex_indices.begin(), vertex_indices.end(), [&](const auto &p1, const auto &p2) {
+    return comparePoints(mesh.vertPos[p1.first], mesh.vertPos[p2.first]);
+  });
+
+  std::vector<size_t> vertex_map(num_vert);
+  for (size_t i = 0; i < num_vert; i++) {
+    const auto &pair = vertex_indices[i];
+    const auto &p = mesh.vertPos[pair.first];
+    vertex_map[pair.second] = out.vertPos.size();
+    out.vertPos.emplace_back(normalize(p[0]), normalize(p[1]), normalize(p[2]));
+  }
+
+  std::vector<Triangle<int>> triangles;
+  triangles.reserve(num_tri);
+  for (auto &tri : mesh.triVerts) {
+    triangles.emplace_back(tri[0], tri[1], tri[2]);
+  }
+
+  std::sort(triangles.begin(), triangles.end(), [](const auto& t1, const auto& t2) -> bool {
+      return t1.key < t2.key;
+    });
+  for (auto &t : triangles) {
+    out.triVerts.emplace_back(t.key[0], t.key[1], t.key[2]);
+  }
+}
+#endif
 
 bool ExportMesh::foreach_vertex(const std::function<bool(const Vertex&)>& callback) const
 {
