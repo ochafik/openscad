@@ -30,6 +30,7 @@
 #include "parallel.h"
 #ifdef ENABLE_MANIFOLD
 #include "ManifoldGeometry.h"
+#include "manifold.h"
 #endif
 
 #ifdef ENABLE_CGAL
@@ -40,18 +41,25 @@
 
 namespace {
 
-std::string toString(const Vector3d& v)
+template <class T>
+T normalize(T x) {
+  return x == -0 ? 0 : x;
+}
+
+template <class T>
+std::string toString(const T& v)
 {
-  return STR(v[0], " ", v[1], " ", v[2]);
+  return STR(normalize(v[0]), " ", normalize(v[1]), " ", normalize(v[2]));
 }
 
 Vector3d toVector(const std::array<double, 3>& pt) {
   return {pt[0], pt[1], pt[2]};
 }
 
-Vector3d fromString(const std::string& vertexString)
+template <class T>
+T fromString(const std::string& vertexString)
 {
-  Vector3d v;
+  T v;
   std::istringstream stream{vertexString};
   stream >> v[0] >> v[1] >> v[2];
   return v;
@@ -74,13 +82,147 @@ void write_vector(std::ostream& output, const Vector3f& v) {
   }
 }
 
+template <class TriangleMesh>
+bool get_triangle(const TriangleMesh &tm, typename TriangleMesh::Face_index f, std::array<typename TriangleMesh::Vertex_index, 3> &out) {
+  size_t i = 0;
+  CGAL::Vertex_around_face_iterator<TriangleMesh> vit, vend;
+  for (boost::tie(vit, vend) = vertices_around_face(tm.halfedge(f), tm); vit != vend; ++vit) {
+    if (i >= 3) {
+      return false;
+    }
+    out[i++] = *vit;
+  }
+  return i == 3;
+}
 
-uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
+template <class TriangleMesh>
+uint64_t append_stl(const TriangleMesh& tm, std::ostream& output, bool binary, bool is_triangle = false, bool was_sorted = false)
 {
+  if (!is_triangle) {
+    TriangleMesh tri(tm);
+    CGALUtils::triangulateFaces(tri);
+    return append_stl(tri, output, binary, /* is_triangle= */ true, was_sorted);
+  }
+  if (Feature::ExperimentalSortStl.is_enabled() && !was_sorted) {
+    TriangleMesh sorted;
+    Export::sortMesh(tm, sorted);
+    return append_stl(sorted, output, binary, is_triangle, /* was_sorted= */ true);
+  }
+
+  auto reorderVertices = [](auto &v0, auto &v1) {
+    if (v0 < v1) return false;
+
+    auto tmp = v0;
+    v0 = v1;
+    v1 = tmp;
+    return true;
+  };
+
+  std::vector<Vector3f> points(tm.number_of_vertices());
+  std::vector<Vector3f> edges(tm.number_of_edges());
+
+  std::vector<std::string> pointStrings;
+  if (!binary) {
+    pointStrings.resize(points.size());
+  }
+
+  for (auto v : tm.vertices()) {
+    auto p = vector_convert<Vector3f>(tm.point(v));
+    if (!binary) {
+      // Note: if the mesh is in double precision, we convert in double precision here.
+      auto ps = toString(p);
+      pointStrings[v] = ps;
+      p = fromString<Vector3f>(ps);
+    }
+    points[v] = p;//.cast<float>();
+  }
+
+  for (auto &e : tm.edges()) {
+    auto v0 = tm.vertex(e, 0);
+    auto v1 = tm.vertex(e, 1);
+    reorderVertices(v0, v1);
+    auto ev = points[v1] - points[v0];
+    edges[e] = ev;
+  }
+
+  auto getHalfedgeVector = [&](auto v0, auto v1) {
+    auto sign = reorderVertices(v0, v1) ? -1 : 1;
+    auto e = tm.edge(tm.halfedge(v0, v1));
+    auto ev = edges[e];
+    return sign < 0 ? -ev : ev; 
+  };
+
+  uint64_t triangle_count = 0;
+
+  std::array<typename TriangleMesh::Vertex_index, 3> triangle_vertices;
+  for (auto& f : tm.faces()) {
+    if (!get_triangle(tm, f, triangle_vertices)) {
+      assert(false);
+      continue;
+    }
+
+    auto v0 = triangle_vertices[0];
+    auto v1 = triangle_vertices[1];
+    auto v2 = triangle_vertices[2];
+
+    auto p0 = points[v0];
+    auto p1 = points[v1];
+    auto p2 = points[v2];
+    
+    auto distinctPoints = p0 != p1 && p0 != p2 && p1 != p2;
+    auto normal = getHalfedgeVector(v0, v1).cross(getHalfedgeVector(v0, v2));
+    normal.normalize();
+    auto collinearVertices = !is_finite(normal) || is_nan(normal);
+
+    if (binary) {
+      triangle_count++;
+      if (distinctPoints) {
+        if (collinearVertices) {
+          normal << 0, 0, 0;
+        }
+        write_vector(output, normal);
+      }
+      write_vector(output, p0);
+      write_vector(output, p1);
+      write_vector(output, p2);
+      char attrib[2] = {0, 0};
+      output.write(attrib, 2);
+    } else if (distinctPoints) {
+      // The above condition ensures that there are 3 distinct
+      // vertices, but they may be collinear. If they are, the unit
+      // normal is meaningless so the default value of "0 0 0" can
+      // be used. If the vertices are not collinear then the unit
+      // normal must be calculated from the components.
+      triangle_count++;
+    
+      output << "  facet normal ";
+
+      if (collinearVertices) {
+        output << "0 0 0\n";
+      } else {
+        output << normalize(normal[0]) << " " << normalize(normal[1]) << " " << normalize(normal[2])
+                << "\n";
+      }
+      output << "    outer loop\n";
+      output << "      vertex " << pointStrings[v0] << "\n";
+      output << "      vertex " << pointStrings[v1] << "\n";
+      output << "      vertex " << pointStrings[v2] << "\n";
+      output << "    endloop\n";
+      output << "  endfacet\n";
+    }
+  }
+
+  return triangle_count;
+}
+
+uint64_t append_stl_legacy(const PolySet& ps, std::ostream& output, bool binary)
+{
+  uint64_t triangle_count = 0;
   PolySet triangulated(3);
   PolySetUtils::tessellate_faces(ps, triangulated);
 
   auto processTriangle = [&](const std::array<Vector3d, 3>& p, std::ostream& output) {
+      triangle_count++;
       if (binary) {
         Vector3f p0 = p[0].cast<float>();
         Vector3f p1 = p[1].cast<float>();
@@ -104,7 +246,7 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
       } else { // ascii
         std::array<std::string, 3> vertexStrings;
         std::transform(p.cbegin(), p.cend(), vertexStrings.begin(),
-                       toString);
+                       toString<Vector3d>);
 
         if (vertexStrings[0] != vertexStrings[1] &&
             vertexStrings[0] != vertexStrings[2] &&
@@ -117,14 +259,15 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
           // normal must be calculated from the components.
           output << "  facet normal ";
 
-          Vector3d p0 = fromString(vertexStrings[0]);
-          Vector3d p1 = fromString(vertexStrings[1]);
-          Vector3d p2 = fromString(vertexStrings[2]);
+          Vector3d p0 = fromString<Vector3d>(vertexStrings[0]);
+          Vector3d p1 = fromString<Vector3d>(vertexStrings[1]);
+          Vector3d p2 = fromString<Vector3d>(vertexStrings[2]);
 
           Vector3d normal = (p1 - p0).cross(p2 - p0);
           normal.normalize();
           if (is_finite(normal) && !is_nan(normal)) {
-            output << normal[0] << " " << normal[1] << " " << normal[2]
+            // output << normal[0] << " " << normal[1] << " " << normal[2]
+            output << normalize(normal[0]) << " " << normalize(normal[1]) << " " << normalize(normal[2])
                    << "\n";
           } else {
             output << "0 0 0\n";
@@ -141,63 +284,28 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
     };
 
   if (Feature::ExperimentalSortStl.is_enabled()) {
-    uint64_t triangle_count = 0;
     Export::ExportMesh exportMesh { triangulated };
     exportMesh.foreach_triangle([&](const auto& pts) {
-        triangle_count++;
         processTriangle({ toVector(pts[0]), toVector(pts[1]), toVector(pts[2]) }, output);
         return true;
       });
-    return triangle_count;
-  } else if (Feature::ExperimentalParallelStl.is_enabled()) {
-    auto batch_size = 10000;
-    struct Batch {
-      Polygons::const_iterator begin;
-      Polygons::const_iterator end;
-      std::ostringstream out;
-      Batch() {}
-      Batch(Polygons::const_iterator begin, Polygons::const_iterator end) : begin(begin), end(end) {}
-    };
-    uint64_t batch_count = (uint64_t) ceil(triangulated.polygons.size() / (float)batch_size);
-    std::vector<Batch> batches;
-    batches.reserve(batch_count);
-
-    std::vector<uint64_t> triangle_counts(batch_count);
-    auto begin = triangulated.polygons.begin();
-    auto poly_count = triangulated.polygons.size();
-    for (int i = 0; i < batch_count; i++) {
-      auto offset = i * batch_size;
-      auto end_offset = (i + 1) * batch_size;
-      if (poly_count < end_offset) end_offset = poly_count;
-      batches.push_back(Batch(begin + offset, begin + end_offset));
-    }
-    parallelizable_transform(batches.begin(), batches.end(), triangle_counts.begin(), 
-      [&](auto &batch) {
-        auto triangle_count = 0;
-        for (auto it = batch.begin; it != batch.end; ++it) {
-          const auto& p = *it;
-          assert(p.size() == 3); // STL only allows triangles
-          triangle_count++;
-          processTriangle({ p[0], p[1], p[2] }, batch.out);
-        }
-        return triangle_count;
-      });
-    uint64_t triangle_count = 0;
-    for (auto i = 0; i < batch_count; i++) {
-      const auto &batch = batches[i];
-      output << batch.out.str();
-      triangle_count += triangle_counts[i];
-    }
-    return triangle_count;
   } else {
-    uint64_t triangle_count = 0;
     for (const auto& p : triangulated.polygons) {
       assert(p.size() == 3); // STL only allows triangles
-      triangle_count++;
       processTriangle({ p[0], p[1], p[2] }, output);
     }
-    return triangle_count;
   }
+  return triangle_count;
+}
+
+uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
+{
+  if (Feature::ExperimentalLegacyStl.is_enabled()) {
+    return append_stl_legacy(ps, output, binary);
+  }
+  CGAL_DoubleMesh tm;
+  CGALUtils::createMeshFromPolySet(ps, tm);
+  return append_stl(tm, output, binary);
 }
 
 /*!
@@ -207,19 +315,25 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
 uint64_t append_stl(const CGAL_Nef_polyhedron& root_N, std::ostream& output,
                     bool binary)
 {
-  uint64_t triangle_count = 0;
   if (!root_N.p3->is_simple()) {
     LOG(message_group::Export_Warning, Location::NONE, "", "Exported object may not be a valid 2-manifold and may need repair");
   }
 
-  PolySet ps(3);
-  if (!CGALUtils::createPolySetFromNefPolyhedron3(*(root_N.p3), ps)) {
-    triangle_count += append_stl(ps, output, binary);
-  } else {
-    LOG(message_group::Export_Error, Location::NONE, "", "Nef->PolySet failed");
+  if (Feature::ExperimentalLegacyStl.is_enabled()) {
+    uint64_t triangle_count = 0;
+    PolySet ps(3);
+    if (!CGALUtils::createPolySetFromNefPolyhedron3(*(root_N.p3), ps)) {
+      triangle_count += append_stl(ps, output, binary);
+    } else {
+      LOG(message_group::Export_Error, Location::NONE, "", "Nef->PolySet failed");
+    }
+    return triangle_count;
   }
 
-  return triangle_count;
+  CGAL_SurfaceMesh mesh;
+  CGALUtils::convertNefPolyhedronToTriangleMesh(*root_N.p3, mesh);
+
+  return append_stl(mesh, output, binary);
 }
 
 /*!
@@ -234,9 +348,9 @@ uint64_t append_stl(const CGALHybridPolyhedron& hybrid, std::ostream& output,
     LOG(message_group::Export_Warning, Location::NONE, "", "Exported object may not be a valid 2-manifold and may need repair");
   }
 
-  auto ps = hybrid.toPolySet();
-  if (ps) {
-    triangle_count += append_stl(*ps, output, binary);
+  auto tm = CGALHybridPolyhedron(hybrid).convertToMesh();
+  if (tm) {
+    triangle_count += append_stl(*tm, output, binary);
   } else {
     LOG(message_group::Export_Error, Location::NONE, "", "Nef->PolySet failed");
   }
@@ -257,9 +371,10 @@ uint64_t append_stl(const ManifoldGeometry& mani, std::ostream& output,
     LOG(message_group::Export_Warning, Location::NONE, "", "Exported object may not be a valid 2-manifold and may need repair");
   }
 
-  auto ps = mani.toPolySet();
-  if (ps) {
-    triangle_count += append_stl(*ps, output, binary);
+
+  auto tm = mani.template toSurfaceMesh<CGAL_FloatMesh>();
+  if (tm) {
+    triangle_count += append_stl(*tm, output, binary, /* is_triangle= */ true);
   } else {
     LOG(message_group::Export_Error, Location::NONE, "", "Manifold->PolySet failed");
   }

@@ -1,7 +1,6 @@
 // Portions of this file are Copyright 2023 Google LLC, and licensed under GPL2+. See COPYING.
 #include "ManifoldGeometry.h"
 #include "manifold.h"
-#include "IndexedMesh.h"
 #include "cgalutils.h"
 #include "manifoldutils.h"
 
@@ -135,6 +134,30 @@ shared_ptr<Polyhedron> ManifoldGeometry::toPolyhedron() const
 
 template shared_ptr<CGAL::Polyhedron_3<CGAL_Kernel3>> ManifoldGeometry::toPolyhedron() const;
 
+template <class Mesh>
+std::shared_ptr<Mesh> ManifoldGeometry::toSurfaceMesh() const
+{
+  auto tm = make_shared<Mesh>();
+
+  manifold::Mesh mesh = getManifold().GetMesh();
+  auto num_vertices = mesh.vertPos.size();
+  auto num_faces = mesh.triVerts.size();
+  auto num_edges = num_faces + num_vertices - 2;
+  tm->reserve(num_vertices, num_edges, num_faces);
+
+  for (auto &p : mesh.vertPos) {
+    tm->add_vertex(vector_convert<typename Mesh::Point>(p));
+  }
+  using Vertex_index = typename Mesh::Vertex_index;
+  for (const auto& poly : mesh.triVerts) {
+    tm->add_face((Vertex_index) poly[0], (Vertex_index) poly[1], (Vertex_index) poly[2]);
+  }
+  return tm;
+}
+
+template shared_ptr<CGAL_DoubleMesh> ManifoldGeometry::toSurfaceMesh() const;
+template shared_ptr<CGAL_FloatMesh> ManifoldGeometry::toSurfaceMesh() const;
+
 shared_ptr<manifold::Manifold> binOp(ManifoldGeometry& lhs, ManifoldGeometry& rhs, manifold::OpType opType) {
   return make_shared<manifold::Manifold>(std::move(lhs.getManifold().Boolean(rhs.getManifold(), opType)));
 }
@@ -168,14 +191,43 @@ void ManifoldGeometry::minkowski(ManifoldGeometry& other) {
 }
 
 void ManifoldGeometry::transform(const Transform3d& mat) {
-  glm::mat4x3 glMat(
+#if 0
+  auto mesh = getManifold().GetMesh();
+  // std::vector<Vector3d> points(mesh.vertPos.size());
+  // std::for_each(mesh.vertPos.begin(), mesh.vertPos.end(), [&](auto &p) {
+  //   p = vector_convert<glm::vec3>(mat * vector_convert<Vector3d>(p));
+  // });
+  // if (mat.matrix().determinant() < 0) {
+  //   std::for_each(mesh.triVerts.begin(), mesh.triVerts.end(), [&](auto &tri) {
+  //     std::swap(tri[0], tri[2]);
+  //   });
+  // }
+  manifold_ = make_shared<manifold::Manifold>(std::move(mesh));
+#else
+  glm::mat4x3 transform(
     // Column-major ordering
     mat(0, 0), mat(1, 0), mat(2, 0),
     mat(0, 1), mat(1, 1), mat(2, 1),
     mat(0, 2), mat(1, 2), mat(2, 2),
     mat(0, 3), mat(1, 3), mat(2, 3)
-  );                            
-  manifold_ = make_shared<manifold::Manifold>(std::move(getManifold().Transform(glMat)));
+  );
+#if 0
+  auto mesh = getManifold().GetMesh();
+  mesh.vertNormal.clear();
+  mesh.halfedgeTangent.clear();
+  std::for_each(mesh.vertPos.begin(), mesh.vertPos.end(), [&](auto &p) {
+    p = transform * glm::vec4(p, 1.0f);
+  });
+  if (glm::determinant(glm::mat3(transform)) < 0) {
+    std::for_each(mesh.triVerts.begin(), mesh.triVerts.end(), [&](auto &tri) {
+      std::swap(tri[0], tri[2]);
+    });
+  }
+  manifold_ = make_shared<manifold::Manifold>(std::move(mesh));
+#else
+  manifold_ = make_shared<manifold::Manifold>(std::move(getManifold().Transform(transform)));
+#endif
+#endif
 }
 
 BoundingBox ManifoldGeometry::getBoundingBox() const

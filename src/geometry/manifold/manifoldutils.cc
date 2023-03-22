@@ -75,10 +75,10 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromSurfaceMesh(const Tri
 
   manifold::Mesh mesh;
 
-  mesh.vertPos.resize(tm.number_of_vertices());
+  mesh.vertPos.reserve(tm.number_of_vertices());
   for (vertex_descriptor vd : tm.vertices()){
     const auto &v = tm.point(vd);
-    mesh.vertPos[vd] = glm::vec3((float) v.x(), (float) v.y(), (float) v.z());
+    mesh.vertPos.emplace_back((float) v.x(), (float) v.y(), (float) v.z());
   }
 
   mesh.triVerts.reserve(tm.number_of_faces());
@@ -117,6 +117,7 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet
   PolySetUtils::tessellate_faces(psq, ps_tri);
   
   CGAL_DoubleMesh m;
+  CGAL_FloatMesh m;
 
   if (ps_tri.is_convex()) {
     using K = CGAL::Epick;

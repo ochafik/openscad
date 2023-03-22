@@ -39,6 +39,9 @@ public:
   template <class Polyhedron>
   [[nodiscard]] std::shared_ptr<Polyhedron> toPolyhedron() const;
 
+  template <class Mesh>
+  [[nodiscard]] std::shared_ptr<Mesh> toSurfaceMesh() const;
+
   /*! In-place union. */
   void operator+=(ManifoldGeometry& other);
   /*! In-place intersection. */

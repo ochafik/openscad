@@ -57,6 +57,7 @@ using CGAL_Point_3 = CGAL::Point_3<CGAL_Kernel3>;
 using CGAL_Triangle_3 = CGAL::Triangle_3<CGAL_Kernel3>;
 using CGAL_Iso_cuboid_3 = CGAL::Iso_cuboid_3<CGAL_Kernel3>;
 using CGAL_Polygon_3 = std::vector<CGAL_Point_3>;
+using CGAL_SurfaceMesh = CGAL::Surface_mesh<CGAL_Point_3>;
 
 // CGAL_Nef_polyhedron2 uses CGAL_Kernel2, but Iso_rectangle_2 needs to match
 // CGAL_Nef_polyhedron2::Explorer::Point which is different than
