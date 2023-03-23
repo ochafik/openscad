@@ -9,6 +9,7 @@
 #include "CGALHybridPolyhedron.h"
 #include <CGAL/convex_hull_3.h>
 #include <CGAL/Surface_mesh.h>
+#include "Grid.h"
 
 using Error = manifold::Manifold::Error;
 
@@ -135,10 +136,24 @@ std::shared_ptr<ManifoldGeometry> createMutableManifoldFromPolySet(const PolySet
   }
 
   if (!ps_tri.is_convex()) {
+    if (!CGALUtils::isClosed(m)) {
+      Grid3d<size_t> grid(GRID_FINE);
+      size_t updates = 0;
+      for (auto v : m.vertices()) {
+        auto &p = m.point(v);
+        auto v3d = vector_convert<Vector3d>(p);
+        auto idx = grid.align(v3d);
+        if (idx != v) {
+          p = m.point((CGAL_DoubleMesh::Vertex_index) idx);
+          updates++;
+        }
+      }
+      LOG(message_group::Error, "[manifold] Input mesh is not closed. Aligned %1$d / %2$d of its vertices on the grid!", updates, m.number_of_vertices());
+    }
     if (CGALUtils::isClosed(m)) {
       CGALUtils::orientToBoundAVolume(m);
     } else {
-      LOG(message_group::Error, "[manifold] Input mesh is not closed!");
+      LOG(message_group::Error, "[manifold] Input mesh is still not closed!");
     }
   }
 
