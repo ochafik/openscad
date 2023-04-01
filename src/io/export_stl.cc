@@ -56,14 +56,41 @@ Vector3d toVector(const std::array<double, 3>& pt) {
   return {pt[0], pt[1], pt[2]};
 }
 
+#if 0
 template <class T>
-T fromString(const std::string& vertexString)
+T fromString(const std::string& vertexString);
 {
   T v;
   std::istringstream stream{vertexString};
   stream >> v[0] >> v[1] >> v[2];
   return v;
 }
+#else
+template <class T>
+T fromString(const std::string& vertexString);
+
+template <>
+Vector3f fromString(const std::string& vertexString)
+{
+  auto cstr = vertexString.c_str();
+  return {
+    strtof(cstr, (char**)&cstr), 
+    strtof(cstr, (char**)&cstr), 
+    strtof(cstr, (char**)&cstr)
+  };
+}
+
+template <>
+Vector3d fromString(const std::string& vertexString)
+{
+  auto cstr = vertexString.c_str();
+  return {
+    strtod(cstr, (char**)&cstr), 
+    strtod(cstr, (char**)&cstr), 
+    strtod(cstr, (char**)&cstr)
+  };
+}
+#endif
 
 void write_vector(std::ostream& output, const Vector3f& v) {
   for (int i = 0; i < 3; ++i) {
@@ -119,90 +146,78 @@ uint64_t append_stl(const TriangleMesh& tm, std::ostream& output, bool binary, b
   };
 
   std::vector<Vector3f> points(tm.number_of_vertices());
-  std::vector<Vector3f> edges(tm.number_of_edges());
-
   std::vector<std::string> pointStrings;
-  if (!binary) {
+
+  if (binary) {
+    std::transform(tm.vertices().begin(), tm.vertices().end(), points.begin(), [&](auto v) {
+      return vector_convert<Vector3f>(tm.point(v));
+    });
+  } else {
     pointStrings.resize(points.size());
+    std::transform(tm.vertices().begin(), tm.vertices().end(), points.begin(), [&](auto v) {
+      auto &ps = pointStrings[v] = toString(tm.point(v));
+      return fromString<Vector3f>(ps);
+    });
   }
-
-  for (auto v : tm.vertices()) {
-    auto p = vector_convert<Vector3f>(tm.point(v));
-    if (!binary) {
-      // Note: if the mesh is in double precision, we convert in double precision here.
-      auto ps = toString(p);
-      pointStrings[v] = ps;
-      p = fromString<Vector3f>(ps);
-    }
-    points[v] = p;//.cast<float>();
-  }
-
-  for (auto &e : tm.edges()) {
-    auto v0 = tm.vertex(e, 0);
-    auto v1 = tm.vertex(e, 1);
-    reorderVertices(v0, v1);
-    auto ev = points[v1] - points[v0];
-    edges[e] = ev;
-  }
-
-  auto getHalfedgeVector = [&](auto v0, auto v1) {
-    auto sign = reorderVertices(v0, v1) ? -1 : 1;
-    auto e = tm.edge(tm.halfedge(v0, v1));
-    auto ev = edges[e];
-    return sign < 0 ? -ev : ev; 
-  };
 
   uint64_t triangle_count = 0;
 
-  std::array<typename TriangleMesh::Vertex_index, 3> triangle_vertices;
-  for (auto& f : tm.faces()) {
-    if (!get_triangle(tm, f, triangle_vertices)) {
-      assert(false);
-      continue;
-    }
+  if (binary) {
+    std::array<typename TriangleMesh::Vertex_index, 3> triangle_vertices;
+    for (auto& f : tm.faces()) {
+      get_triangle(tm, f, triangle_vertices);
+      auto v0 = triangle_vertices[0];
+      auto v1 = triangle_vertices[1];
+      auto v2 = triangle_vertices[2];
 
-    auto v0 = triangle_vertices[0];
-    auto v1 = triangle_vertices[1];
-    auto v2 = triangle_vertices[2];
+      auto &p0 = points[v0];
+      auto &p1 = points[v1];
+      auto &p2 = points[v2];
 
-    auto p0 = points[v0];
-    auto p1 = points[v1];
-    auto p2 = points[v2];
-    
-    auto distinctPoints = p0 != p1 && p0 != p2 && p1 != p2;
-    auto normal = getHalfedgeVector(v0, v1).cross(getHalfedgeVector(v0, v2));
-    normal.normalize();
-    auto collinearVertices = !is_finite(normal) || is_nan(normal);
+      auto normal = (p1 - p0).cross(p2 - p0);
+      normal.normalize();
 
-    if (binary) {
-      triangle_count++;
-      if (distinctPoints) {
-        if (collinearVertices) {
-          normal << 0, 0, 0;
-        }
-        write_vector(output, normal);
+      if (!normal.allFinite()) {
+        continue;
       }
+      triangle_count++;
+
+      // if (distinctPoints) {
+      //   if (collinearVertices) {
+          // normal << 0, 0, 0;
+        // }
+      write_vector(output, normal);
+      // }
       write_vector(output, p0);
       write_vector(output, p1);
       write_vector(output, p2);
       char attrib[2] = {0, 0};
       output.write(attrib, 2);
-    } else if (distinctPoints) {
-      // The above condition ensures that there are 3 distinct
-      // vertices, but they may be collinear. If they are, the unit
-      // normal is meaningless so the default value of "0 0 0" can
-      // be used. If the vertices are not collinear then the unit
-      // normal must be calculated from the components.
-      triangle_count++;
-    
-      output << "  facet normal ";
+    }
+  } else {
+    std::array<typename TriangleMesh::Vertex_index, 3> triangle_vertices;
+    for (auto& f : tm.faces()) {
+      get_triangle(tm, f, triangle_vertices);
+      
+      auto v0 = triangle_vertices[0];
+      auto v1 = triangle_vertices[1];
+      auto v2 = triangle_vertices[2];
 
-      if (collinearVertices) {
-        output << "0 0 0\n";
-      } else {
-        output << normalize(normal[0]) << " " << normalize(normal[1]) << " " << normalize(normal[2])
-                << "\n";
+      auto &p0 = points[v0];
+      auto &p1 = points[v1];
+      auto &p2 = points[v2];
+
+      auto normal = (p1 - p0).cross(p2 - p0);
+      normal.normalize();
+
+      if (!normal.allFinite()) {
+        continue;
       }
+      triangle_count++;
+
+      output << "  facet normal ";
+      output << normalize(normal[0]) << " " << normalize(normal[1]) << " " << normalize(normal[2])
+              << "\n";
       output << "    outer loop\n";
       output << "      vertex " << pointStrings[v0] << "\n";
       output << "      vertex " << pointStrings[v1] << "\n";
@@ -214,6 +229,99 @@ uint64_t append_stl(const TriangleMesh& tm, std::ostream& output, bool binary, b
 
   return triangle_count;
 }
+
+#ifdef ENABLE_MANIFOLD
+uint64_t append_stl(const manifold::Mesh& mesh, std::ostream& output, bool binary, bool was_sorted = false)
+{
+  if (Feature::ExperimentalSortStl.is_enabled() && !was_sorted) {
+    manifold::Mesh sorted;
+    Export::sortMesh(mesh, sorted);
+    return append_stl(sorted, output, binary, /* was_sorted= */ true);
+  }
+
+  std::vector<Vector3f> points(mesh.vertPos.size());
+  std::vector<std::string> pointStrings;
+
+  // auto num_vert = mesh.vertPos.size();
+  // auto num_tri = mesh.triVerts.size();
+  if (binary) {
+    std::transform(mesh.vertPos.begin(), mesh.vertPos.end(), points.begin(), [](const auto &p) {
+      return vector_convert<Vector3f>(p);
+    });
+  } else {
+    pointStrings.resize(points.size());
+    for (size_t i = 0, n = mesh.vertPos.size(); i < n; i++) {
+      const auto &p = mesh.vertPos[i];
+      auto &ps = pointStrings[i] = toString(p);
+      points[i] = fromString<Vector3f>(ps);
+    }
+  }
+
+  uint64_t triangle_count = 0;
+
+  if (binary) {
+    for (const auto& tri : mesh.triVerts) {
+      auto v0 = tri[0];
+      auto v1 = tri[1];
+      auto v2 = tri[2];
+
+      auto &p0 = points[v0];
+      auto &p1 = points[v1];
+      auto &p2 = points[v2];
+
+      auto normal = (p1 - p0).cross(p2 - p0);
+      normal.normalize();
+
+      if (!normal.allFinite()) {
+        continue;
+      }
+      triangle_count++;
+
+      // if (distinctPoints) {
+      //   if (collinearVertices) {
+          // normal << 0, 0, 0;
+        // }
+      write_vector(output, normal);
+      // }
+      write_vector(output, p0);
+      write_vector(output, p1);
+      write_vector(output, p2);
+      char attrib[2] = {0, 0};
+      output.write(attrib, 2);
+    }
+  } else {
+    for (const auto& tri : mesh.triVerts) {
+      auto v0 = tri[0];
+      auto v1 = tri[1];
+      auto v2 = tri[2];
+
+      auto &p0 = points[v0];
+      auto &p1 = points[v1];
+      auto &p2 = points[v2];
+
+      auto normal = (p1 - p0).cross(p2 - p0);
+      normal.normalize();
+
+      if (!normal.allFinite()) {
+        continue;
+      }
+      triangle_count++;
+      
+      output << "  facet normal ";
+      output << normalize(normal[0]) << " " << normalize(normal[1]) << " " << normalize(normal[2])
+              << "\n";
+      output << "    outer loop\n";
+      output << "      vertex " << pointStrings[v0] << "\n";
+      output << "      vertex " << pointStrings[v1] << "\n";
+      output << "      vertex " << pointStrings[v2] << "\n";
+      output << "    endloop\n";
+      output << "  endfacet\n";
+    }
+  }
+
+  return triangle_count;
+}
+#endif // ENABLE_MANIFOLD
 
 uint64_t append_stl_legacy(const PolySet& ps, std::ostream& output, bool binary)
 {
@@ -232,7 +340,8 @@ uint64_t append_stl_legacy(const PolySet& ps, std::ostream& output, bool binary)
         if ((p0 != p1) && (p0 != p2) && (p1 != p2)) {
           Vector3f normal = (p1 - p0).cross(p2 - p0);
           normal.normalize();
-          if (!is_finite(normal) || is_nan(normal)) {
+          if (!normal.allFinite()) {
+          // if (!is_finite(normal) || is_nan(normal)) {
             // Collinear vertices.
             normal << 0, 0, 0;
           }
@@ -265,7 +374,8 @@ uint64_t append_stl_legacy(const PolySet& ps, std::ostream& output, bool binary)
 
           Vector3d normal = (p1 - p0).cross(p2 - p0);
           normal.normalize();
-          if (is_finite(normal) && !is_nan(normal)) {
+          if (!normal.allFinite()) {
+          // if (is_finite(normal) && !is_nan(normal)) {
             // output << normal[0] << " " << normal[1] << " " << normal[2]
             output << normalize(normal[0]) << " " << normalize(normal[1]) << " " << normalize(normal[2])
                    << "\n";
@@ -300,10 +410,11 @@ uint64_t append_stl_legacy(const PolySet& ps, std::ostream& output, bool binary)
 
 uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
 {
-  if (Feature::ExperimentalLegacyStl.is_enabled()) {
+  if (binary || Feature::ExperimentalLegacyStl.is_enabled()) {
     return append_stl_legacy(ps, output, binary);
   }
-  CGAL_DoubleMesh tm;
+  // CGAL_DoubleMesh tm;
+  CGAL_FloatMesh tm;
   CGALUtils::createMeshFromPolySet(ps, tm);
   return append_stl(tm, output, binary);
 }
@@ -319,7 +430,7 @@ uint64_t append_stl(const CGAL_Nef_polyhedron& root_N, std::ostream& output,
     LOG(message_group::Export_Warning, Location::NONE, "", "Exported object may not be a valid 2-manifold and may need repair");
   }
 
-  if (Feature::ExperimentalLegacyStl.is_enabled()) {
+  if (binary || Feature::ExperimentalLegacyStl.is_enabled()) {
     uint64_t triangle_count = 0;
     PolySet ps(3);
     if (!CGALUtils::createPolySetFromNefPolyhedron3(*(root_N.p3), ps)) {
@@ -332,8 +443,7 @@ uint64_t append_stl(const CGAL_Nef_polyhedron& root_N, std::ostream& output,
 
   CGAL_SurfaceMesh mesh;
   CGALUtils::convertNefPolyhedronToTriangleMesh(*root_N.p3, mesh);
-
-  return append_stl(mesh, output, binary);
+  return append_stl(mesh, output, binary, /* is_triangle= */ true);
 }
 
 /*!
@@ -348,6 +458,7 @@ uint64_t append_stl(const CGALHybridPolyhedron& hybrid, std::ostream& output,
     LOG(message_group::Export_Warning, Location::NONE, "", "Exported object may not be a valid 2-manifold and may need repair");
   }
 
+  // auto ps = hybrid.toPolySet();
   auto tm = CGALHybridPolyhedron(hybrid).convertToMesh();
   if (tm) {
     triangle_count += append_stl(*tm, output, binary);
@@ -371,15 +482,17 @@ uint64_t append_stl(const ManifoldGeometry& mani, std::ostream& output,
     LOG(message_group::Export_Warning, Location::NONE, "", "Exported object may not be a valid 2-manifold and may need repair");
   }
 
+  return append_stl(mani.getManifold().GetMesh(), output, binary);
 
-  auto tm = mani.template toSurfaceMesh<CGAL_FloatMesh>();
-  if (tm) {
-    triangle_count += append_stl(*tm, output, binary, /* is_triangle= */ true);
-  } else {
-    LOG(message_group::Export_Error, Location::NONE, "", "Manifold->PolySet failed");
-  }
+  // auto tm = mani.template toSurfaceMesh<CGAL_FloatMesh>();
+  // // auto tm = mani.template toSurfaceMesh<CGAL_DoubleMesh>();
+  // if (tm) {
+  //   triangle_count += append_stl(*tm, output, binary, /* is_triangle= */ true);
+  // } else {
+  //   LOG(message_group::Export_Error, Location::NONE, "", "Manifold->PolySet failed");
+  // }
 
-  return triangle_count;
+  // return triangle_count;
 }
 #endif
 
