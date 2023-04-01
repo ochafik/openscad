@@ -94,7 +94,7 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
         if ((p0 != p1) && (p0 != p2) && (p1 != p2)) {
           Vector3f normal = (p1 - p0).cross(p2 - p0);
           normal.normalize();
-          if (!is_finite(normal) || is_nan(normal)) {
+          if (!normal.allFinite()) {
             // Collinear vertices.
             normal << 0, 0, 0;
           }
@@ -127,7 +127,7 @@ uint64_t append_stl(const PolySet& ps, std::ostream& output, bool binary)
 
           Vector3d normal = (p1 - p0).cross(p2 - p0);
           normal.normalize();
-          if (is_finite(normal) && !is_nan(normal)) {
+          if (normal.allFinite()) {
             output << normal[0] << " " << normal[1] << " " << normal[2]
                    << "\n";
           } else {
