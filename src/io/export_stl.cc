@@ -50,10 +50,12 @@ Vector3d toVector(const std::array<double, 3>& pt) {
 
 Vector3d fromString(const std::string& vertexString)
 {
-  Vector3d v;
-  std::istringstream stream{vertexString};
-  stream >> v[0] >> v[1] >> v[2];
-  return v;
+  auto cstr = vertexString.c_str();
+  return {
+    strtod(cstr, (char**)&cstr), 
+    strtod(cstr, (char**)&cstr), 
+    strtod(cstr, (char**)&cstr)
+  };
 }
 
 void write_vector(std::ostream& output, const Vector3f& v) {
