@@ -51,15 +51,17 @@ void tessellate_faces(const PolySet& inps, PolySet& outps)
 
   // Build Indexed PolyMesh
   Reindexer<Vector3f> allVertices;
-  std::vector<IndexedFace> polygons;
 
   // best estimate without iterating all polygons, to reduce reallocations
-  polygons.reserve(inps.polygons.size() );
+  outps.polygons.reserve(inps.polygons.size());
 
   // minimum estimate without iterating all polygons, to reduce reallocation and rehashing
   allVertices.reserve(3 * inps.polygons.size() );
+  const auto& verts = allVertices.getArray();
 
-  auto estimatedTriangleCount = 0;
+  // we will reuse these instead of reallocating for each polygon
+  std::vector<IndexedTriangle> triangles;
+  IndexedFace currface;
 
   for (const auto& pgon : inps.polygons) {
     if (pgon.size() < 3) {
@@ -67,8 +69,7 @@ void tessellate_faces(const PolySet& inps, PolySet& outps)
       continue;
     }
 
-    IndexedFace currface;
-    currface.reserve(pgon.size());
+    currface.clear();
     
     for (const auto& v : pgon) {
       // Create vertex indices and remove consecutive duplicate vertices
@@ -77,33 +78,19 @@ void tessellate_faces(const PolySet& inps, PolySet& outps)
       if (currface.empty() || idx != currface.back()) currface.push_back(idx);
     }
     if (currface.front() == currface.back()) currface.pop_back();
-    if (currface.size() >= 3) {
-      estimatedTriangleCount += currface.size() - 2;
-      polygons.emplace_back(std::move(currface));
-    }
-  }
 
-  // Tessellate indexed mesh
-  const auto& verts = allVertices.getArray();
-
-  // we will reuse this memory instead of reallocating for each polygon
-  std::vector<IndexedTriangle> triangles;
-
-  outps.polygons.reserve(estimatedTriangleCount);
-
-  for (const auto& face : polygons) {
-    if (face.size() == 3) {
+    if (currface.size() == 3) {
       // trivial case - triangles cannot be concave or have holes
-      outps.append_vertex(verts[face[0]]);
-      outps.append_vertex(verts[face[1]]);
-      outps.append_vertex(verts[face[2]]);
       outps.append_poly(3);
+      outps.append_vertex(verts[currface[0]]);
+      outps.append_vertex(verts[currface[1]]);
+      outps.append_vertex(verts[currface[2]]);
     }
     // Quads seem trivial, but can be concave, and can have degenerate cases.
     // So everything more complex than triangles goes into the general case.
-    else {
+    else if (currface.size() > 3) {
       triangles.clear();
-      auto err = GeometryUtils::tessellatePolygonWithHoles(verts, {face}, triangles, nullptr);
+      auto err = GeometryUtils::tessellatePolygonWithHoles(verts, {currface}, triangles, nullptr);
       if (!err) {
         for (const auto& t : triangles) {
           outps.append_poly(3);
@@ -127,15 +114,16 @@ void tessellate_faces(const PolySet& inps, IndexedTriangleMesh& outmesh)
 
   // Build Indexed PolyMesh
   Reindexer<Vector3f> allVertices;
-  std::vector<IndexedFace> polygons;
 
   // best estimate without iterating all polygons, to reduce reallocations
-  polygons.reserve(inps.polygons.size() );
+  outmesh.triangles.reserve(inps.polygons.size());
 
   // minimum estimate without iterating all polygons, to reduce reallocation and rehashing
   allVertices.reserve(3 * inps.polygons.size() );
 
-  auto estimatedTriangleCount = 0;
+  // we will reuse these instead of reallocating for each polygon
+  std::vector<IndexedTriangle> triangles;
+  IndexedFace currface;
 
   for (const auto& pgon : inps.polygons) {
     if (pgon.size() < 3) {
@@ -143,8 +131,7 @@ void tessellate_faces(const PolySet& inps, IndexedTriangleMesh& outmesh)
       continue;
     }
 
-    IndexedFace currface;
-    currface.reserve(pgon.size());
+    currface.clear();
 
     for (const auto& v : pgon) {
       // Create vertex indices and remove consecutive duplicate vertices
@@ -153,29 +140,16 @@ void tessellate_faces(const PolySet& inps, IndexedTriangleMesh& outmesh)
       if (currface.empty() || idx != currface.back()) currface.push_back(idx);
     }
     if (currface.front() == currface.back()) currface.pop_back();
-    if (currface.size() >= 3) {
-      estimatedTriangleCount += currface.size() - 2;
-      polygons.emplace_back(std::move(currface));
-    }
-  }
 
-  // Tessellate indexed mesh
-  outmesh.vertices = allVertices.getArray();
-  outmesh.triangles.reserve(estimatedTriangleCount);
-
-  // we will reuse this memory instead of reallocating for each polygon
-  std::vector<IndexedTriangle> triangles;
-
-  for (const auto& face : polygons) {
-    if (face.size() == 3) {
+    if (currface.size() == 3) {
       // trivial case - triangles cannot be concave or have holes
-      outmesh.triangles.emplace_back(face[0], face[1], face[2]);
+      outmesh.triangles.emplace_back(currface[0], currface[1], currface[2]);
     }
     // Quads seem trivial, but can be concave, and can have degenerate cases.
     // So everything more complex than triangles goes into the general case.
-    else {
+    else if (currface.size() > 3) {
       triangles.clear();
-      auto err = GeometryUtils::tessellatePolygonWithHoles(outmesh.vertices, {face}, triangles, nullptr);
+      auto err = GeometryUtils::tessellatePolygonWithHoles(allVertices.getArray(), {currface}, triangles, nullptr);
       if (!err) {
         for (const auto& t : triangles) {
           outmesh.triangles.emplace_back(t[0], t[1], t[2]);
@@ -183,6 +157,8 @@ void tessellate_faces(const PolySet& inps, IndexedTriangleMesh& outmesh)
       }
     }
   }
+
+  outmesh.vertices = allVertices.getArray();
 
   if (degeneratePolygons > 0) {
     LOG(message_group::Warning, "PolySet has degenerate polygons");
