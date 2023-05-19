@@ -170,6 +170,11 @@ bool applyHull(const Geometry::Geometries& children, PolySet& result)
   std::vector<K::Point_3> points;
   size_t pointsSaved = 0;
 
+  auto addReserve = [&](const auto n) {
+    reindexer.reserve(reindexer.size() + n);
+    points.reserve(points.size() + n);
+  };
+
   auto addPoint = [&](const auto& v) {
       size_t s = reindexer.size();
       size_t idx = reindexer.lookup(v);
@@ -184,20 +189,20 @@ bool applyHull(const Geometry::Geometries& children, PolySet& result)
     auto& chgeom = item.second;
     if (auto N = dynamic_pointer_cast<const CGAL_Nef_polyhedron>(chgeom)) {
       if (!N->isEmpty()) {
-        points.reserve(points.size() + N->p3->number_of_vertices());
+        addReserve(N->p3->number_of_vertices());
         for (CGAL_Nef_polyhedron3::Vertex_const_iterator i = N->p3->vertices_begin(); i != N->p3->vertices_end(); ++i) {
           addPoint(vector_convert<K::Point_3>(i->point()));
         }
       }
     } else if (auto hybrid = dynamic_pointer_cast<const CGALHybridPolyhedron>(chgeom)) {
-      points.reserve(points.size() + hybrid->numVertices());
+      addReserve(hybrid->numVertices());
       hybrid->foreachVertexUntilTrue([&](auto& p) {
           addPoint(vector_convert<K::Point_3>(p));
           return false;
         });
 #ifdef ENABLE_MANIFOLD
     } else if (auto mani = dynamic_pointer_cast<const ManifoldGeometry>(chgeom)) {
-      points.reserve(points.size() + mani->numVertices());
+      addReserve(mani->numVertices());
       mani->foreachVertexUntilTrue([&](auto& p) {
           addPoint(vector_convert<K::Point_3>(p));
           return false;
@@ -206,7 +211,7 @@ bool applyHull(const Geometry::Geometries& children, PolySet& result)
     } else {
       const auto *ps = dynamic_cast<const PolySet *>(chgeom.get());
       if (ps) {
-        points.reserve(points.size() + ps->polygons.size() * 3);
+        addReserve(ps->polygons.size() * 3);
         for (const auto& p : ps->polygons) {
           for (const auto& v : p) {
             addPoint(vector_convert<K::Point_3>(v));
