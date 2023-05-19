@@ -75,9 +75,11 @@ std::string PolySet::dump() const
   return out.str();
 }
 
-void PolySet::append_poly()
+void PolySet::append_poly(size_t expected_vertex_count)
 {
-  polygons.push_back(Polygon());
+  Polygon poly;
+  poly.reserve(expected_vertex_count);
+  polygons.emplace_back(std::move(poly));
 }
 
 void PolySet::append_poly(const Polygon& poly)
