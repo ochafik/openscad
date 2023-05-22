@@ -270,7 +270,7 @@ else()
   target_include_directories(OpenSCAD SYSTEM PRIVATE ${Boost_INCLUDE_DIRS})
   target_link_libraries(OpenSCAD PRIVATE ${Boost_LIBRARIES})
 
-  find_package(HarfBuzz 0.9.19 REQUIRED QUIET)
+  find_package(HarfBuzz 5.3.1 REQUIRED QUIET)
   message(STATUS "Harfbuzz: ${HARFBUZZ_VERSION}")
   target_include_directories(OpenSCAD SYSTEM PRIVATE ${HARFBUZZ_INCLUDE_DIRS})
   target_link_libraries(OpenSCAD PRIVATE ${HARFBUZZ_LIBRARIES})
@@ -613,6 +613,7 @@ set(CORE_SOURCES
   src/core/LinearExtrudeNode.cc
   src/core/LocalScope.cc
   src/core/ScopeContext.cc
+  src/core/MatrixObject.cc
   src/core/module.cc
   src/core/node.cc
   src/core/NodeDumper.cc

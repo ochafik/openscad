@@ -493,20 +493,23 @@ static std::shared_ptr<AbstractNode> builtin_polyhedron(const ModuleInstantiatio
 
   Parameters parameters = Parameters::parse(std::move(arguments), inst->location(), {"points", "faces", "convexity"}, {"triangles"});
 
-  if (parameters["points"].type() != Value::Type::VECTOR) {
+  // TODO(ochafik): Optimize MATRIX!!!
+
+  if (auto pointsVec = parameters["points"].asVector()) {
+    for (const Value& pointValue : pointsVec->toVector()) {
+      point3d point;
+      if (!pointValue.getVec3(point.x, point.y, point.z, 0.0) ||
+          !std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)
+          ) {
+        LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points[%1$d] = %2$s to a vec3 of numbers", node->points.size(), pointValue.toEchoStringNoThrow());
+        node->points.push_back({0, 0, 0});
+      } else {
+        node->points.push_back(point);
+      }
+    }
+  } else {
     LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points = %1$s to a vector of coordinates", parameters["points"].toEchoStringNoThrow());
     return node;
-  }
-  for (const Value& pointValue : parameters["points"].toVector()) {
-    point3d point;
-    if (!pointValue.getVec3(point.x, point.y, point.z, 0.0) ||
-        !std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)
-        ) {
-      LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points[%1$d] = %2$s to a vec3 of numbers", node->points.size(), pointValue.toEchoStringNoThrow());
-      node->points.push_back({0, 0, 0});
-    } else {
-      node->points.push_back(point);
-    }
   }
 
   const Value *faces = nullptr;
@@ -517,35 +520,36 @@ static std::shared_ptr<AbstractNode> builtin_polyhedron(const ModuleInstantiatio
   } else {
     faces = &parameters["faces"];
   }
-  if (faces->type() != Value::Type::VECTOR) {
+  size_t faceIndex = 0;
+  if (auto facesVec = faces->asVector()) {
+    for (const Value& faceValue : facesVec->toVector()) {
+      if (auto faceVec = faceValue.asVector()) {
+        size_t pointIndexIndex = 0;
+        std::vector<size_t> face;
+        for (const Value& pointIndexValue : faceVec->toVector()) {
+          if (pointIndexValue.type() != Value::Type::NUMBER) {
+            LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert faces[%1$d][%2$d] = %3$s to a number", faceIndex, pointIndexIndex, pointIndexValue.toEchoStringNoThrow());
+          } else {
+            size_t pointIndex = (size_t)pointIndexValue.toDouble();
+            if (pointIndex < node->points.size()) {
+              face.push_back(pointIndex);
+            } else {
+              LOG(message_group::Warning, inst->location(), parameters.documentRoot(), "Point index %1$d is out of bounds (from faces[%2$d][%3$d])", pointIndex, faceIndex, pointIndexIndex);
+            }
+          }
+          pointIndexIndex++;
+        }
+        if (face.size() >= 3) {
+          node->faces.push_back(std::move(face));
+        }
+      } else {
+        LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert faces[%1$d] = %2$s to a vector of numbers", faceIndex, faceValue.toEchoStringNoThrow());
+      }
+      faceIndex++;
+    }
+  } else {
     LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert faces = %1$s to a vector of vector of point indices", faces->toEchoStringNoThrow());
     return node;
-  }
-  size_t faceIndex = 0;
-  for (const Value& faceValue : faces->toVector()) {
-    if (faceValue.type() != Value::Type::VECTOR) {
-      LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert faces[%1$d] = %2$s to a vector of numbers", faceIndex, faceValue.toEchoStringNoThrow());
-    } else {
-      size_t pointIndexIndex = 0;
-      std::vector<size_t> face;
-      for (const Value& pointIndexValue : faceValue.toVector()) {
-        if (pointIndexValue.type() != Value::Type::NUMBER) {
-          LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert faces[%1$d][%2$d] = %3$s to a number", faceIndex, pointIndexIndex, pointIndexValue.toEchoStringNoThrow());
-        } else {
-          auto pointIndex = (size_t)pointIndexValue.toDouble();
-          if (pointIndex < node->points.size()) {
-            face.push_back(pointIndex);
-          } else {
-            LOG(message_group::Warning, inst->location(), parameters.documentRoot(), "Point index %1$d is out of bounds (from faces[%2$d][%3$d])", pointIndex, faceIndex, pointIndexIndex);
-          }
-        }
-        pointIndexIndex++;
-      }
-      if (face.size() >= 3) {
-        node->faces.push_back(std::move(face));
-      }
-    }
-    faceIndex++;
   }
 
   node->convexity = (int)parameters["convexity"].toDouble();
@@ -739,31 +743,30 @@ static std::shared_ptr<AbstractNode> builtin_polygon(const ModuleInstantiation *
 
   Parameters parameters = Parameters::parse(std::move(arguments), inst->location(), {"points", "paths", "convexity"});
 
-  if (parameters["points"].type() != Value::Type::VECTOR) {
+  if (auto pointsVec = parameters["points"].asVector()) {
+    for (const Value& pointValue : pointsVec->toVector()) {
+      point2d point;
+      if (!pointValue.getVec2(point.x, point.y) ||
+          !std::isfinite(point.x) || !std::isfinite(point.y)
+          ) {
+        LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points[%1$d] = %2$s to a vec2 of numbers", node->points.size(), pointValue.toEchoStringNoThrow());
+        node->points.push_back({0, 0});
+      } else {
+        node->points.push_back(point);
+      }
+    }
+  } else {
     LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points = %1$s to a vector of coordinates", parameters["points"].toEchoStringNoThrow());
     return node;
   }
-  for (const Value& pointValue : parameters["points"].toVector()) {
-    point2d point;
-    if (!pointValue.getVec2(point.x, point.y) ||
-        !std::isfinite(point.x) || !std::isfinite(point.y)
-        ) {
-      LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points[%1$d] = %2$s to a vec2 of numbers", node->points.size(), pointValue.toEchoStringNoThrow());
-      node->points.push_back({0, 0});
-    } else {
-      node->points.push_back(point);
-    }
-  }
 
-  if (parameters["paths"].type() == Value::Type::VECTOR) {
+  if (auto pathsVec = parameters["paths"].asVector()) {
     size_t pathIndex = 0;
-    for (const Value& pathValue : parameters["paths"].toVector()) {
-      if (pathValue.type() != Value::Type::VECTOR) {
-        LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert paths[%1$d] = %2$s to a vector of numbers", pathIndex, pathValue.toEchoStringNoThrow());
-      } else {
+    for (const Value& pathValue : pathsVec->toVector()) {
+      if (auto pathVec = pathValue.asVector()) {
         size_t pointIndexIndex = 0;
         std::vector<size_t> path;
-        for (const Value& pointIndexValue : pathValue.toVector()) {
+        for (const Value& pointIndexValue : pathVec->toVector()) {
           if (pointIndexValue.type() != Value::Type::NUMBER) {
             LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert paths[%1$d][%2$d] = %3$s to a number", pathIndex, pointIndexIndex, pointIndexValue.toEchoStringNoThrow());
           } else {
@@ -777,6 +780,8 @@ static std::shared_ptr<AbstractNode> builtin_polygon(const ModuleInstantiation *
           pointIndexIndex++;
         }
         node->paths.push_back(std::move(path));
+      } else {
+        LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert paths[%1$d] = %2$s to a vector of numbers", pathIndex, pathValue.toEchoStringNoThrow());
       }
       pathIndex++;
     }

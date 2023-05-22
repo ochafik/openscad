@@ -20,6 +20,7 @@ struct Argument {
   Argument& operator=(const Argument& other) = delete;
   ~Argument() = default;
 
+  const Value &operator*() const { return value; }
   const Value *operator->() const { return &value; }
   Value *operator->() { return &value; }
 };

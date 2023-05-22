@@ -163,7 +163,8 @@ Value builtin_rands(Arguments arguments, const Location& loc)
     deterministic_rng.seed(seed);
   }
 
-  VectorType vec(arguments.session());
+  VectorBuilder vec(arguments.session());
+  vec.reserve(numresults);
   if (min >= max) { // uniform_real_distribution doesn't allow min == max
     for (size_t i = 0; i < numresults; ++i)
       vec.emplace_back(min);
@@ -173,7 +174,7 @@ Value builtin_rands(Arguments arguments, const Location& loc)
       vec.emplace_back(distributor(deterministic_rng));
     }
   }
-  return std::move(vec);
+  return std::move(vec.build());
 }
 
 static std::vector<double> min_max_arguments(const Arguments& arguments, const Location& loc, const char *function_name)
@@ -217,6 +218,12 @@ static std::vector<double> min_max_arguments(const Arguments& arguments, const L
 
 Value builtin_min(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    auto mat = arguments[0]->toMatrixObject();
+    if (mat.cols() == 1 && mat.rows() > 0) {
+      return Value(mat.minCoeff());
+    }
+  }
   std::vector<double> values = min_max_arguments(arguments, loc, "min");
   if (values.empty()) {
     return Value::undefined.clone();
@@ -226,6 +233,12 @@ Value builtin_min(Arguments arguments, const Location& loc)
 
 Value builtin_max(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    auto mat = arguments[0]->toMatrixObject();
+    if (mat.cols() == 1 && mat.rows() > 0) {
+      return Value(mat.maxCoeff());
+    }
+  }
   std::vector<double> values = min_max_arguments(arguments, loc, "max");
   if (values.empty()) {
     return Value::undefined.clone();
@@ -342,6 +355,9 @@ Value builtin_length(Arguments arguments, const Location& loc)
   if (try_check_arguments(arguments, { Value::Type::VECTOR })) {
     return {double(arguments[0]->toVector().size())};
   }
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    return Value(double(arguments[0]->toMatrixObject().rows()));
+  }
   if (!check_arguments("len", arguments, loc, { Value::Type::STRING })) {
     return Value::undefined.clone();
   }
@@ -416,22 +432,47 @@ Value builtin_ord(Arguments arguments, const Location& loc)
 
 Value builtin_concat(Arguments arguments, const Location& /*loc*/)
 {
-  VectorType result(arguments.session());
+  VectorBuilder result(arguments.session());
+  size_t size = 0;
   for (auto& argument : arguments) {
     if (argument->type() == Value::Type::VECTOR) {
-      result.emplace_back(EmbeddedVectorType(std::move(argument->toVectorNonConst())));
+      size += argument->toVector().size();
+    } else if (argument->type() == Value::Type::MATRIX) {
+      size += argument->toMatrixObject().rows();
+    } else {
+      size++;
+    }
+  }
+  result.reserve(size);
+  for (auto& argument : arguments) {
+    if (argument->type() == Value::Type::VECTOR) {
+      result.flat_emplace_back(std::move(argument->toVectorNonConst()));
+    } else if (argument->type() == Value::Type::MATRIX) {
+      result.flat_emplace_back(std::move(argument->toMatrixObjectNonConst()));
     } else {
       result.emplace_back(std::move(argument.value));
     }
   }
-  return std::move(result);
+  return std::move(result.build());
 }
 
 Value builtin_lookup(Arguments arguments, const Location& loc)
 {
-  if (!check_arguments("lookup", arguments, loc, { Value::Type::NUMBER, Value::Type::VECTOR })) {
+  if (!check_arguments("lookup", arguments, loc, 2)) {
     return Value::undefined.clone();
   }
+  
+  Value array = arguments[1]->clone();
+  if (try_check_arguments(arguments, { Value::Type::NUMBER, Value::Type::MATRIX })) {
+  // TODO(ochafik): optimize MATRIX case
+    array = Value(std::move(array.toMatrixObject().toVector()));
+  } else if (!try_check_arguments(arguments, { Value::Type::NUMBER, Value::Type::VECTOR })) {
+    return Value::undefined.clone();
+  }
+  
+  // if (!check_arguments("lookup", arguments, loc, { Value::Type::NUMBER, Value::Type::VECTOR })) {
+  //   return Value::undefined.clone();
+  // }
   double p = arguments[0]->toDouble();
   if (!std::isfinite(p)) {
     LOG(message_group::Warning, loc, arguments.documentRoot(), "lookup(%1$s, ...) first argument is not a number", arguments[0]->toEchoStringNoThrow());
@@ -439,7 +480,7 @@ Value builtin_lookup(Arguments arguments, const Location& loc)
   }
 
   double low_p, low_v, high_p, high_v;
-  const auto& vec = arguments[1]->toVector();
+  const auto& vec = array.toVector();
 
   // Second must be a vector of vec2, with valid numbers inside
   auto it = vec.begin();
@@ -639,27 +680,29 @@ Value builtin_search(Arguments arguments, const Location& loc)
     } else {
       returnvec = search(findThis.toStrUtf8Wrapper(), searchTable.toVector(), num_returns_per_match, index_col_num, loc, arguments.session());
     }
-  } else if (findThis.type() == Value::Type::VECTOR) {
-    const auto& findVec = findThis.toVector();
-    for (const auto& find_value : findVec) {
+  } else if (auto findVec = findThis.asVector()) {
+    for (const auto& find_value : findVec->toVector()) {
       unsigned int matchCount = 0;
       VectorType resultvec(arguments.session());
 
       size_t j = 0;
-      for (const auto& search_element : searchTable.toVector()) {
-        if ((index_col_num == 0 && (find_value == search_element).toBool()) ||
-            (index_col_num < search_element.toVector().size() &&
-             (find_value == search_element.toVector()[index_col_num]).toBool())) {
-          matchCount++;
-          if (num_returns_per_match == 1) {
-            returnvec.emplace_back(double(j));
-            break;
-          } else {
-            resultvec.emplace_back(double(j));
+      if (auto searchTableVec = searchTable.asVector()) {
+        for (const auto& search_element : searchTableVec->toVector()) {
+          LOG(message_group::Warning, Location::NONE, "", "find_value = %1s, search_element = %2s", find_value, search_element);
+          if ((index_col_num == 0 && (find_value == search_element).toBool()) ||
+              (index_col_num < search_element.toVector().size() &&
+              (find_value == search_element.toVector()[index_col_num]).toBool())) {
+            matchCount++;
+            if (num_returns_per_match == 1) {
+              returnvec.emplace_back(double(j));
+              break;
+            } else {
+              resultvec.emplace_back(double(j));
+            }
+            if (num_returns_per_match > 1 && matchCount >= num_returns_per_match) break;
           }
-          if (num_returns_per_match > 1 && matchCount >= num_returns_per_match) break;
+          ++j;
         }
-        ++j;
       }
       if ((num_returns_per_match == 1 && matchCount == 0) ||
           num_returns_per_match == 0 ||
@@ -723,6 +766,9 @@ Value builtin_parent_module(Arguments arguments, const Location& loc)
 
 Value builtin_norm(Arguments arguments, const Location& loc)
 {
+  if (try_check_arguments(arguments, { Value::Type::MATRIX })) {
+    return Value(arguments[0]->toMatrixObject().norm());
+  }
   if (!check_arguments("norm", arguments, loc, { Value::Type::VECTOR })) {
     return Value::undefined.clone();
   }
@@ -741,6 +787,12 @@ Value builtin_norm(Arguments arguments, const Location& loc)
 
 Value builtin_cross(Arguments arguments, const Location& loc)
 {
+  // TODO: can we have embedded matrices here??
+  if (try_check_arguments(arguments, { Value::Type::MATRIX, Value::Type::MATRIX })) {
+    if (auto ret = arguments[0]->toMatrixObject().cross(arguments[1]->toMatrixObject())) {
+      return std::move(Value(std::move(ret.get())));
+    }
+  }
   if (!check_arguments("cross", arguments, loc, { Value::Type::VECTOR, Value::Type::VECTOR })) {
     return Value::undefined.clone();
   }
@@ -776,7 +828,7 @@ Value builtin_cross(Arguments arguments, const Location& loc)
   double y = v0[2].toDouble() * v1[0].toDouble() - v0[0].toDouble() * v1[2].toDouble();
   double z = v0[0].toDouble() * v1[1].toDouble() - v0[1].toDouble() * v1[0].toDouble();
 
-  return VectorType(arguments.session(), x, y, z);
+  return VectorBuilder::build(arguments.session(), x, y, z);
 }
 
 Value builtin_textmetrics(Arguments arguments, const Location& loc)
@@ -888,7 +940,9 @@ Value builtin_is_list(Arguments arguments, const Location& loc)
   if (!check_arguments("is_list", arguments, loc, 1)) {
     return Value::undefined.clone();
   }
-  return {arguments[0]->isDefinedAs(Value::Type::VECTOR)};
+  return Value(
+    arguments[0]->isDefinedAs(Value::Type::VECTOR) ||
+    (arguments[0]->isDefinedAs(Value::Type::MATRIX)));
 }
 
 Value builtin_is_num(Arguments arguments, const Location& loc)

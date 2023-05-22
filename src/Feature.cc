@@ -35,6 +35,7 @@ const Feature Feature::ExperimentalFastCsg("fast-csg", "Enable much faster CSG o
 const Feature Feature::ExperimentalFastCsgSafer("fast-csg-safer", "Don't use corefinement in cases it doesn't supports and risks crashing. This will fallback to slower operations on Nef polyhedra.");
 const Feature Feature::ExperimentalFastCsgDebug("fast-csg-debug", "Debug mode for fast-csg: adds logs with extra costly checks and dumps .off files with the last corefinement operands.");
 const Feature Feature::ExperimentalManifold("manifold", "Use the Manifold library (https://github.com/elalish/manifold) for CSG operations instead of CGAL.");
+const Feature Feature::ExperimentalFastLinalg("fast-linalg", "Enable fast linear algebra (Eigen-powered vectors and matrices)");
 const Feature Feature::ExperimentalRoof("roof", "Enable <code>roof</code>");
 const Feature Feature::ExperimentalInputDriverDBus("input-driver-dbus", "Enable DBus input drivers (requires restart)");
 const Feature Feature::ExperimentalLazyUnion("lazy-union", "Enable lazy unions.");
