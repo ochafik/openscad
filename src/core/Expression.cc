@@ -691,6 +691,7 @@ Let::Let(AssignmentList args, Expression *expr, const Location& loc)
 
 void Let::doSequentialAssignment(const AssignmentList& assignments, const Location& location, ContextHandle<Context>& targetContext)
 {
+  // TODO: move seen checks to constructor!
   std::unordered_set<Identifier> seen;
   seen.reserve(assignments.size());
 
@@ -895,14 +896,31 @@ void LcFor::print(std::ostream& stream, const std::string&) const
 LcForC::LcForC(AssignmentList args, AssignmentList incrargs, Expression *cond, Expression *expr, const Location& loc)
   : ListComprehension(loc), arguments(std::move(args)), incr_arguments(std::move(incrargs)), cond(cond), expr(expr)
 {
+  std::unordered_set<Identifier> incr_vars;
+  for (auto &assignment : incr_arguments) {
+    incr_vars.insert(assignment->getName());
+  }
+
+  for (auto &argument : arguments) {
+    auto &id = argument->getName();
+    if (incr_vars.find(id) == incr_vars.end()) {
+      vars_to_realias_in_incr.emplace_back(id);
+    }
+  }
 }
 
 Value LcForC::evaluate(const std::shared_ptr<const Context>& context) const
 {
   EmbeddedVectorType output(context->session());
 
-  ContextHandle<Context> initialContext{Let::sequentialAssignmentContext(this->arguments, this->location(), context)};
-  ContextHandle<Context> currentContext{Context::create<Context>(*initialContext)};
+  ContextHandle<Context> currentContext{Let::sequentialAssignmentContext(this->arguments, this->location(), context)};
+  std::unordered_map<Identifier, const Value&> incr_values;
+  incr_values.reserve(vars_to_realias_in_incr.size());
+  for (auto &id : vars_to_realias_in_incr) {
+    if (auto value = currentContext->try_lookup_variable(id)) {
+      incr_values.emplace(id, *value);
+    }
+  }
 
   unsigned int counter = 0;
   while (this->cond->evaluate(*currentContext).toBool()) {
@@ -925,8 +943,11 @@ Value LcForC::evaluate(const std::shared_ptr<const Context>& context) const
      * So, we reparent the next context to the initial context.
      */
     ContextHandle<Context> nextContext{Let::sequentialAssignmentContext(this->incr_arguments, this->location(), *currentContext)};
+    for (auto &pair : incr_values) {
+      nextContext->set_variable(pair.first, pair.second.clone());
+    }
     currentContext = std::move(nextContext);
-    currentContext->setParent(*initialContext);
+    currentContext->setParent(context->shared_from_this());
   }
   return {std::move(output)};
 }

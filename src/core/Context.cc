@@ -24,6 +24,8 @@
  *
  */
 
+#define DEBUG_CACHED_LOOKUP 1
+
 #include "Context.h"
 #include "function.h"
 #include "printutils.h"
@@ -63,18 +65,90 @@ std::vector<const std::shared_ptr<const Context> *> Context::list_referenced_con
   return output;
 }
 
+class Counter
+{
+  std::string name;
+public:
+  Counter(const std::string& name) : name(name), count(0) {}
+  ~Counter() {
+    std::cout << "COUNT " << name << ": " << count << "\n";
+  }
+  size_t count;
+};
+
 boost::optional<const Value&> Context::try_lookup_variable(const Identifier& name) const
 {
   if (is_config_variable(name)) {
+    static Counter counter("Context::try_lookup_variable CONFIG");
+    ++counter.count;
     return session()->try_lookup_special_variable(name);
   }
-  for (const Context *context = this; context != nullptr; context = context->getParent().get()) {
-    boost::optional<const Value&> result = context->lookup_local_variable(name);
-    if (result) {
-      return result;
+
+  static Counter counter("Context::try_lookup_variable NORMAL");
+  ++counter.count;
+
+  std::function<boost::optional<const Value&>(const boost::optional<int> &)> resolve =
+      [&](auto &resolved_context_escalations) -> boost::optional<const Value&>
+  {
+    int escalations = 0;
+
+    for (const Context *context = this; context != nullptr; context = context->getParent().get(), ++escalations) {
+      if (resolved_context_escalations) {
+        if (escalations < *resolved_context_escalations) {
+          continue;
+        } else if (escalations == *resolved_context_escalations) {
+          if (name.last_resolved_value_context == context->shared_from_this()) {
+            // Context same identity as the last time we resolved this variable, so we can use the cached value.
+            return name.last_resolved_value;
+          }
+        }
+      }
+      boost::optional<const Value&> result = context->lookup_local_variable(name);
+      if (result) {
+#if DEBUG_CACHED_LOOKUP
+        if (resolved_context_escalations) {
+          if (escalations == *resolved_context_escalations) {
+            static Counter counter("Context::try_lookup_variable CACHE HIT");
+            ++counter.count;
+          } else {
+            LOG(message_group::Error, name.location(), documentRoot(),
+              "Found variable '%1$s' at %2$d context escalations instead of expected %3$d",
+              name, escalations, *resolved_context_escalations);
+              
+            if (escalations < *resolved_context_escalations) {
+              static Counter counter("Context::try_lookup_variable CACHE MISS FOUND EARLIER");
+              ++counter.count;
+            } else {
+              static Counter counter("Context::try_lookup_variable CACHE MISS FOUND LATER");
+              ++counter.count;
+            }
+          }
+        }
+#endif
+        name.last_resolved_value_context = context->shared_from_this();
+        name.last_resolved_value = result;
+        name.resolved_value_context_escalations = escalations;
+        return result;
+      }
+      if (resolved_context_escalations && escalations == *resolved_context_escalations) {
+        LOG(message_group::Error, name.location(), documentRoot(),
+          "Failed to find previously resolved variable '%1$s' at exactly %2$d context escalations",
+          name, escalations);
+#if DEBUG_CACHED_LOOKUP
+        // std::cout << "NOT FOUND WHERE EXPECTED: " << name << " at " << name.location().fileName() << ":" << name.location().firstLine() << "\n";
+          
+        static Counter counter("Context::try_lookup_variable CACHE MISS NOT FOUND WHERE EXPECTED");
+        ++counter.count;
+#endif
+        name.resolved_value_context_escalations = -1;
+        return resolve(boost::none);
+      }
     }
-  }
-  return boost::none;
+    return boost::none;
+  };
+  auto esc = name.resolved_value_context_escalations;
+  return resolve(esc && *esc >= 0 ? esc : boost::none);
+  // return resolve(esc && *esc >= 0 ? boost::optional<int>(std::max(0, *esc - 1)) : boost::none);
 }
 
 const Value& Context::lookup_variable(const Identifier& name, const Location& loc) const

@@ -2,8 +2,11 @@
 #include <string>
 #include <boost/optional.hpp>
 #include "AST.h"
+#include <iostream>
 
 class BuiltinFunction;
+class Context;
+class Value;
 
 class Identifier
 {
@@ -57,6 +60,10 @@ private:
   friend class Context;
 
   mutable boost::optional<const BuiltinFunction *> resolved_builtin_function;
+
+  mutable boost::optional<int> resolved_value_context_escalations;
+  mutable boost::optional<const Value&> last_resolved_value;
+  mutable boost::optional<std::shared_ptr<const Context>> last_resolved_value_context;
 
   void update_hash() {
     hash = std::hash<std::string>()(name);

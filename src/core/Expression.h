@@ -276,6 +276,7 @@ public:
 private:
   AssignmentList arguments;
   AssignmentList incr_arguments;
+  std::vector<Identifier> vars_to_realias_in_incr;
   shared_ptr<Expression> cond;
   shared_ptr<Expression> expr;
 };
