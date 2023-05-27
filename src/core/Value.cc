@@ -914,34 +914,283 @@ Value Value::operator-(const Value& v) const
   return std::visit(minus_visitor(), this->value, v.value);
 }
 
+class Counter
+{
+  std::string name;
+public:
+  Counter(const std::string& name) : name(name), count(0) {}
+  ~Counter() {
+    std::cout << "COUNT " << name << ": " << count << "\n";
+  }
+  size_t count;
+};
+
+// Matrix always expressed as vector of row vectors
+// We store the coeffs in row major order as a result.
+bool get_matrix_coeffs(const VectorType& matrixvec, bool prefer_col_vector, size_t &rows, size_t &cols, bool &is_vector, std::vector<double> &out) {
+  auto size = matrixvec.size();
+  if (!size) {
+    static Counter counter("FAILED get_matrix_coeffs (zero vec size)");
+    ++counter.count;
+    return false;
+  }
+  const auto &first = matrixvec[0];
+  if (first.type() == Value::Type::VECTOR) {
+    rows = size;
+    cols = first.toVector().size();
+    is_vector = false;
+    if (!cols) {
+      static Counter counter("FAILED get_matrix_coeffs (zero first vec component size)");
+      ++counter.count;
+      return false;
+    }
+    out.resize(rows * cols);
+
+    size_t out_offset = 0;
+
+    for (size_t i = 0; i < rows; ++i) {
+      const auto &row = matrixvec[i];
+      if (row.type() != Value::Type::VECTOR) {
+        static Counter counter("FAILED get_matrix_coeffs (component of matrix not a vec)");
+        ++counter.count;
+        return false;
+      }
+      const auto &rowvec = row.toVector();
+      if (rowvec.size() != cols) {
+        static Counter counter("FAILED get_matrix_coeffs (component of matrix w/ wrong size)");
+        ++counter.count;
+        return false;
+      }
+      for (size_t j = 0; j < cols; ++j) {
+        const auto &cell = rowvec[j];
+        if (cell.type() != Value::Type::NUMBER) {
+          static Counter counter("FAILED get_matrix_coeffs (cell of matrix not a number)");
+          ++counter.count;
+          return false;
+        }
+        auto v = cell.toDouble();
+        assert(out_offset == i * cols + j);
+        out[out_offset++] = v;
+      }
+    }
+    assert(out_offset == rows * cols);
+    return true;
+  } else if (first.type() == Value::Type::NUMBER) {
+    if (prefer_col_vector) {
+      rows = size;
+      cols = 1;
+    } else {
+      rows = 1;
+      cols = size;
+    }
+    is_vector = true;
+    out.resize(size);
+
+    for (size_t i = 0; i < size; ++i) {
+      const auto &value = matrixvec[i];
+      if (value.type() != Value::Type::NUMBER) {
+        static Counter counter("FAILED get_matrix_coeffs (component of vector not a number)");
+        ++counter.count;
+        return false;
+      }
+      out[i] = value.toDouble();
+    }
+    return true;
+  } else {
+    static Counter counter("FAILED get_matrix_coeffs (component of vector not supported)");
+    ++counter.count;
+    return false;
+  }
+}
+
+// // The beauty of this is the vector of coeffs can be interpreted as a the coeffients of a column or row vector matrix stored in either row or column order.
+// bool get_vector_coeffs(const VectorType& vec, size_t size, std::vector<double> &out) {
+//   if (vec.size() != size) {
+//     return false;
+//   }
+//   out.resize(size);
+//   for (size_t i = 0; i < size; ++i) {
+//     const auto &cell = vec[i];
+//     if (cell.type() != Value::Type::NUMBER) {
+//       return false;
+//     }
+//     auto v = cell.toDouble();
+//     out[i] = v;
+//   }
+//   return true;
+// }
+
+void mult_matrix(const std::vector<double> &a, const std::vector<double> &b, std::vector<double> &out, size_t rows, size_t cols1, size_t cols)
+{  
+  out.resize(rows * cols);
+  if (a.size() != rows * cols1 || b.size() != cols1 * cols) {
+    static Counter counter("FAILED bad matrix size");
+    ++counter.count;
+    return;
+  }
+  // Use raw pointers to give a chance to the auto-vectorizer
+  const double *pa = &a[0], *pb = &b[0];
+  double *pout = &out[0];
+
+  for (size_t i = 0; i < rows; ++i) {
+    auto out_offset = i * cols;
+    for (size_t j = 0; j < cols; ++j) {
+      double tot = 0.0;
+      for (size_t k = 0; k < cols1; ++k) {
+        auto aik = pa[i * cols1 + k];
+        auto bkj = pb[k * cols + j];
+        // std::cout << "a(i=" << i << ", k=" << k << ") = " << aik << ", b(k=" << k << ", j=" << j << ") = " << bkj << "\n";
+        tot += aik * bkj;
+      }
+      // std::cout << "tot: " << tot << "\n";
+      pout[out_offset + j] = tot;
+    }
+  }
+}
+
+enum MatrixCoeffsOutputType {
+  MATRIX_COEFFS_OUTPUT_TYPE_MATRIX,
+  MATRIX_COEFFS_OUTPUT_TYPE_VECTOR,
+  MATRIX_COEFFS_OUTPUT_TYPE_SCALAR,
+};
+
+Value coeffs_to_matrix(EvaluationSession *session, const std::vector<double> &coeffs, size_t rows, size_t cols, MatrixCoeffsOutputType preferred_output_type) {
+  if (coeffs.size() != rows * cols) {
+    static Counter counter("FAILED bad coeffs size");
+    ++counter.count;
+
+    // std::cout << "coeffs_to_matrix: coeffs.size() != rows * cols\n";
+    return Value::undef(STR("coeffs_to_matrix: coeffs.size() != rows * cols"));
+  }
+
+  if (preferred_output_type != MATRIX_COEFFS_OUTPUT_TYPE_MATRIX && (cols == 1 || rows == 1)) {
+    if (preferred_output_type == MATRIX_COEFFS_OUTPUT_TYPE_SCALAR) {
+      assert(cols == 1 && rows == 1);
+      return {coeffs[0]};
+    } else {
+      assert(preferred_output_type == MATRIX_COEFFS_OUTPUT_TYPE_VECTOR);
+      auto size = std::max(cols, rows);
+      VectorType mat(session);
+      mat.reserve(size);
+      for (size_t i = 0; i < size; ++i) {
+        mat.emplace_back(coeffs[i]);
+      }
+      return std::move(mat);
+    }
+  } else {
+    VectorType mat(session);
+    mat.reserve(rows);
+
+    for (size_t i = 0; i < rows; ++i) {
+      auto offset = i * cols;
+
+      VectorType row(session);
+      row.reserve(cols);
+
+      for (size_t j = 0; j < cols; ++j) {
+        row.emplace_back(coeffs[offset + j]);
+      }
+
+      mat.emplace_back(std::move(row));
+    }
+    return std::move(mat);
+  }
+}
+
+void print_matrix(const std::vector<double>& m, size_t rows, size_t cols) {
+  std::cout << "m(" << rows << ", " << cols << "):\n";
+  for (size_t i = 0; i < rows; ++i) {
+    std::cout << "\t";
+    for (size_t j = 0; j < cols; ++j) {
+      std::cout << m[i * cols + j] << ' ';
+    }
+    std::cout << "\n";  
+  }
+}
+
 Value multvecnum(const VectorType& vecval, const Value& numval)
 {
-  // Vector * Number
-  VectorType dstv(vecval.evaluation_session());
-  for (const auto& val : vecval) {
-    dstv.emplace_back(val * numval);
+  static std::vector<double> coeffs;
+  size_t rows, cols;
+  auto is_vector = false;
+  if (get_matrix_coeffs(vecval, /* prefer_col_vector= */ false, rows, cols, is_vector, coeffs)) {
+    auto factor = numval.toDouble();
+    
+    // Use raw pointer to give a chance to the auto-vectorizer
+    double *pcoeffs = &coeffs[0];
+    for (size_t i = 0, n = coeffs.size(); i < n; i++) {
+      pcoeffs[i] *= factor;
+    }
+
+    if (vecval[0].type() == Value::Type::VECTOR) {
+      static Counter counter("NEW multvecnum (matrix))");
+      ++counter.count;
+
+      return coeffs_to_matrix(vecval.evaluation_session(), coeffs, rows, cols, MATRIX_COEFFS_OUTPUT_TYPE_MATRIX);
+    } else {
+      static Counter counter("NEW multvecnum (vector))");
+      ++counter.count;
+
+      assert(rows == 1);
+      VectorType dstv(vecval.evaluation_session());
+      dstv.reserve(cols);
+      for (auto v : coeffs) {
+        dstv.emplace_back(v);
+      }
+      return std::move(dstv);
+    }
+  } else {
+    static Counter counter("OLD multvecnum");
+    ++counter.count;
+
+    // Vector * Number
+    VectorType dstv(vecval.evaluation_session());
+    dstv.reserve(vecval.size());
+    for (const auto& val : vecval) {
+      dstv.emplace_back(val * numval);
+    }
+    return std::move(dstv);
   }
-  return std::move(dstv);
 }
 
 Value multmatvec(const VectorType& matrixvec, const VectorType& vectorvec)
 {
+  static Counter counter("multmatvec");
+  ++counter.count;
+
   // Matrix * Vector
   VectorType dstv(matrixvec.evaluation_session());
-  for (size_t i = 0; i < matrixvec.size(); ++i) {
-    if (matrixvec[i].type() != Value::Type::VECTOR ||
-        matrixvec[i].toVector().size() != vectorvec.size()) {
-      return Value::undef(STR("Matrix must be rectangular. Problem at row ", i));
-    }
+  dstv.reserve(matrixvec.size());
+
+  auto rows = matrixvec.size();
+  auto vectorSize = vectorvec.size();
+  for (size_t i = 0; i < rows; ++i) {
+    // if (matrixvec[i].type() != Value::Type::VECTOR ||
+    //     matrixvec[i].toVector().size() != vectorSize) {
+    //   return Value::undef(STR("Matrix must be rectangular. Problem at row ", i));
+    // }
     double r_e = 0.0;
-    for (size_t j = 0; j < matrixvec[i].toVector().size(); ++j) {
-      if (matrixvec[i].toVector()[j].type() != Value::Type::NUMBER) {
-        return Value::undef(STR("Matrix must contain only numbers. Problem at row ", i, ", col ", j));
-      }
-      if (vectorvec[j].type() != Value::Type::NUMBER) {
-        return Value::undef(STR("Vector must contain only numbers. Problem at index ", j));
-      }
-      r_e += matrixvec[i].toVector()[j].toDouble() * vectorvec[j].toDouble();
+    for (size_t j = 0; j < vectorSize; ++j) {
+      auto a = matrixvec[i].toVector()[j].toDouble();
+      auto b = vectorvec[j].toDouble();
+      // if (std::isnan(a)) {
+      //   return Value::undef(STR("Matrix must contain only numbers. Problem at row ", i, ", col ", j));
+      // }
+      // if (std::isnan(b)) {
+      //   return Value::undef(STR("Vector must contain only numbers. Problem at index ", j));
+      // }
+      r_e += a * b;
+
+      // if (matrixvec[i].toVector()[j].type() != Value::Type::NUMBER) {
+      //   return Value::undef(STR("Matrix must contain only numbers. Problem at row ", i, ", col ", j));
+      // }
+      // if (vectorvec[j].type() != Value::Type::NUMBER) {
+      //   return Value::undef(STR("Vector must contain only numbers. Problem at index ", j));
+      // }
+      // r_e += matrixvec[i].toVector()[j].toDouble() * vectorvec[j].toDouble();
+    }
+    if (std::isnan(r_e)) {
+      return Value::undef("Matrix and vectors must contain only numbers.");
     }
     dstv.emplace_back(Value(r_e));
   }
@@ -950,27 +1199,44 @@ Value multmatvec(const VectorType& matrixvec, const VectorType& vectorvec)
 
 Value multvecmat(const VectorType& vectorvec, const VectorType& matrixvec)
 {
+  static Counter counter("multvecmat");
+  ++counter.count;
+  
   assert(vectorvec.size() == matrixvec.size());
   // Vector * Matrix
   VectorType dstv(matrixvec[0].toVector().evaluation_session());
   size_t firstRowSize = matrixvec[0].toVector().size();
+  size_t vecSize = vectorvec.size();
+
+  // for (size_t j = 0; j < vecSize; ++j) {
+  //   if (matrixvec[j].type() != Value::Type::VECTOR ||
+  //       matrixvec[j].toVector().size() != firstRowSize) {
+  //     LOG(message_group::Warning, "Matrix must be rectangular. Problem at row %1$lu", j);
+  //     return Value::undef(STR("Matrix must be rectangular. Problem at row ", j));
+  //   }
+  // }
+
+  dstv.reserve(firstRowSize);
   for (size_t i = 0; i < firstRowSize; ++i) {
     double r_e = 0.0;
-    for (size_t j = 0; j < vectorvec.size(); ++j) {
-      if (matrixvec[j].type() != Value::Type::VECTOR ||
-          matrixvec[j].toVector().size() != firstRowSize) {
-        LOG(message_group::Warning, "Matrix must be rectangular. Problem at row %1$lu", j);
-        return Value::undef(STR("Matrix must be rectangular. Problem at row ", j));
-      }
-      if (vectorvec[j].type() != Value::Type::NUMBER) {
-        LOG(message_group::Warning, "Vector must contain only numbers. Problem at index %1$lu", j);
-        return Value::undef(STR("Vector must contain only numbers. Problem at index ", j));
-      }
-      if (matrixvec[j].toVector()[i].type() != Value::Type::NUMBER) {
-        LOG(message_group::Warning, "Matrix must contain only numbers. Problem at row %1$lu, col %2$lu", j, i);
-        return Value::undef(STR("Matrix must contain only numbers. Problem at row ", j, ", col ", i));
-      }
+    for (size_t j = 0; j < vecSize; ++j) {
+      // if (matrixvec[j].type() != Value::Type::VECTOR ||
+      //     matrixvec[j].toVector().size() != firstRowSize) {
+      //   LOG(message_group::Warning, "Matrix must be rectangular. Problem at row %1$lu", j);
+      //   return Value::undef(STR("Matrix must be rectangular. Problem at row ", j));
+      // }
+      // if (vectorvec[j].type() != Value::Type::NUMBER) {
+      //   LOG(message_group::Warning, "Vector must contain only numbers. Problem at index %1$lu", j);
+      //   return Value::undef(STR("Vector must contain only numbers. Problem at index ", j));
+      // }
+      // if (matrixvec[j].toVector()[i].type() != Value::Type::NUMBER) {
+      //   LOG(message_group::Warning, "Matrix must contain only numbers. Problem at row %1$lu, col %2$lu", j, i);
+      //   return Value::undef(STR("Matrix must contain only numbers. Problem at row ", j, ", col ", i));
+      // }
       r_e += vectorvec[j].toDouble() * matrixvec[j].toVector()[i].toDouble();
+    }
+    if (std::isnan(r_e)) {
+      return Value::undef("Matrix and vectors must contain only numbers.");
     }
     dstv.emplace_back(r_e);
   }
@@ -978,13 +1244,19 @@ Value multvecmat(const VectorType& vectorvec, const VectorType& matrixvec)
 }
 
 Value multvecvec(const VectorType& vec1, const VectorType& vec2) {
+  static Counter counter("multvecvec");
+  ++counter.count;
+
   // Vector dot product.
   auto r = 0.0;
   for (size_t i = 0; i < vec1.size(); i++) {
-    if (vec1[i].type() != Value::Type::NUMBER || vec2[i].type() != Value::Type::NUMBER) {
-      return Value::undef(STR("undefined operation (", vec1[i].typeName(), " * ", vec2[i].typeName(), ")"));
-    }
+    // if (vec1[i].type() != Value::Type::NUMBER || vec2[i].type() != Value::Type::NUMBER) {
+    //   return Value::undef(STR("undefined operation (", vec1[i].typeName(), " * ", vec2[i].typeName(), ")"));
+    // }
     r += vec1[i].toDouble() * vec2[i].toDouble();
+  }
+  if (std::isnan(r)) {
+    return Value::undef("Undefined vector dot operation.");
   }
   return {r};
 }
@@ -1000,6 +1272,36 @@ public:
   Value operator()(const VectorType& op1, const double& op2) const { return multvecnum(op1, op2); }
 
   Value operator()(const VectorType& op1, const VectorType& op2) const {
+    static std::vector<double> a, b, out;
+
+    size_t a_rows = 0, a_cols = 0, b_rows = 0, b_cols = 0;
+    bool a_is_vector = false, b_is_vector = false;
+    if (get_matrix_coeffs(op1, /* prefer_col_vector= */ false, a_rows, a_cols, a_is_vector, a) &&
+        get_matrix_coeffs(op2, /* prefer_col_vector= */ true, b_rows, b_cols, b_is_vector, b))
+    {
+      if (a_cols == b_rows) {
+        static Counter counter("NEW mult_matrix");
+        ++counter.count;
+
+        // print_matrix(a, a_rows, a_cols);
+        // print_matrix(b, b_rows, b_cols);
+        // std::cout << "a(" << a_rows << ", " << a_cols << "): "; for (auto d: a) std::cout << d << ' '; std::cout << "\n";
+        // std::cout << "b(" << b_rows << ", " << b_cols << "): "; for (auto d: b) std::cout << d << ' '; std::cout << "\n";
+
+        mult_matrix(a, b, out, a_rows, a_cols, b_cols);
+        return std::move(coeffs_to_matrix(op1.evaluation_session(), out, a_rows, b_cols,
+          a_is_vector && b_is_vector ? MATRIX_COEFFS_OUTPUT_TYPE_SCALAR
+            : a_is_vector || b_is_vector ? MATRIX_COEFFS_OUTPUT_TYPE_VECTOR
+            : MATRIX_COEFFS_OUTPUT_TYPE_MATRIX));
+      } else {
+        static Counter counter("FAILED mult_matrix (mismatching inner dim)");
+        ++counter.count;
+      }
+    } else {
+      static Counter counter("FAILED mult_matrix (failed to get coeffs)");
+      ++counter.count;
+    }
+    
     if (op1.empty() || op2.empty()) return Value::undef("Multiplication is undefined on empty vectors");
     auto first1 = op1.begin(), first2 = op2.begin();
     auto eltype1 = (*first1).type(), eltype2 = (*first2).type();
@@ -1017,6 +1319,8 @@ public:
         else return Value::undef(STR("matrix*vector requires matrix column count to match vector length (", (*first1).toVector().size(), " != ", op2.size(), ')'));
       } else if (eltype2 == Value::Type::VECTOR) {
         if ((*first1).toVector().size() == op2.size()) {
+          static Counter counter("multmatmat");
+          ++counter.count;
           // Matrix * Matrix
           VectorType dstv(op1.evaluation_session());
           size_t i = 0;
