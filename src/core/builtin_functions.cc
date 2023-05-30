@@ -191,6 +191,7 @@ static std::vector<double> min_max_arguments(const Arguments& arguments, const L
       print_argCnt_warning(function_name, elements.size(), "at least 1 vector element", loc, arguments.documentRoot());
       return {};
     }
+    output.reserve(elements.size());
     for (size_t i = 0; i < elements.size(); i++) {
       const auto& element = elements[i];
       // 4/20/14 semantic change per discussion:
@@ -202,6 +203,7 @@ static std::vector<double> min_max_arguments(const Arguments& arguments, const L
       output.push_back(element.toDouble());
     }
   } else {
+    output.reserve(arguments.size());
     for (size_t i = 0; i < arguments.size(); i++) {
       const auto& argument = arguments[i];
       // 4/20/14 semantic change per discussion:

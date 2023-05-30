@@ -528,6 +528,7 @@ VectorType::VectorType(class EvaluationSession *session, double x, double y, dou
   ptr(shared_ptr<VectorObject>(new VectorObject(), VectorObjectDeleter() ))
 {
   ptr->evaluation_session = session;
+  reserve(3);
   emplace_back(x);
   emplace_back(y);
   emplace_back(z);

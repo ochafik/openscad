@@ -52,6 +52,7 @@ void LocalScope::print(std::ostream& stream, const std::string& indent, const bo
 
 std::shared_ptr<AbstractNode> LocalScope::instantiateModules(const std::shared_ptr<const Context>& context, const std::shared_ptr<AbstractNode> &target) const
 {
+  target->children.reserve(this->moduleInstantiations.size());
   for (const auto& modinst : this->moduleInstantiations) {
     auto node = modinst->evaluate(context);
     if (node) {
@@ -63,6 +64,7 @@ std::shared_ptr<AbstractNode> LocalScope::instantiateModules(const std::shared_p
 
 std::shared_ptr<AbstractNode> LocalScope::instantiateModules(const std::shared_ptr<const Context>& context, const std::shared_ptr<AbstractNode> &target, const std::vector<size_t>& indices) const
 {
+  target->children.reserve(indices.size());
   for (size_t index : indices) {
     assert(index < this->moduleInstantiations.size());
     auto node = moduleInstantiations[index]->evaluate(context);

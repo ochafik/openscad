@@ -537,6 +537,7 @@ static std::shared_ptr<AbstractNode> builtin_polyhedron(const ModuleInstantiatio
     } else {
       size_t pointIndexIndex = 0;
       std::vector<size_t> face;
+      face.reserve(faceValue.toVector().size());
       for (const Value& pointIndexValue : faceValue.toVector()) {
         if (pointIndexValue.type() != Value::Type::NUMBER) {
           LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert faces[%1$d][%2$d] = %3$s to a number", faceIndex, pointIndexIndex, pointIndexValue.toEchoStringNoThrow());
@@ -716,6 +717,7 @@ const Geometry *PolygonNode::createGeometry() const
   auto p = new Polygon2d();
   if (this->paths.empty() && this->points.size() > 2) {
     Outline2d outline;
+    outline.vertices.reserve(this->points.size());
     for (const auto& point : this->points) {
       outline.vertices.emplace_back(point.x, point.y);
     }
@@ -723,6 +725,7 @@ const Geometry *PolygonNode::createGeometry() const
   } else {
     for (const auto& path : this->paths) {
       Outline2d outline;
+      outline.vertices.reserve(path.size());
       for (const auto& index : path) {
         assert(index < this->points.size());
         const auto& point = points[index];

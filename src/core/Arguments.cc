@@ -30,6 +30,7 @@
 Arguments::Arguments(const AssignmentList& argument_expressions, const std::shared_ptr<const Context>& context) :
   evaluation_session(context->session())
 {
+  reserve(argument_expressions.size());
   for (const auto& argument_expression : argument_expressions) {
     emplace_back(
       argument_expression->getName().empty() ? boost::none : boost::optional<std::string>(argument_expression->getName()),
@@ -41,6 +42,7 @@ Arguments::Arguments(const AssignmentList& argument_expressions, const std::shar
 Arguments Arguments::clone() const
 {
   Arguments output(evaluation_session);
+  output.reserve(size());
   for (const Argument& argument : *this) {
     output.emplace_back(argument.name, argument.value.clone());
   }
