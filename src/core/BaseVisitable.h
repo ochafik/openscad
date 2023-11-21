@@ -42,3 +42,7 @@ protected:
         Response accept(State &state, BaseVisitor &visitor) const override { \
           return acceptImpl(state, *this, visitor); \
         }
+        // template <class T> \
+        // Response accept(BaseVisitor &visitor) const override { \
+        //   return acceptImpl(state, *this, visitor); \
+        // }

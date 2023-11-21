@@ -41,7 +41,7 @@ class Geometry;
 class Polygon2d;
 class Tree;
 
-GeometryEvaluator::GeometryEvaluator(const Tree& tree) : tree(tree), geometryevaluator(tree) { }
+GeometryEvaluator::GeometryEvaluator(const Tree& tree) : tree(tree) { }
 
 /*!
    Set allownef to false to force the result to _not_ be a Nef polyhedron
@@ -71,7 +71,7 @@ shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNod
     if (dynamic_pointer_cast<const ManifoldGeometry>(this->root)) {
       tesselate = false;
 //       this->root = CGALUtils::getGeometryAsPolySet(this->root);
-    }
+//     }
 #endif
 
     if (tesselate) {
@@ -96,7 +96,7 @@ shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const AbstractNod
   return GeometryCache::instance()->get(key);
 }
 
-bool StatelessGeometryEvaluator::isValidDim(const Geometry::GeometryItem& item, unsigned int& dim) const {
+bool GeometryEvaluator::isValidDim(const Geometry::GeometryItem& item, unsigned int& dim) const {
   if (!item.first->modinst->isBackground() && item.second) {
     if (!dim) dim = item.second->getDimension();
     else if (dim != item.second->getDimension() && !item.second->isEmpty()) {
@@ -107,7 +107,7 @@ bool StatelessGeometryEvaluator::isValidDim(const Geometry::GeometryItem& item, 
   return true;
 }
 
-ResultObject StatelessGeometryEvaluator::applyToChildren(const AbstractNode& node, OpenSCADOperator op, const Geometry::Geometries &visitedchildren)
+GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const AbstractNode& node, OpenSCADOperator op, const Geometry::Geometries &visitedchildren)
 {
   unsigned int dim = 0;
   for (const auto& item : visitedchildren) {
@@ -123,7 +123,7 @@ ResultObject StatelessGeometryEvaluator::applyToChildren(const AbstractNode& nod
 
    May return nullptr or any 3D Geometry object (can be either PolySet or CGAL_Nef_polyhedron)
  */
-ResultObject StatelessGeometryEvaluator::applyToChildren3D(const AbstractNode& node, OpenSCADOperator op, const Geometry::Geometries &visitedchildren)
+GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const AbstractNode& node, OpenSCADOperator op, const Geometry::Geometries &visitedchildren)
 {
   Geometry::Geometries children = collectChildren3D(visitedchildren);
   if (children.size() == 0) return {};
@@ -195,7 +195,7 @@ ResultObject StatelessGeometryEvaluator::applyToChildren3D(const AbstractNode& n
    May return an empty geometry but will not return nullptr.
  */
 
-Polygon2d *StatelessGeometryEvaluator::applyHull2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
+Polygon2d *GeometryEvaluator::applyHull2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
 {
   std::vector<const Polygon2d *> children = collectChildren2D(visitedchildren);
   auto *geometry = new Polygon2d();
@@ -224,13 +224,13 @@ Polygon2d *StatelessGeometryEvaluator::applyHull2D(const AbstractNode& node, con
       }
       geometry->addOutline(outline);
     } catch (const CGAL::Failure_exception& e) {
-      LOG(message_group::Warning, "GeometryEvaluator::applyHull2D() during CGAL::convex_hull_2(): %1$s", e.what());
+      LOG(message_group::Warning, Location::NONE, "", "GeometryEvaluator::applyHull2D() during CGAL::convex_hull_2(): %1$s", e.what());
     }
   }
   return geometry;
 }
 
-Polygon2d *StatelessGeometryEvaluator::applyFill2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
+Polygon2d *GeometryEvaluator::applyFill2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
 {
   // Merge and sanitize input geometry
   std::vector<const Polygon2d *> children = collectChildren2D(visitedchildren);
@@ -250,7 +250,7 @@ Polygon2d *StatelessGeometryEvaluator::applyFill2D(const AbstractNode& node, con
   return ClipperUtils::apply(newchildren, ClipperLib::ctUnion);
 }
 
-Geometry *StatelessGeometryEvaluator::applyHull3D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
+Geometry *GeometryEvaluator::applyHull3D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
 {
   Geometry::Geometries children = collectChildren3D(visitedchildren);
 
@@ -262,7 +262,7 @@ Geometry *StatelessGeometryEvaluator::applyHull3D(const AbstractNode& node, cons
   return nullptr;
 }
 
-Polygon2d *StatelessGeometryEvaluator::applyMinkowski2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
+Polygon2d *GeometryEvaluator::applyMinkowski2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
 {
   std::vector<const Polygon2d *> children = collectChildren2D(visitedchildren);
   if (!children.empty()) {
@@ -275,7 +275,7 @@ Polygon2d *StatelessGeometryEvaluator::applyMinkowski2D(const AbstractNode& node
    Returns a list of Polygon2d children of the given node.
    May return empty Polygon2d object, but not nullptr objects
  */
-std::vector<const Polygon2d *> StatelessGeometryEvaluator::collectChildren2D(const Geometry::Geometries &visitedchildren)
+std::vector<const Polygon2d *> GeometryEvaluator::collectChildren2D(const AbstractNode& node, const Geometry::Geometries &visitedchildren)
 {
   std::vector<const Polygon2d *> children;
   for (const auto& item : visitedchildren) {
@@ -324,7 +324,7 @@ void GeometryEvaluator::smartCacheInsert(const AbstractNode& node,
   } else {
     if (!GeometryCache::instance()->contains(key)) {
       if (!GeometryCache::instance()->insert(key, geom)) {
-        LOG(message_group::Warning, "GeometryEvaluator: Node didn't fit into cache.");
+        LOG(message_group::Warning, Location::NONE, "", "GeometryEvaluator: Node didn't fit into cache.");
       }
     }
   }
@@ -352,7 +352,7 @@ shared_ptr<const Geometry> GeometryEvaluator::smartCacheGet(const AbstractNode& 
    Returns a list of 3D Geometry children of the given node.
    May return empty geometries, but not nullptr objects
  */
-Geometry::Geometries StatelessGeometryEvaluator::collectChildren3D(const Geometry::Geometries &visitedchildren)
+Geometry::Geometries GeometryEvaluator::collectChildren3D(const Geometry::Geometries &visitedchildren)
 {
   Geometry::Geometries children;
   for (const auto& item : visitedchildren) {
@@ -379,14 +379,15 @@ Geometry::Geometries StatelessGeometryEvaluator::collectChildren3D(const Geometr
 /*!
 
  */
-Polygon2d *StatelessGeometryEvaluator::applyToChildren2D(const AbstractNode& node, OpenSCADOperator op, const Geometry::Geometries &visitedchildren)
+Polygon2d *GeometryEvaluator::applyToChildren2D(const AbstractNode& node, OpenSCADOperator op, const Geometry::Geometries &visitedchildren)
 {
+  node.progress_report();
   if (op == OpenSCADOperator::MINKOWSKI) {
-    return applyMinkowski2D(node, visitedchildren);
+    return applyMinkowski2D(node);
   } else if (op == OpenSCADOperator::HULL) {
-    return applyHull2D(node, visitedchildren);
+    return applyHull2D(node);
   } else if (op == OpenSCADOperator::FILL) {
-    return applyFill2D(node, visitedchildren);
+    return applyFill2D(node);
   }
 
   std::vector<const Polygon2d *> children = collectChildren2D(visitedchildren);
@@ -415,7 +416,7 @@ Polygon2d *StatelessGeometryEvaluator::applyToChildren2D(const AbstractNode& nod
     clipType = ClipperLib::ctDifference;
     break;
   default:
-    LOG(message_group::Error, "Unknown boolean operation %1$d", int(op));
+    LOG(message_group::Error, Location::NONE, "", "Unknown boolean operation %1$d", int(op));
     return nullptr;
     break;
   }
@@ -424,170 +425,68 @@ Polygon2d *StatelessGeometryEvaluator::applyToChildren2D(const AbstractNode& nod
 }
 
 /*!
-   Adds ourself to our parent's list of traversed children.
-   Call this for _every_ node which affects output during traversal.
-   Usually, this should be called from the postfix stage, but for some nodes,
-   we defer traversal letting other components (e.g. CGAL) render the subgraph,
-   and we'll then call this from prefix and prune further traversal.
-
-   The added geometry can be nullptr if it wasn't possible to evaluate it.
- */
-void GeometryEvaluator::addToParent(const State& state,
-                                    const AbstractNode& node,
-                                    const shared_ptr<const Geometry>& geom)
-{
-  this->visitedchildren.erase(node.index());
-  if (state.parent()) {
-    this->visitedchildren[state.parent()->index()].push_back(std::make_pair(node.shared_from_this(), geom));
-  } else {
-    // Root node
-    this->root = geom;
-    assert(this->visitedchildren.empty());
-  }
-}
-
-template <class T>
-Response GeometryEvaluator::handle(State& state, const T& node, bool preferNef = false, int convexity = -1)
-{
-  if (state.isPrefix()) {
-    if (isSmartCached(node)) return Response::PruneTraversal;
-    if (preferNef) state.setPreferNef(true); // Improve quality of CSG by avoiding conversion loss
-  }
-  if (state.isPostfix()) {
-    shared_ptr<const Geometry> geom;
-    if (!isSmartCached(node)) {
-      auto res = statelessevaluator.evaluateGeometry(node, this->visitedchildren[node.index()]);
-      if (convexity >= 0) {
-        auto mutableGeom = res.asMutableGeometry();
-        if (mutableGeom) mutableGeom->setConvexity(convexity);
-        geom = mutableGeom;
-      } else {
-        geom = res;
-      }
-    } else {
-      geom = smartCacheGet(node, state.preferNef());
-    }
-    node.progress_report();
-    addToParent(state, node, geom);
-  }
-  return Response::ContinueTraversal;
-}
-
-/*!
    Pass children to parent without touching them. Used by e.g. for loops
  */
-Response GeometryEvaluator::visit(State& state, const ListNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const ListNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const ListNode& node, const Geometry::Geometries &visitedchildren)
 {
-      std::vector<const Geometry> children;
-      unsigned int dim = 0;
-      for (const auto& item : visitedchildren) {
-        if (!isValidDim(item, dim)) break;
-        auto& chnode = item.first;
-        const shared_ptr<const Geometry>& chgeom = item.second;
-        children.push_back(chgeom);
-      }
-      return make_shared<ListNode>(children);
+  std::vector<const Geometry> children;
+  unsigned int dim = 0;
+  for (const auto& item : visitedchildren) {
+    if (!isValidDim(item, dim)) break;
+    auto& chnode = item.first;
+    const shared_ptr<const Geometry>& chgeom = item.second;
+    children.push_back(chgeom);
+  }
+  return make_shared<ListNode>(children);
 }
 
-Response GeometryEvaluator::lazyEvaluateRootNode(State& state, const AbstractNode& node) {
-  if (state.isPrefix()) {
-    if (node.modinst->isBackground()) {
-      state.setBackground(true);
-      return Response::PruneTraversal;
-    }
-    if (isSmartCached(node)) {
-      return Response::PruneTraversal;
-    }
-  }
-  if (state.isPostfix()) {
-    shared_ptr<const Geometry> geom;
-
-    unsigned int dim = 0;
-    GeometryList::Geometries geometries;
-    for (const auto& item : this->visitedchildren[node.index()]) {
-      if (!isValidDim(item, dim)) break;
-      auto& chnode = item.first;
-      const shared_ptr<const Geometry>& chgeom = item.second;
-      if (chnode->modinst->isBackground()) continue;
-      // NB! We insert into the cache here to ensure that all children of
-      // a node is a valid object. If we inserted as we created them, the
-      // cache could have been modified before we reach this point due to a large
-      // sibling object.
-      smartCacheInsert(*chnode, chgeom);
-      // Only use valid geometries
-      if (chgeom && !chgeom->isEmpty()) geometries.push_back(item);
-    }
-    if (geometries.size() == 1) geom = geometries.front().second;
-    else if (geometries.size() > 1) geom.reset(new GeometryList(geometries));
-
-    this->root = geom;
-  }
-  return Response::ContinueTraversal;
-      return make_shared<ListNode>(children);
-}
-
-/*!
- */
-Response GeometryEvaluator::visit(State& state, const GroupNode& node) {
-  return handle(state, node);
+// /*!
+//  */
+// ResultObject GeometryEvaluator::evaluateGeometry(const GroupNode& node, const Geometry::Geometries &visitedchildren)
+// {
 //   return visit(state, (const AbstractNode&)node);
-}
-
-// Response GeometryEvaluator::visit(State& state, const AbstractNode& node) {
-//   return handle(state, node);
 // }
 
-/*!
-   Root nodes are handled specially; they will flatten any child group
-   nodes to avoid doing an implicit top-level union.
+// /*!
+//    Root nodes are handled specially; they will flatten any child group
+//    nodes to avoid doing an implicit top-level union.
 
-   NB! This is likely a temporary measure until a better implementation of
-   group nodes is in place.
- */
-Response GeometryEvaluator::visit(State& state, const RootNode& node) {
-  // If we didn't enable lazy unions, just union the top-level objects
-  if (!Feature::ExperimentalLazyUnion.is_enabled()) {
-    return visit(state, (const GroupNode&)node);
-  }
-  return lazyEvaluateRootNode(state, node);
-}
+//    NB! This is likely a temporary measure until a better implementation of
+//    group nodes is in place.
+//  */
+// ResultObject GeometryEvaluator::evaluateGeometry(const RootNode& node, const Geometry::Geometries &visitedchildren)
+// {
+//   // If we didn't enable lazy unions, just union the top-level objects
+//   if (!Feature::ExperimentalLazyUnion.is_enabled()) {
+//     return visit(state, (const GroupNode&)node);
+//   }
+//   return lazyEvaluateRootNode(state, node);
+// }
 
-Response GeometryEvaluator::visit(State& state, const OffsetNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const OffsetNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const OffsetNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom(applyToChildren2D(node, OpenSCADOperator::UNION));
-      if (auto polygon = dynamic_pointer_cast<const Polygon2d>(geom)) {
-        // ClipperLib documentation: The formula for the number of steps in a full
-        // circular arc is ... Pi / acos(1 - arc_tolerance / abs(delta))
-        double n = Calc::get_fragments_from_r(std::abs(node.delta), node.fn, node.fs, node.fa);
-        double arc_tolerance = std::abs(node.delta) * (1 - cos_degrees(180 / n));
-        const Polygon2d *result = ClipperUtils::applyOffset(*polygon, node.delta, node.join_type, node.miter_limit, arc_tolerance);
-        assert(result);
-        geom.reset(result);
-      }
-      return geom;
+  shared_ptr<const Geometry> geom(applyToChildren2D(node, OpenSCADOperator::UNION));
+  if (auto polygon = dynamic_pointer_cast<const Polygon2d>(geom)) {
+    // ClipperLib documentation: The formula for the number of steps in a full
+    // circular arc is ... Pi / acos(1 - arc_tolerance / abs(delta))
+    double n = Calc::get_fragments_from_r(std::abs(node.delta), node.fn, node.fs, node.fa);
+    double arc_tolerance = std::abs(node.delta) * (1 - cos_degrees(180 / n));
+    const Polygon2d *result = ClipperUtils::applyOffset(*polygon, node.delta, node.join_type, node.miter_limit, arc_tolerance);
+    assert(result);
+    geom.reset(result);
+  }
+  return geom;
 }
 
 /*!
    RenderNodes just pass on convexity
  */
-Response GeometryEvaluator::visit(State& state, const RenderNode& node) {
-  return handle(state, node, /* preferNef= */ true, node.convexity);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const RenderNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const RenderNode& node, const Geometry::Geometries &visitedchildren)
 {
-      ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
-      auto mutableGeom = res.asMutableGeometry();
-      if (mutableGeom) mutableGeom->setConvexity(node.convexity);
-      return mutableGeom;
+  ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
+  auto mutableGeom = res.asMutableGeometry();
+  if (mutableGeom) mutableGeom->setConvexity(node.convexity);
+  return mutableGeom;
 }
 
 /*!
@@ -596,39 +495,32 @@ ResultObject StatelessGeometryEvaluator::evaluate(const RenderNode& node, const 
    input: None
    output: PolySet or Polygon2d
  */
-Response GeometryEvaluator::visit(State& state, const LeafNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const LeafNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const LeafNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom(node.createGeometry());
-      assert(geom);
-      if (const auto polygon = dynamic_pointer_cast<const Polygon2d>(geom)) {
-        if (!polygon->isSanitized()) {
-          geom.reset(ClipperUtils::sanitize(*polygon));
-        }
-      }
-      return geom;
+  shared_ptr<const Geometry> geom(node.createGeometry());
+  assert(geom);
+  if (const auto polygon = dynamic_pointer_cast<const Polygon2d>(geom)) {
+    if (!polygon->isSanitized()) {
+      geom.reset(ClipperUtils::sanitize(*polygon));
+    }
+  }
+  return geom;
 }
 
-Response GeometryEvaluator::visit(State& state, const TextNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const TextNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const TextNode& node, const Geometry::Geometries &visitedchildren)
 {
-      assert(visitedchildren.empty());
-        
-      std::vector<const Geometry *> geometrylist = node.createGeometryList();
-      std::vector<const Polygon2d *> polygonlist;
-      for (const auto& geometry : geometrylist) {
-        const auto *polygon = dynamic_cast<const Polygon2d *>(geometry);
-        assert(polygon);
-        polygonlist.push_back(polygon);
-      }
-      return shared_ptr<const Geometry>(ClipperUtils::apply(polygonlist, ClipperLib::ctUnion));
+  assert(visitedchildren.empty());
+    
+  std::vector<const Geometry *> geometrylist = node.createGeometryList();
+  std::vector<const Polygon2d *> polygonlist;
+  for (const auto& geometry : geometrylist) {
+    const auto *polygon = dynamic_cast<const Polygon2d *>(geometry);
+    assert(polygon);
+    polygonlist.push_back(polygon);
+  }
+  return shared_ptr<const Geometry>(ClipperUtils::apply(polygonlist, ClipperLib::ctUnion));
 }
+
 
 /*!
    input: List of 2D or 3D objects (not mixed)
@@ -636,11 +528,7 @@ ResultObject StatelessGeometryEvaluator::evaluate(const TextNode& node, const Ge
    operation:
     o Perform csg op on children
  */
-Response GeometryEvaluator::visit(State& state, const CsgOpNode& node) {
-  return handle(state, node, /* preferNef= */ true);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const CsgOpNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const CsgOpNode& node, const Geometry::Geometries &visitedchildren)
 {
   return applyToChildren(node, node.type, visitedchildren).constptr();
 }
@@ -652,49 +540,45 @@ ResultObject StatelessGeometryEvaluator::evaluate(const CsgOpNode& node, const G
     o Union all children
     o Perform transform
  */
-Response GeometryEvaluator::visit(State& state, const TransformNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const TransformNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const TransformNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom;
-      if (matrix_contains_infinity(node.matrix) || matrix_contains_nan(node.matrix)) {
-        // due to the way parse/eval works we can't currently distinguish between NaN and Inf
-        LOG(message_group::Warning, node.modinst->location(), this->tree.getDocumentPath(), "Transformation matrix contains Not-a-Number and/or Infinity - removing object.");
-      } else {
-        // First union all children
-        ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
-        if ((geom = res.constptr())) {
-          if (geom->getDimension() == 2) {
-            shared_ptr<const Polygon2d> polygons = dynamic_pointer_cast<const Polygon2d>(geom);
-            assert(polygons);
+  shared_ptr<const Geometry> geom;
+  if (matrix_contains_infinity(node.matrix) || matrix_contains_nan(node.matrix)) {
+    // due to the way parse/eval works we can't currently distinguish between NaN and Inf
+    LOG(message_group::Warning, node.modinst->location(), this->tree.getDocumentPath(), "Transformation matrix contains Not-a-Number and/or Infinity - removing object.");
+  } else {
+    // First union all children
+    ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
+    if ((geom = res.constptr())) {
+      if (geom->getDimension() == 2) {
+        shared_ptr<const Polygon2d> polygons = dynamic_pointer_cast<const Polygon2d>(geom);
+        assert(polygons);
 
-            // If we got a const object, make a copy
-            shared_ptr<Polygon2d> newpoly;
-            if (res.isConst()) newpoly.reset(new Polygon2d(*polygons));
-            else newpoly = dynamic_pointer_cast<Polygon2d>(res.ptr());
+        // If we got a const object, make a copy
+        shared_ptr<Polygon2d> newpoly;
+        if (res.isConst()) newpoly.reset(new Polygon2d(*polygons));
+        else newpoly = dynamic_pointer_cast<Polygon2d>(res.ptr());
 
-            Transform2d mat2;
-            mat2.matrix() <<
-              node.matrix(0, 0), node.matrix(0, 1), node.matrix(0, 3),
-              node.matrix(1, 0), node.matrix(1, 1), node.matrix(1, 3),
-              node.matrix(3, 0), node.matrix(3, 1), node.matrix(3, 3);
-            newpoly->transform(mat2);
-            // A 2D transformation may flip the winding order of a polygon.
-            // If that happens with a sanitized polygon, we need to reverse
-            // the winding order for it to be correct.
-            if (newpoly->isSanitized() && mat2.matrix().determinant() <= 0) {
-              geom.reset(ClipperUtils::sanitize(*newpoly));
-            }
-          } else if (geom->getDimension() == 3) {
-            auto mutableGeom = res.asMutableGeometry();
-            if (mutableGeom) mutableGeom->transform(node.matrix);
-            geom = mutableGeom;
-          }
+        Transform2d mat2;
+        mat2.matrix() <<
+          node.matrix(0, 0), node.matrix(0, 1), node.matrix(0, 3),
+          node.matrix(1, 0), node.matrix(1, 1), node.matrix(1, 3),
+          node.matrix(3, 0), node.matrix(3, 1), node.matrix(3, 3);
+        newpoly->transform(mat2);
+        // A 2D transformation may flip the winding order of a polygon.
+        // If that happens with a sanitized polygon, we need to reverse
+        // the winding order for it to be correct.
+        if (newpoly->isSanitized() && mat2.matrix().determinant() <= 0) {
+          geom.reset(ClipperUtils::sanitize(*newpoly));
         }
+      } else if (geom->getDimension() == 3) {
+        auto mutableGeom = res.asMutableGeometry();
+        if (mutableGeom) mutableGeom->transform(node.matrix);
+        geom = mutableGeom;
       }
-      return geom;
+    }
+  }
+  return geom;
 }
 
 static void translate_PolySet(PolySet& ps, const Vector3d& translation)
@@ -781,19 +665,19 @@ static void add_slice(PolySet *ps, const Polygon2d& poly,
         //Vector2d mid_prev = trans3 * (prev1 +curr1+curr2)/4;
         Vector2d mid = trans_mid * (o.vertices[(i - 1) % o.vertices.size()] + o.vertices[i % o.vertices.size()]) / 2;
         double h_mid = (h1 + h2) / 2;
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(prev1[0], prev1[1], h1);
         ps->insert_vertex(mid[0],   mid[1], h_mid);
         ps->insert_vertex(curr1[0], curr1[1], h1);
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(curr1[0], curr1[1], h1);
         ps->insert_vertex(mid[0],   mid[1], h_mid);
         ps->insert_vertex(curr2[0], curr2[1], h2);
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(curr2[0], curr2[1], h2);
         ps->insert_vertex(mid[0],   mid[1], h_mid);
         ps->insert_vertex(prev2[0], prev2[1], h2);
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(prev2[0], prev2[1], h2);
         ps->insert_vertex(mid[0],   mid[1], h_mid);
         ps->insert_vertex(prev1[0], prev1[1], h1);
@@ -802,23 +686,23 @@ static void add_slice(PolySet *ps, const Polygon2d& poly,
       // Split along shortest diagonal,
       // unless at top for a 0-scaled axis (which can create 0 thickness "ears")
       if (splitfirst xor any_zero) {
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(prev1[0], prev1[1], h1);
         ps->insert_vertex(curr2[0], curr2[1], h2);
         ps->insert_vertex(curr1[0], curr1[1], h1);
         if (!any_zero || (any_non_zero && prev2 != curr2)) {
-          ps->append_poly(3);
+          ps->append_poly();
           ps->insert_vertex(curr2[0], curr2[1], h2);
           ps->insert_vertex(prev1[0], prev1[1], h1);
           ps->insert_vertex(prev2[0], prev2[1], h2);
         }
       } else {
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(prev1[0], prev1[1], h1);
         ps->insert_vertex(prev2[0], prev2[1], h2);
         ps->insert_vertex(curr1[0], curr1[1], h1);
         if (!any_zero || (any_non_zero && prev2 != curr2)) {
-          ps->append_poly(3);
+          ps->append_poly();
           ps->insert_vertex(prev2[0], prev2[1], h2);
           ps->insert_vertex(curr2[0], curr2[1], h2);
           ps->insert_vertex(curr1[0], curr1[1], h1);
@@ -1143,31 +1027,27 @@ static Geometry *extrudePolygon(const LinearExtrudeNode& node, const Polygon2d& 
     o Union all children
     o Perform extrude
  */
-Response GeometryEvaluator::visit(State& state, const LinearExtrudeNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const LinearExtrudeNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const LinearExtrudeNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom;
-      const Geometry *geometry = nullptr;
-      if (!node.filename.empty()) {
-        DxfData dxf(node.fn, node.fs, node.fa, node.filename, node.layername, node.origin_x, node.origin_y, node.scale_x);
+  shared_ptr<const Geometry> geom;
+  const Geometry *geometry = nullptr;
+  if (!node.filename.empty()) {
+    DxfData dxf(node.fn, node.fs, node.fa, node.filename, node.layername, node.origin_x, node.origin_y, node.scale_x);
 
-        Polygon2d *p2d = dxf.toPolygon2d();
-        if (p2d) geometry = ClipperUtils::sanitize(*p2d);
-        delete p2d;
-      } else {
-        geometry = applyToChildren2D(node, OpenSCADOperator::UNION, visitedchildren);
-      }
-      if (geometry) {
-        const auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
-        Geometry *extruded = extrudePolygon(node, *polygons);
-        assert(extruded);
-        geom.reset(extruded);
-        delete geometry;
-      }
-      return geom;
+    Polygon2d *p2d = dxf.toPolygon2d();
+    if (p2d) geometry = ClipperUtils::sanitize(*p2d);
+    delete p2d;
+  } else {
+    geometry = applyToChildren2D(node, OpenSCADOperator::UNION, visitedchildren);
+  }
+  if (geometry) {
+    const auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
+    Geometry *extruded = extrudePolygon(node, *polygons);
+    assert(extruded);
+    geom.reset(extruded);
+    delete geometry;
+  }
+  return geom;
 }
 
 static void fill_ring(std::vector<Vector3d>& ring, const Outline2d& o, double a, bool flip)
@@ -1220,16 +1100,15 @@ static Geometry *rotatePolygon(const RotateExtrudeNode& node, const Polygon2d& p
     for (const auto& v : o.vertices) {
       min_x = fmin(min_x, v[0]);
       max_x = fmax(max_x, v[0]);
+
+      if ((max_x - min_x) > max_x && (max_x - min_x) > fabs(min_x)) {
+        LOG(message_group::Error, Location::NONE, "", "all points for rotate_extrude() must have the same X coordinate sign (range is %1$.2f -> %2$.2f)", min_x, max_x);
+        delete ps;
+        return nullptr;
+      }
     }
   }
-
-  if ((max_x - min_x) > max_x && (max_x - min_x) > fabs(min_x)) {
-    LOG(message_group::Error, "all points for rotate_extrude() must have the same X coordinate sign (range is %1$.2f -> %2$.2f)", min_x, max_x);
-    delete ps;
-    return nullptr;
-  }
-
-  fragments = (unsigned int)std::ceil(fmax(Calc::get_fragments_from_r(max_x - min_x, node.fn, node.fs, node.fa) * std::abs(node.angle) / 360, 1));
+  fragments = (unsigned int)fmax(Calc::get_fragments_from_r(max_x - min_x, node.fn, node.fs, node.fa) * std::abs(node.angle) / 360, 1);
 
   bool flip_faces = (min_x >= 0 && node.angle > 0 && node.angle != 360) || (min_x < 0 && (node.angle < 0 || node.angle == 360));
 
@@ -1271,11 +1150,11 @@ static Geometry *rotatePolygon(const RotateExtrudeNode& node, const Polygon2d& p
       fill_ring(rings[(j + 1) % 2], o, a, flip_faces);
 
       for (size_t i = 0; i < o.vertices.size(); ++i) {
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(rings[j % 2][i]);
         ps->insert_vertex(rings[(j + 1) % 2][(i + 1) % o.vertices.size()]);
         ps->insert_vertex(rings[j % 2][(i + 1) % o.vertices.size()]);
-        ps->append_poly(3);
+        ps->append_poly();
         ps->insert_vertex(rings[j % 2][i]);
         ps->insert_vertex(rings[(j + 1) % 2][i]);
         ps->insert_vertex(rings[(j + 1) % 2][(i + 1) % o.vertices.size()]);
@@ -1293,29 +1172,25 @@ static Geometry *rotatePolygon(const RotateExtrudeNode& node, const Polygon2d& p
     o Union all children
     o Perform extrude
  */
-Response GeometryEvaluator::visit(State& state, const RotateExtrudeNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const RotateExtrudeNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const RotateExtrudeNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom;
-      const Geometry *geometry = nullptr;
-      if (!node.filename.empty()) {
-        DxfData dxf(node.fn, node.fs, node.fa, node.filename, node.layername, node.origin_x, node.origin_y, node.scale);
-        Polygon2d *p2d = dxf.toPolygon2d();
-        if (p2d) geometry = ClipperUtils::sanitize(*p2d);
-        delete p2d;
-      } else {
-        geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
-      }
-      if (geometry) {
-        const auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
-        Geometry *rotated = rotatePolygon(node, *polygons);
-        geom.reset(rotated);
-        delete geometry;
-      }
-      return geom;
+  shared_ptr<const Geometry> geom;
+  const Geometry *geometry = nullptr;
+  if (!node.filename.empty()) {
+    DxfData dxf(node.fn, node.fs, node.fa, node.filename, node.layername, node.origin_x, node.origin_y, node.scale);
+    Polygon2d *p2d = dxf.toPolygon2d();
+    if (p2d) geometry = ClipperUtils::sanitize(*p2d);
+    delete p2d;
+  } else {
+    geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+  }
+  if (geometry) {
+    const auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
+    Geometry *rotated = rotatePolygon(node, *polygons);
+    geom.reset(rotated);
+    delete geometry;
+  }
+  return geom;
 }
 
 /*!
@@ -1327,7 +1202,7 @@ Response GeometryEvaluator::visit(State& /*state*/, const AbstractPolyNode& /*no
   return Response::AbortTraversal;
 }
 
-shared_ptr<const Geometry> StatelessGeometryEvaluator::projectionCut(const ProjectionNode& node)
+shared_ptr<const Geometry> GeometryEvaluator::projectionCut(const ProjectionNode& node)
 {
   shared_ptr<const Geometry> geom;
   shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
@@ -1344,7 +1219,7 @@ shared_ptr<const Geometry> StatelessGeometryEvaluator::projectionCut(const Proje
   return geom;
 }
 
-shared_ptr<const Geometry> StatelessGeometryEvaluator::projectionNoCut(const ProjectionNode& node, const Geometry::Geometries &visitedchildren)
+shared_ptr<const Geometry> GeometryEvaluator::projectionNoCut(const ProjectionNode& node, const Geometry::Geometries &visitedchildren)
 {
   shared_ptr<const Geometry> geom;
   std::vector<const Polygon2d *> tmp_geom;
@@ -1393,6 +1268,7 @@ shared_ptr<const Geometry> StatelessGeometryEvaluator::projectionNoCut(const Pro
   return geom;
 }
 
+
 /*!
    input: List of 3D objects
    output: Polygon2d
@@ -1400,19 +1276,11 @@ shared_ptr<const Geometry> StatelessGeometryEvaluator::projectionNoCut(const Pro
     o Union all children
     o Perform projection
  */
-Response GeometryEvaluator::visit(State& state, const ProjectionNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const ProjectionNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const ProjectionNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom;
-      if (node.cut_mode) {
-        geom = projectionCut(node, visitedchildren)
-      } else {
-        geom = projectionNoCut(node, visitedchildren);
-      }
-      return geom;
+  return node.cut_mode
+      ? projectionCut(node, visitedchildren)
+      : projectionNoCut(node, visitedchildren);
 }
 
 /*!
@@ -1421,57 +1289,49 @@ ResultObject StatelessGeometryEvaluator::evaluate(const ProjectionNode& node, co
    operation:
     o Perform cgal operation
  */
-Response GeometryEvaluator::visit(State& state, const CgalAdvNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const CgalAdvNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const CgalAdvNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom;
-      switch (node.type) {
-      case CgalAdvType::MINKOWSKI: {
-        ResultObject res = applyToChildren(node, OpenSCADOperator::MINKOWSKI, visitedchildren);
-        geom = res.constptr();
-        // If we added convexity, we need to pass it on
-        if (geom && geom->getConvexity() != node.convexity) {
-          shared_ptr<Geometry> editablegeom;
-          // If we got a const object, make a copy
-          if (res.isConst()) editablegeom.reset(geom->copy());
-          else editablegeom = res.ptr();
-          geom = editablegeom;
-          editablegeom->setConvexity(node.convexity);
-        }
-        break;
-      }
-      case CgalAdvType::HULL: {
-        geom = applyToChildren(node, OpenSCADOperator::HULL, visitedchildren).constptr();
-        break;
-      }
-      case CgalAdvType::FILL: {
-        geom = applyToChildren(node, OpenSCADOperator::FILL, visitedchildren).constptr();
-        break;
-      }
-      case CgalAdvType::RESIZE: {
-        ResultObject res = applyToChildren(node, OpenSCADOperator::UNION, visitedchildren);
-        auto editablegeom = res.asMutableGeometry();
-        geom = editablegeom;
-        if (editablegeom) {
-          editablegeom->setConvexity(node.convexity);
-          editablegeom->resize(node.newsize, node.autosize);
-        }
-        break;
-      }
-      default:
-        assert(false && "not implemented");
-      }
-      return geom;
+  shared_ptr<const Geometry> geom;
+  switch (node.type) {
+  case CgalAdvType::MINKOWSKI: {
+    ResultObject res = applyToChildren(node, OpenSCADOperator::MINKOWSKI, visitedchildren);
+    geom = res.constptr();
+    // If we added convexity, we need to pass it on
+    if (geom && geom->getConvexity() != node.convexity) {
+      shared_ptr<Geometry> editablegeom;
+      // If we got a const object, make a copy
+      if (res.isConst()) editablegeom.reset(geom->copy());
+      else editablegeom = res.ptr();
+      geom = editablegeom;
+      editablegeom->setConvexity(node.convexity);
+    }
+    break;
+  }
+  case CgalAdvType::HULL: {
+    geom = applyToChildren(node, OpenSCADOperator::HULL, visitedchildren).constptr();
+    break;
+  }
+  case CgalAdvType::FILL: {
+    geom = applyToChildren(node, OpenSCADOperator::FILL, visitedchildren).constptr();
+    break;
+  }
+  case CgalAdvType::RESIZE: {
+    ResultObject res = applyToChildren(node, OpenSCADOperator::UNION, visitedchildren);
+    auto editablegeom = res.asMutableGeometry();
+    geom = editablegeom;
+    if (editablegeom) {
+      editablegeom->setConvexity(node.convexity);
+      editablegeom->resize(node.newsize, node.autosize);
+    }
+    break;
+  }
+  default:
+    assert(false && "not implemented");
+  }
+  return geom;
 }
 
-Response GeometryEvaluator::visit(State& state, const AbstractIntersectionNode& node) {
-  return handle(state, node, /* preferNef= */ true);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const AbstractIntersectionNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const AbstractIntersectionNode& node, const Geometry::Geometries &visitedchildren)
 {
   return applyToChildren(node, OpenSCADOperator::INTERSECTION, visitedchildren);
 }
@@ -1492,27 +1352,23 @@ static Geometry *roofOverPolygon(const RoofNode& node, const Polygon2d& poly)
   return roof;
 }
 
-Response GeometryEvaluator::visit(State& state, const RoofNode& node) {
-  return handle(state, node);
-}
-
-ResultObject StatelessGeometryEvaluator::evaluate(const RoofNode& node, const Geometry::Geometries &visitedchildren)
+ResultObject GeometryEvaluator::evaluateGeometry(const RoofNode& node, const Geometry::Geometries &visitedchildren)
 {
-      shared_ptr<const Geometry> geom;
-      const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
-      if (geometry) {
-        auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
-        Geometry *roof;
-        try {
-          roof = roofOverPolygon(node, *polygons);
-        } catch (RoofNode::roof_exception& e) {
-          LOG(message_group::Error, node.modinst->location(), this->tree.getDocumentPath(),
-              "Skeleton computation error. " + e.message());
-          roof = new PolySet(3);
-        }
-        assert(roof);
-        geom.reset(roof);
-        delete geometry;
-      }
-      return geom;
+  shared_ptr<const Geometry> geom;
+  const Geometry *geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+  if (geometry) {
+    auto *polygons = dynamic_cast<const Polygon2d *>(geometry);
+    Geometry *roof;
+    try {
+      roof = roofOverPolygon(node, *polygons);
+    } catch (RoofNode::roof_exception& e) {
+      LOG(message_group::Error, node.modinst->location(), this->tree.getDocumentPath(),
+          "Skeleton computation error. " + e.message());
+      roof = new PolySet(3);
+    }
+    assert(roof);
+    geom.reset(roof);
+    delete geometry;
+  }
+  return geom;
 }
