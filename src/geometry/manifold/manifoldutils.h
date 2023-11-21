@@ -28,4 +28,6 @@ namespace ManifoldUtils {
   std::shared_ptr<const ManifoldGeometry> applyOperator3DManifold(const Geometry::Geometries& children, OpenSCADOperator op);
 
   std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children);
+
+  std::shared_ptr<const Geometry> applyHullManifold(const Geometry::Geometries& children);
 };

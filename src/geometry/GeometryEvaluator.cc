@@ -128,6 +128,11 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
   if (children.size() == 0) return {};
 
   if (op == OpenSCADOperator::HULL) {
+#if ENABLE_MANIFOLD
+    if (Feature::ExperimentalManifold.is_enabled() && Feature::ExperimentalManifoldHull.is_enabled()) {
+      return ManifoldUtils::applyHullManifold(children);
+    }
+#endif
     auto *ps = new PolySet(3, /* convex */ true);
 
     if (CGALUtils::applyHull(children, *ps)) {
