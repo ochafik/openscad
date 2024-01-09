@@ -4,6 +4,7 @@
 #include "Polygon2d.h"
 #include "ModuleInstantiation.h"
 #include "State.h"
+#include "ColorNode.h"
 #include "OffsetNode.h"
 #include "TransformNode.h"
 #include "LinearExtrudeNode.h"
@@ -454,6 +455,9 @@ void GeometryEvaluator::addToParent(const State& state,
                                     const std::shared_ptr<const Geometry>& geom)
 {
   this->visitedchildren.erase(node.index());
+  if (geom && state.color().isValid()) {
+    geom->color = state.color();
+  }
   if (state.parent()) {
     this->visitedchildren[state.parent()->index()].push_back(std::make_pair(node.shared_from_this(), geom));
   } else {
@@ -461,6 +465,14 @@ void GeometryEvaluator::addToParent(const State& state,
     this->root = geom;
     assert(this->visitedchildren.empty());
   }
+}
+
+Response GeometryEvaluator::visit(State& state, const ColorNode& node)
+{
+  if (state.isPrefix()) {
+    if (!state.color().isValid()) state.setColor(node.color);
+  }
+  return GeometryEvaluator::visit(state, (const AbstractNode&)node);
 }
 
 /*!

@@ -26,6 +26,16 @@
 
 #include "export.h"
 #include "PolySet.h"
+#include <iomanip>
+
+std::string int_to_hex(int i )
+{
+  std::stringstream out;
+  out << std::setfill('0')
+         << std::setw(2 * sizeof(int)) 
+         << std::hex << i;
+  return out.str();
+}
 
 static void append_svg(const Polygon2d& poly, std::ostream& output)
 {
@@ -46,8 +56,11 @@ static void append_svg(const Polygon2d& poly, std::ostream& output)
     }
     output << " z\n";
   }
-  output << "\" stroke=\"black\" fill=\"lightgray\" stroke-width=\"0.5\"/>\n";
-
+  if (poly.color.isValid()) {
+    output << "\" fill=\"#" << int_to_hex(poly.color.getRgba()) << "\"/>\n";
+  } else {
+    output << "\" stroke=\"black\" fill=\"lightgray\" stroke-width=\"0.5\"/>\n";
+  }
 }
 
 static void append_svg(const std::shared_ptr<const Geometry>& geom, std::ostream& output)

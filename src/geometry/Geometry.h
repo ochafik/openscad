@@ -44,6 +44,8 @@ public:
     assert(!"resize not implemented!");
   }
 
+  mutable Color4f color;
+
   virtual void accept(GeometryVisitor& visitor) const = 0;
 protected:
   int convexity{1};

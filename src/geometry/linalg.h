@@ -60,5 +60,12 @@ public:
              static_cast<float>(a) / 255.0f;
   }
 
+  int getRgba() const {
+    return static_cast<int>(this->x() * 255.0f) << 24 |
+           static_cast<int>(this->y() * 255.0f) << 16 |
+           static_cast<int>(this->z() * 255.0f) << 8 |
+           static_cast<int>(this->w() * 255.0f);
+  }
+
   [[nodiscard]] bool isValid() const { return this->minCoeff() >= 0.0f; }
 };
