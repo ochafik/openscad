@@ -259,6 +259,17 @@ macro(find_graphics)
   endif()
 endmacro(find_graphics)
 
+if (ENABLE_ASSIMP)
+  find_package(ASSIMP REQUIRED)
+  find_library(ASSIMP_LIBRARIES NAMES assimp)
+  # message("yyyy ASSIMP_LIBRARIES: ${ASSIMP_LIBRARIES}")
+
+  message(STATUS "ASSIMP_INCLUDE_DIRS: ${ASSIMP_INCLUDE_DIRS}")
+  message(STATUS "ASSIMP_LIBRARIES: ${ASSIMP_LIBRARIES}")
+  target_include_directories(OpenSCAD SYSTEM PRIVATE ${ASSIMP_INCLUDE_DIRS})
+  target_link_libraries(OpenSCAD PRIVATE ${assimp_LIBRARIES})
+endif()
+
 if (MSVC)
   # Flex lexer options
   set(WINCOMPAT "--wincompat --nounistd")
@@ -804,6 +815,7 @@ set(CORE_SOURCES
   src/io/export_wrl.cc
   src/io/export_pdf.cc
   src/io/export_stl.cc
+  src/io/export_assimp.cc
   src/io/export_svg.cc
   src/io/export_param.cc
   src/io/fileutils.cc

@@ -25,6 +25,7 @@
  */
 
 #include "openscad.h"
+#include "assimp/assimp.h"
 #include "CommentParser.h"
 #include "RenderVariables.h"
 #include "core/node.h"
@@ -36,6 +37,7 @@
 #include "printutils.h"
 #include "handle_dep.h"
 #include "Feature.h"
+#include "ColorPartitioner.h"
 #include "parsersettings.h"
 #include "RenderSettings.h"
 #include "PlatformUtils.h"
@@ -527,6 +529,35 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
   if (nextLocation) {
     LOG(message_group::Warning, *nextLocation, builtin_context->documentRoot(), "More than one Root Modifier (!)");
   }
+
+  if (export_format == FileFormat::GLB) {
+    auto partition = partition_colors(root_geom);
+    auto root_node = std::make_shared<RootNode>();
+    for (const auto& [color, nodes] : partition) {
+      auto color_node = std::make_shared<ColorNode>(nullptr);
+      color_node->color = color;
+      
+      auto children_node = std::make_shared<CsgOpNode>(nullptr, OpenSCADOperator::UNION);
+      for (const auto& node : nodes) {
+        children_node->addChild(node);
+      }
+      color_node->addChild(children_node);
+      root_node->addChild(color_node);
+    }
+    Tree tree(root_node, fparent.string()); 
+    GeometryEvaluator geomevaluator(tree);  
+
+    auto scene = std::make_shared<aiScene>();
+    for (const color_node : root_node->children()) {
+      auto mesh = geomevaluator.evaluateGeometry(*color_node, /* allownef= */ false);
+      if (mesh) {
+        scene->mMeshes.push_back(mesh);
+      }
+    }
+
+    return 0;
+  }
+
   Tree tree(root_node, fparent.string());
 
   if (export_format == FileFormat::CSG) {
@@ -594,6 +625,7 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
         LOG("Converted to backend-specific geometry");
       }
     }
+
     if (is3D(export_format)) {
       if (!checkAndExport(root_geom, 3, export_format, cmd.is_stdout, filename_str)) {
         return 1;
