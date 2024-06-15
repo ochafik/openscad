@@ -222,6 +222,14 @@ void ManifoldGeometry::transform(const Transform3d& mat) {
   manifold_ = std::make_shared<manifold::Manifold>(getManifold().Transform(glMat));
 }
 
+void ManifoldGeometry::setColor(const Color4f& c) {
+  if (manifold_->OriginalID() == -1) {
+    manifold_ = std::make_shared<manifold::Manifold>(manifold_->AsOriginal());
+  }
+  originalIDToColor_.clear();
+  originalIDToColor_[manifold->OriginalID()] = c;
+}
+
 BoundingBox ManifoldGeometry::getBoundingBox() const
 {
   BoundingBox result;

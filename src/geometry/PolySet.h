@@ -30,6 +30,7 @@ public:
   void quantizeVertices(std::vector<Vector3d> *pPointsOut = nullptr);
   size_t numFacets() const override { return indices.size(); }
   void transform(const Transform3d& mat) override;
+  void setColor(const Color4f& c) override {}
   void resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) override;
 
   bool isConvex() const;

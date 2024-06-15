@@ -3,6 +3,8 @@
 
 #include "Geometry.h"
 #include <glm/glm.hpp>
+#include "linalg.h"
+#include <map>
 
 namespace manifold {
   class Manifold;
@@ -52,6 +54,7 @@ public:
   Polygon2d project() const;
 
   void transform(const Transform3d& mat) override;
+  void setColor(const Color4f& c) override;
   void resize(const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize) override;
 
   /*! Iterate over all vertices' points until the function returns true (for done). */
@@ -61,4 +64,5 @@ public:
 
 private:
   std::shared_ptr<const manifold::Manifold> manifold_;
+  std::map<uint32_t, Color4f> originalIDToColor_;
 };

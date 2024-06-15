@@ -459,10 +459,34 @@ void GeometryEvaluator::addToParent(const State& state,
 
 Response GeometryEvaluator::visit(State& state, const ColorNode& node)
 {
-  if (state.isPrefix()) {
-    if (!state.color().isValid()) state.setColor(node.color);
+  // if (state.isPrefix()) {
+  //   if (!state.color().isValid()) state.setColor(node.color);
+  // }
+  // return GeometryEvaluator::visit(state, (const AbstractNode&)node);
+
+  if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
+  if (state.isPostfix()) {
+    std::shared_ptr<const Geometry> geom;
+    if (!isSmartCached(node)) {
+      // First union all children
+      ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
+      if ((geom = res.constptr())) {
+        if (geom->getDimension() == 2) {
+          auto polygons =  std::dynamic_pointer_cast<Polygon2d>(res.asMutableGeometry());
+          if (polygons) polygons->setColor(node.color);
+        } else if (geom->getDimension() == 3) {
+          auto mutableGeom = res.asMutableGeometry();
+          if (mutableGeom) mutableGeom->setColor(node.color);
+          geom = mutableGeom;
+        }
+      }
+    } else {
+      geom = smartCacheGet(node, state.preferNef());
+    }
+    addToParent(state, node, geom);
+    node.progress_report();
   }
-  return GeometryEvaluator::visit(state, (const AbstractNode&)node);
+  return Response::ContinueTraversal;
 }
 
 /*!
