@@ -87,7 +87,9 @@ void CGALRenderer::addGeometry(const std::shared_ptr<const Geometry> &geom) {
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani =
                  std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    this->polysets.push_back(mani->toPolySet());
+    for (auto &ps : mani->toPolySets()) {
+      this->polysets.emplace_back(std::move(ps));
+    }
 #endif
   } else {
     assert(false && "unsupported geom in CGALRenderer");
@@ -165,13 +167,15 @@ void CGALRenderer::createPolySetStates() {
   vertex_array.allocateBuffers(num_vertices);
 
   for (const auto &polyset : this->polysets) {
-    Color4f color;
-
+    Color4f color = polyset->getColor();
+    if (!color.isValid()) {
+      getColor(ColorMode::MATERIAL, color);
+    }
+    
     PRINTD("3d polysets");
     vertex_array.writeSurface();
 
     // Create 3D polygons
-    getColor(ColorMode::MATERIAL, color);
     this->create_surface(*polyset, vertex_array, CSGMODE_NORMAL,
                          Transform3d::Identity(), color);
   }
