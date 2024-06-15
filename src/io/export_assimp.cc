@@ -136,14 +136,8 @@ struct AiSceneBuilder {
     }
     auto material = new aiMaterial();
 
-    aiColor4D diffuse;
-    diffuse.r = color[0];
-    diffuse.g = color[1];
-    diffuse.b = color[2];
-    diffuse.a = color[3];
+    aiColor4D diffuse {color[0], color[1], color[2], color[3]};
     material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
-    // material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_SPECULAR);
-    // material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_AMBIENT);
     auto i = materials.size();
     materials.push_back(material);
     colorMaterialMap[color] = i;
@@ -179,28 +173,18 @@ struct AiSceneBuilder {
     meshes.push_back(mesh);
   }
 
-  void addMesh(const ManifoldGeometry & geom) {
-    for (const auto & ps : geom.toPolySets()) {
-      addMesh(*ps);
-    }
-  }
-
   std::unique_ptr<aiScene> toScene() {
     auto scene = std::make_unique<aiScene>();
 
-    // Copy materials array
     scene->mMaterials = new aiMaterial*[materials.size()];
     std::copy(materials.begin(), materials.end(), scene->mMaterials);
     scene->mNumMaterials = materials.size();
 
-    // Copy meshes array
     scene->mMeshes = new aiMesh*[meshes.size()];
     std::copy(meshes.begin(), meshes.end(), scene->mMeshes);
     scene->mNumMeshes = meshes.size();
 
-    // Put all meshes under the root node.
     scene->mRootNode = new aiNode();
-
     scene->mRootNode->mMeshes = new unsigned int[meshes.size()];
     for (int i = 0; i < meshes.size(); i++) {
       scene->mRootNode->mMeshes[i] = i;
@@ -215,66 +199,6 @@ struct AiSceneBuilder {
   }
 };
 
-/*
- * PolySet must be triangulated.
- */
-static bool append_polyset(const PolySet& ps, AiSceneBuilder &builder)
-{
-  builder.addMesh(ps);
-  return true;
-}
-
-#ifdef ENABLE_CGAL
-static bool append_nef(const CGAL_Nef_polyhedron& root_N, AiSceneBuilder &builder)
-{
-  if (!root_N.p3) {
-    LOG(message_group::Export_Error, "Export failed, empty geometry.");
-    return false;
-  }
-
-  if (!root_N.p3->is_simple()) {
-    LOG(message_group::Export_Warning, "Exported object may not be a valid 2-manifold and may need repair");
-  }
-
-
-  if (const auto ps = CGALUtils::createPolySetFromNefPolyhedron3(*root_N.p3)) {
-    return append_polyset(*ps, builder);
-  }
-
-  // export_assimp_error("Error converting NEF Polyhedron.", model);
-  return false;
-}
-#endif
-
-static bool append_assimp(const std::shared_ptr<const Geometry>& geom, AiSceneBuilder &builder)
-{
-  if (const auto geomlist = std::dynamic_pointer_cast<const GeometryList>(geom)) {
-    for (const auto& item : geomlist->getChildren()) {
-      if (!append_assimp(item.second, builder)) return false;
-    }
-#ifdef ENABLE_CGAL
-  } else if (const auto N = std::dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom)) {
-    return append_nef(*N, builder);
-  } else if (const auto hybrid = std::dynamic_pointer_cast<const CGALHybridPolyhedron>(geom)) {
-    builder.addMesh(*hybrid->toPolySet());
-    return true;
-#endif
-#ifdef ENABLE_MANIFOLD
-  } else if (const auto mani = std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    builder.addMesh(*mani);
-    return true;
-#endif
-  } else if (const auto ps = std::dynamic_pointer_cast<const PolySet>(geom)) {
-    return append_polyset(*PolySetUtils::tessellate_faces(*ps), builder);
-  } else if (std::dynamic_pointer_cast<const Polygon2d>(geom)) { // NOLINT(bugprone-branch-clone)
-    assert(false && "Unsupported file format");
-  } else { // NOLINT(bugprone-branch-clone)
-    assert(false && "Not implemented");
-  }
-
-  return true;
-}
-
 bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& output, FileFormat format)
 {
   const char *formatName = getFormat(format);
@@ -283,10 +207,49 @@ bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& ou
     return false;
   }
   AiSceneBuilder builder;
-  if (!append_assimp(geom, builder)) {
-    LOG("Assimp: export failed.");
+  std::function<bool(const Geometry &)> append_geom = [&](const Geometry& geom) {
+    if (const auto list = dynamic_cast<const GeometryList *>(&geom)) {
+      for (const auto& item : list->getChildren()) {
+        if (!append_geom(*item.second)) return false;
+      }
+#ifdef ENABLE_CGAL
+    } else if (const auto N = dynamic_cast<const CGAL_Nef_polyhedron *>(&geom)) {
+      if (!N->p3) {
+        LOG(message_group::Export_Error, "Export failed, empty geometry.");
+        return false;
+      }
+      if (!N->p3->is_simple()) {
+        LOG(message_group::Export_Warning, "Exported object may not be a valid 2-manifold and may need repair");
+      }
+      if (const auto ps = CGALUtils::createPolySetFromNefPolyhedron3(*N->p3)) {
+        builder.addMesh(*ps);
+        return true;
+      }
+      return false;
+    } else if (const auto hybrid = dynamic_cast<const CGALHybridPolyhedron *>(&geom)) {
+      builder.addMesh(*hybrid->toPolySet());
+      return true;
+#endif
+#ifdef ENABLE_MANIFOLD
+    } else if (const auto mani = dynamic_cast<const ManifoldGeometry *>(&geom)) {
+      for (const auto & ps : mani->toPolySets()) {
+        builder.addMesh(*ps);
+      }
+      return true;
+#endif
+    } else if (const auto ps = dynamic_cast<const PolySet *>(&geom)) {
+      builder.addMesh(*PolySetUtils::tessellate_faces(*ps));
+      return true;
+    } else if (dynamic_cast<const Polygon2d *>(&geom)) { // NOLINT(bugprone-branch-clone)
+      assert(false && "Unsupported file format");
+    } else { // NOLINT(bugprone-branch-clone)
+      assert(false && "Not implemented");
+    }
+
     return false;
-  }
+  };
+  append_geom(*geom);
+  
   auto scene = builder.toScene();
   ::Assimp::Exporter exporter;
   // exporter.Export(scene.get(), formatName, "out_file.gltf");
