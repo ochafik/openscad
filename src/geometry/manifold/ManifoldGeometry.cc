@@ -122,17 +122,10 @@ std::vector<std::unique_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
 
   const auto & mesh = getManifold().GetMeshGL();
   assert(mesh.runIndex.size() >= 2);
+  const auto meshNumVerts = mesh.vertProperties.size() / mesh.numProp;
+  const auto meshNumTris = mesh.triVerts.size();
 
-  Color4f current_color;
-  PolySetBuilder builder(mesh.vertProperties.size() / mesh.numProp, mesh.triVerts.size(), 3);
-  auto flushBuilder = [&]() {
-    if (!builder.empty()) {
-      auto ps = builder.build();
-      ps->setColor(current_color);
-      out.emplace_back(std::move(ps));
-      builder.clear();
-    }
-  };
+  std::map<Color4f, PolySetBuilder> colorToBuilder;
 
   auto originalIDToColor = getOriginalIDToColor();
   auto id = mesh.runOriginalID[0];
@@ -147,12 +140,14 @@ std::vector<std::unique_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
         color = colorIt->second;
       }
 
-      if (color != current_color) {
-        flushBuilder();
-        current_color = color;
-      }
-
       const auto end = mesh.runIndex[run + 1];
+      const size_t numTri = (end - start) / 3;
+
+      auto & builder = colorToBuilder[color];
+      builder.reserve(
+        std::min(meshNumVerts, builder.numVertices() + numTri * 3),
+        std::min(meshNumTris, builder.numPolygons() + numTri));
+
       for (int i = start; i < end; i += 3) {
         builder.beginPolygon(3);
         for (int j = 0; j < 3; ++j) {
@@ -170,9 +165,15 @@ std::vector<std::unique_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
       start = end;
     }
   }
-  flushBuilder();
+
+  for (auto& [color, builder] : colorToBuilder) {
+    auto ps = builder.build();
+    ps->setColor(color);
+    out.emplace_back(std::move(ps));
+  }
   return out;
 }
+
 
 #ifdef ENABLE_CGAL
 template <typename Polyhedron>

@@ -56,23 +56,11 @@ return format == FileFormat::ASCIISTL ||
   format == FileFormat::WRL ||
   format == FileFormat::AMF ||
   format == FileFormat::_3MF ||
-
   format == FileFormat::COLLADA ||
   format == FileFormat::STP ||
-  format == FileFormat::ASCIIPLY ||
   format == FileFormat::PLY ||
-  format == FileFormat::_3DS ||
-  format == FileFormat::GLTF2 ||
   format == FileFormat::GLB2 ||
-  // format == FileFormat::GLTF ||
-  // format == FileFormat::GLB ||
   format == FileFormat::X3D ||
-  format == FileFormat::FBX ||
-  format == FileFormat::FBXA ||
-  format == FileFormat::M3D ||
-  format == FileFormat::M3DA ||
-  format == FileFormat::PBRT ||
-
   format == FileFormat::NEFDBG ||
   format == FileFormat::NEF3;
 }

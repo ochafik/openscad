@@ -50,68 +50,33 @@
 
 #include <algorithm>
 
-const char *getFormat(FileFormat format) {
-  switch (format) {
-    case FileFormat::ASCIISTL: return "stl";
-    case FileFormat::STL: return "stlb";
-    case FileFormat::OBJ: return "obj";
-
-    case FileFormat::COLLADA: return "collada";
-    case FileFormat::STP: return "stp";
-    case FileFormat::ASCIIPLY: return "ply";
-    case FileFormat::PLY: return "plyb";
-    case FileFormat::_3DS: return "3ds";
-    case FileFormat::_3MF: return "3mf";
-    case FileFormat::GLTF2: return "gltf2";
-    // case FileFormat::GLTF: return "gltf";
-    case FileFormat::GLB2: return "glb2";
-    // case FileFormat::GLB: return "glb";
-    case FileFormat::X3D: return "x3d";
-    case FileFormat::FBX: return "fbx";
-    case FileFormat::FBXA: return "fbxa";
-    case FileFormat::M3D: return "m3d";
-    case FileFormat::M3DA: return "m3da";
-    case FileFormat::PBRT: return "pbrt";
+const char *getAiFormatName(FileFormat fileFormat) {
+  // Formats supported:
+  // - Import: https://assimp-docs.readthedocs.io/en/latest/about/introduction.html
+  // - Export: https://assimp-docs.readthedocs.io/en/latest/usage/use_the_lib.html#exporting-models
+  switch (fileFormat) {
+    case FileFormat::ASCIISTL:
+      return "stl";
+    case FileFormat::STL:
+      return "stlb";
+    case FileFormat::OBJ:
+      return "obj";
+    case FileFormat::_3MF:
+      return "3mf";
+    case FileFormat::COLLADA:
+      return "collada";
+    case FileFormat::STP:
+      return "stp";
+    case FileFormat::PLY:
+      return "plyb";
+    case FileFormat::GLB2:
+      return "glb2";
+    case FileFormat::X3D:
+      return "x3d";
     default:
       return NULL;
     // case FileFormat::OFF:
-    // case FileFormat::WRL:
-    // case FileFormat::AMF:
-
-    // case FileFormat::PDF,
-    // case FileFormat::SVG:
-    // case FileFormat::DXF:
   }
-  // collada
-  // stp
-  // obj
-  // objnomtl
-  // stl
-  // stlb
-  // ply
-  // plyb
-  // 3ds
-  // gltf2
-  // glb2
-  // gltf
-  // glb
-  // assbin
-  // assxml
-  // x3d
-  // fbx
-  // fbxa
-  // m3d
-  // m3da
-  // 3mf
-  // pbrt
-}
-
-bool operator<(const Color4f &a, const Color4f &b) {
-  for (int i = 0; i < 4; i++) {
-    if (a[i] < b[i]) return true;
-    if (a[i] > b[i]) return false;
-  }
-  return false;
 }
 
 struct AiSceneBuilder {
@@ -120,7 +85,6 @@ struct AiSceneBuilder {
   std::vector<aiMesh*> meshes;
 
   ~AiSceneBuilder() {
-    // Only delete the objects if their ownership wasn't moved to the scene.
     for (auto material : materials) {
       delete material;
     }
@@ -138,6 +102,8 @@ struct AiSceneBuilder {
 
     aiColor4D diffuse {color[0], color[1], color[2], color[3]};
     material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
+    material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_SPECULAR);
+    material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_AMBIENT);
     auto i = materials.size();
     materials.push_back(material);
     colorMaterialMap[color] = i;
@@ -185,13 +151,27 @@ struct AiSceneBuilder {
     scene->mNumMeshes = meshes.size();
 
     scene->mRootNode = new aiNode();
-    scene->mRootNode->mMeshes = new unsigned int[meshes.size()];
-    for (int i = 0; i < meshes.size(); i++) {
-      scene->mRootNode->mMeshes[i] = i;
+    auto single_node = true;
+    if (single_node) {
+      scene->mRootNode->mMeshes = new unsigned int[meshes.size()];
+      for (int i = 0; i < meshes.size(); i++) {
+        scene->mRootNode->mMeshes[i] = i;
+      }
+      scene->mRootNode->mNumMeshes = meshes.size();
+    } else {
+      scene->mRootNode->mNumChildren = meshes.size();
+      scene->mRootNode->mChildren = new aiNode*[meshes.size()];
+      for (int i = 0; i < meshes.size(); i++) {
+        auto node = new aiNode();
+        node->mMeshes = new unsigned int[1];
+        node->mMeshes[0] = i;
+        node->mNumMeshes = 1;
+        node->mParent = scene->mRootNode;
+        scene->mRootNode->mChildren[i] = node;
+      }
     }
-    scene->mRootNode->mNumMeshes = meshes.size();
 
-    // Reset vectors so we don't attemp to delete them in the destructor.
+    // Reset vectors so we don't delete them in the destructor: they're owned by the aiScene now.
     materials.clear();
     meshes.clear();
 
@@ -199,13 +179,13 @@ struct AiSceneBuilder {
   }
 };
 
-bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& output, FileFormat format)
+bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& output, FileFormat fileFormat)
 {
-  const char *formatName = getFormat(format);
+  const char *formatName = getAiFormatName(fileFormat);
   if (!formatName) {
-    LOG("Assimp: unsupported file format.");
     return false;
   }
+
   AiSceneBuilder builder;
   std::function<bool(const Geometry &)> append_geom = [&](const Geometry& geom) {
     if (const auto list = dynamic_cast<const GeometryList *>(&geom)) {
@@ -241,13 +221,14 @@ bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& ou
       builder.addMesh(*PolySetUtils::tessellate_faces(*ps));
       return true;
     } else if (dynamic_cast<const Polygon2d *>(&geom)) { // NOLINT(bugprone-branch-clone)
-      assert(false && "Unsupported file format");
+      assert(false && "Unexpected 2D geom in 3D model");
     } else { // NOLINT(bugprone-branch-clone)
-      assert(false && "Not implemented");
+      assert(false && "Unsupported Geometry class");
     }
 
     return false;
   };
+
   append_geom(*geom);
   
   auto scene = builder.toScene();
@@ -255,8 +236,7 @@ bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& ou
   // exporter.Export(scene.get(), formatName, "out_file.gltf");
   const aiExportDataBlob *blob = exporter.ExportToBlob(scene.get(), formatName);
   if (!blob) {
-    LOG("Assimp exporter failed: %1$s.", exporter.GetErrorString());
-    printf("%s\n", exporter.GetErrorString());
+    LOG(message_group::Export_Error, "Assimp exporter failed: %1$s.", exporter.GetErrorString());
     return false;
   }
   output.write(reinterpret_cast<const char*>(blob->data), blob->size);

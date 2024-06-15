@@ -67,4 +67,12 @@ public:
   }
 
   [[nodiscard]] bool isValid() const { return this->minCoeff() >= 0.0f; }
+
+  bool operator<(const Color4f &b) const {
+    for (int i = 0; i < 4; i++) {
+      if ((*this)[i] < b[i]) return true;
+      if ((*this)[i] > b[i]) return false;
+    }
+    return false;
+  }
 };
