@@ -62,11 +62,6 @@ public:
     std::copy(this->vec.begin(), this->vec.end(), dest);
   }
 
-  void clear() {
-    map.clear();
-    vec.clear();
-  }
-
 private:
   std::unordered_map<T, int> map;
   std::vector<T> vec;

@@ -31,8 +31,6 @@ public:
   void endPolygon();
 
   std::unique_ptr<PolySet> build();
-  void clear();
-  bool empty() const;
 private:
   Reindexer<Vector3d> vertices_;
   PolygonIndices indices_;
