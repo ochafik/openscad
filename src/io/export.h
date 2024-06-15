@@ -17,10 +17,30 @@ enum class FileFormat {
   ASCIISTL,
   STL,
   OBJ,
+  // OBJNOMTL,
   OFF,
   WRL,
   AMF,
   _3MF,
+
+  COLLADA,
+  STP,
+  ASCIIPLY,
+  PLY,
+  _3DS,
+  GLTF2,
+  GLB2,
+  // GLTF,
+  // GLB,
+  // ASSBIN,
+  // ASSXML,
+  X3D,
+  FBX,
+  FBXA,
+  M3D,
+  M3DA,
+  PBRT,
+
   DXF,
   SVG,
   NEFDBG,
@@ -113,6 +133,7 @@ void export_pdf(const std::shared_ptr<const Geometry>& geom, std::ostream& outpu
 void export_nefdbg(const std::shared_ptr<const Geometry>& geom, std::ostream& output);
 void export_nef3(const std::shared_ptr<const Geometry>& geom, std::ostream& output);
 
+bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& output, FileFormat format);
 
 enum class Previewer { OPENCSG, THROWNTOGETHER };
 enum class RenderType { GEOMETRY, BACKEND_SPECIFIC, OPENCSG, THROWNTOGETHER };
@@ -127,6 +148,23 @@ struct ExportFileFormatOptions {
     {"wrl", FileFormat::WRL},
     {"amf", FileFormat::AMF},
     {"3mf", FileFormat::_3MF},
+
+    {"collada", FileFormat::COLLADA},
+    {"stp", FileFormat::STP},
+    {"ply", FileFormat::ASCIIPLY},
+    {"plyb", FileFormat::PLY},
+    {"3ds", FileFormat::_3DS},
+    {"gltf", FileFormat::GLTF2},
+    {"glb", FileFormat::GLB2},
+    // {"gltf", FileFormat::GLTF},
+    // {"glb", FileFormat::GLB},
+    {"x3d", FileFormat::X3D},
+    {"fbx", FileFormat::FBX},
+    {"fbxa", FileFormat::FBXA},
+    {"m3d", FileFormat::M3D},
+    {"m3da", FileFormat::M3DA},
+    {"pbrt", FileFormat::PBRT},
+
     {"dxf", FileFormat::DXF},
     {"svg", FileFormat::SVG},
     {"nefdbg", FileFormat::NEFDBG},

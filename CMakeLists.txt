@@ -53,6 +53,7 @@ option(ENABLE_CAIRO "Enable support for cairo vector graphics library." ON)
 option(ENABLE_SPNAV "Enable support for libspnav input driver." ON)
 option(ENABLE_HIDAPI "Enable support for HIDAPI input driver." ON)
 option(ENABLE_TBB "Enable support for oneAPI Threading Building Blocks." ON)
+option(ENABLE_ASSIMP "Enable support for assimp for import/export of 3D models." ON)
 option(ENABLE_CGAL "Enable CGAL." ON)
 option(ALLOW_BUNDLED_HIDAPI "Allow usage of bundled HIDAPI library (Windows only)." OFF)
 option(ENABLE_PYTHON "Enable experimental Python Interpreter" OFF)
@@ -481,6 +482,17 @@ if(NOT MSVC)
   endif()
 endif()
 
+if (ENABLE_ASSIMP)
+  find_package(ASSIMP REQUIRED)
+  find_library(ASSIMP_LIBRARIES NAMES assimp)
+  message(STATUS "ASSIMP: ${ASSIMP_VERSION}")
+  target_include_directories(OpenSCAD SYSTEM PRIVATE ${ASSIMP_INCLUDE_DIRS})
+  target_link_libraries(OpenSCAD PRIVATE ${ASSIMP_LIBRARIES})
+  target_compile_definitions(OpenSCAD PRIVATE ENABLE_ASSIMP)
+else()
+  message(STATUS "ASSIMP: disabled")
+endif()
+
 # Automatically add the current source and build directories to the include path.
 set(CMAKE_INCLUDE_CURRENT_DIR ON) # (does not propagate down to subdirectories)
 
@@ -797,6 +809,8 @@ set(CORE_SOURCES
   src/io/DxfData.cc
   src/io/dxfdim.cc
   src/io/export.cc
+  src/io/export_3mf.cc
+  src/io/export_assimp.cc
   src/io/export_amf.cc
   src/io/export_dxf.cc
   src/io/export_obj.cc

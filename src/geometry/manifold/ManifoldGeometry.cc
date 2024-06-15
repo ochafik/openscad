@@ -111,6 +111,7 @@ std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
         static_cast<int>(mesh.triVerts[i]),
         static_cast<int>(mesh.triVerts[i + 1]),
         static_cast<int>(mesh.triVerts[i + 2])});
+  ps->color = this->color;
   return ps;
 }
 
