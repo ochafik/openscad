@@ -809,7 +809,6 @@ set(CORE_SOURCES
   src/io/DxfData.cc
   src/io/dxfdim.cc
   src/io/export.cc
-  src/io/export_3mf.cc
   src/io/export_assimp.cc
   src/io/export_amf.cc
   src/io/export_dxf.cc
