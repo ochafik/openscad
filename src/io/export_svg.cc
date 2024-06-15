@@ -56,8 +56,8 @@ static void append_svg(const Polygon2d& poly, std::ostream& output)
     }
     output << " z\n";
   }
-  if (poly.color.isValid()) {
-    output << "\" fill=\"#" << int_to_hex(poly.color.getRgba()) << "\"/>\n";
+  if (poly.getColor().isValid()) {
+    output << "\" fill=\"#" << int_to_hex(poly.getColor().getRgba()) << "\"/>\n";
   } else {
     output << "\" stroke=\"black\" fill=\"lightgray\" stroke-width=\"0.5\"/>\n";
   }

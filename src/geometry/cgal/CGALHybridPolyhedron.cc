@@ -122,13 +122,13 @@ std::shared_ptr<const PolySet> CGALHybridPolyhedron::toPolySet() const
     auto ps = CGALUtils::createPolySetFromMesh(*mesh);
     assert(ps && "Error from CGALUtils::createPolySetFromMesh");
     ps->setConvexity(convexity);
-    ps->color = this->color;
+    ps->setColor(this->color);
     return ps;
   } else if (auto nef = getNefPolyhedron()) {
     auto ps = CGALUtils::createPolySetFromNefPolyhedron3(*nef);
     assert(ps && "Error from CGALUtils::createPolySetFromNefPolyhedron3");
     ps->setConvexity(convexity);
-    ps->color = this->color;
+    ps->setColor(this->color);
     return ps;
   } else {
     assert(!"Bad hybrid polyhedron state");

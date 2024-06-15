@@ -445,9 +445,9 @@ void GeometryEvaluator::addToParent(const State& state,
                                     const std::shared_ptr<const Geometry>& geom)
 {
   this->visitedchildren.erase(node.index());
-  if (geom && state.color().isValid()) {
-    geom->color = state.color();
-  }
+  // if (geom && state.color().isValid()) {
+  //   geom->setColor(state.color());
+  // }
   if (state.parent()) {
     this->visitedchildren[state.parent()->index()].push_back(std::make_pair(node.shared_from_this(), geom));
   } else {
@@ -471,14 +471,9 @@ Response GeometryEvaluator::visit(State& state, const ColorNode& node)
       // First union all children
       ResultObject res = applyToChildren(node, OpenSCADOperator::UNION);
       if ((geom = res.constptr())) {
-        if (geom->getDimension() == 2) {
-          auto polygons =  std::dynamic_pointer_cast<Polygon2d>(res.asMutableGeometry());
-          if (polygons) polygons->setColor(node.color);
-        } else if (geom->getDimension() == 3) {
-          auto mutableGeom = res.asMutableGeometry();
-          if (mutableGeom) mutableGeom->setColor(node.color);
-          geom = mutableGeom;
-        }
+        auto mutableGeom = res.asMutableGeometry();
+        if (mutableGeom) mutableGeom->setColor(node.color);
+        geom = mutableGeom;
       }
     } else {
       geom = smartCacheGet(node, state.preferNef());

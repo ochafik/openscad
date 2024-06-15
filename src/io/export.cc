@@ -218,6 +218,7 @@ struct LexographicLess {
 std::unique_ptr<PolySet> createSortedPolySet(const PolySet& ps)
 {
   auto out = std::make_unique<PolySet>(ps.getDimension(), ps.convexValue());
+  out->setColor(ps.getColor());
   out->setTriangular(ps.isTriangular());
   out->setConvexity(ps.getConvexity());
 

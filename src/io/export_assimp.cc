@@ -30,6 +30,7 @@
 
 #include "export.h"
 #include "PolySet.h"
+#include "PolySetBuilder.h"
 #include "PolySetUtils.h"
 #include "printutils.h"
 #ifdef ENABLE_CGAL
@@ -105,7 +106,16 @@ const char *getFormat(FileFormat format) {
   // pbrt
 }
 
+bool operator<(const Color4f &a, const Color4f &b) {
+  for (int i = 0; i < 4; i++) {
+    if (a[i] < b[i]) return true;
+    if (a[i] > b[i]) return false;
+  }
+  return false;
+}
+
 struct AiSceneBuilder {
+  std::map<Color4f, int> colorMaterialMap;
   std::vector<aiMaterial*> materials;
   std::vector<aiMesh*> meshes;
 
@@ -120,6 +130,10 @@ struct AiSceneBuilder {
   }
 
   int addColorMaterial(Color4f color) {
+    auto it = colorMaterialMap.find(color);
+    if (it != colorMaterialMap.end()) {
+      return it->second;
+    }
     auto material = new aiMaterial();
 
     aiColor4D diffuse;
@@ -130,16 +144,19 @@ struct AiSceneBuilder {
     material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
     // material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_SPECULAR);
     // material->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_AMBIENT);
+    auto i = materials.size();
     materials.push_back(material);
-    return materials.size() - 1;
+    colorMaterialMap[color] = i;
+    return i;
   }
 
   void addMesh(const PolySet& ps)
   {
     auto mesh = new aiMesh();
+    mesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
     
-    if (ps.color.isValid()) {
-      mesh->mMaterialIndex = addColorMaterial(ps.color);
+    if (ps.getColor().isValid()) {
+      mesh->mMaterialIndex = addColorMaterial(ps.getColor());
     }
 
     mesh->mNumVertices = ps.vertices.size();
@@ -150,15 +167,54 @@ struct AiSceneBuilder {
 
     mesh->mNumFaces = ps.indices.size();
     mesh->mFaces = new aiFace[ps.indices.size()];
-    for (int i = 0; i < ps.indices.size(); i++) {
-      mesh->mFaces[i].mNumIndices = 3;
-      mesh->mFaces[i].mIndices = new unsigned int[3];
-      mesh->mFaces[i].mIndices[0] = ps.indices[i][0];
-      mesh->mFaces[i].mIndices[1] = ps.indices[i][1];
-      mesh->mFaces[i].mIndices[2] = ps.indices[i][2];
+    for (int i = 0, n = ps.indices.size(); i < n; i++) {
+      auto & face = mesh->mFaces[i];
+      face.mNumIndices = 3;
+      face.mIndices = new unsigned int[3];
+      face.mIndices[0] = ps.indices[i][0];
+      face.mIndices[1] = ps.indices[i][1];
+      face.mIndices[2] = ps.indices[i][2];
     }
 
     meshes.push_back(mesh);
+  }
+
+  void addMesh(const ManifoldGeometry & geom) {
+    auto originalIDToColor = geom.getOriginalIDToColor();
+    const auto & mesh = geom.getManifold().GetMeshGL();
+    assert(mesh.runIndex.size() >= 2);
+    auto id = mesh.runOriginalID[0];
+    auto start = mesh.runIndex[0];
+    for (int run = 0, numRun = mesh.runIndex.size() - 1; run < numRun; ++run) {
+      const auto nextID = mesh.runOriginalID[run + 1];
+      if (nextID != id) {
+        const auto end = mesh.runIndex[run + 1];
+        PolySetBuilder psb(end - start, end - start, 3);
+        for (int i = start; i < end; i += 3) {
+          psb.beginPolygon(3);
+          for (int j = 0; j < 3; ++j) {
+            auto iVert = mesh.triVerts[i + j];
+            auto propOffset = iVert * mesh.numProp;
+            psb.addVertex({
+              mesh.vertProperties[propOffset],
+              mesh.vertProperties[propOffset + 1],
+              mesh.vertProperties[propOffset + 2]
+            });
+          }
+          psb.endPolygon();
+        }
+        auto ps = psb.build();
+        auto colorIt = originalIDToColor.find(id);
+        if (colorIt != originalIDToColor.end()) {
+          ps->setColor(colorIt->second);
+        } else if (geom.getColor().isValid()) {
+          ps->setColor(geom.getColor());
+        }
+        addMesh(*ps);
+        id = nextID;
+        start = end;
+      }
+    }
   }
 
   std::unique_ptr<aiScene> toScene() {
@@ -232,11 +288,13 @@ static bool append_assimp(const std::shared_ptr<const Geometry>& geom, AiSceneBu
   } else if (const auto N = std::dynamic_pointer_cast<const CGAL_Nef_polyhedron>(geom)) {
     return append_nef(*N, builder);
   } else if (const auto hybrid = std::dynamic_pointer_cast<const CGALHybridPolyhedron>(geom)) {
-    return append_polyset(*hybrid->toPolySet(), builder);
+    builder.addMesh(*hybrid->toPolySet());
+    return true;
 #endif
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    return append_polyset(*mani->toPolySet(), builder);
+    builder.addMesh(*mani);
+    return true;
 #endif
   } else if (const auto ps = std::dynamic_pointer_cast<const PolySet>(geom)) {
     return append_polyset(*PolySetUtils::tessellate_faces(*ps), builder);
@@ -253,12 +311,12 @@ bool export_assimp(const std::shared_ptr<const Geometry>& geom, std::ostream& ou
 {
   const char *formatName = getFormat(format);
   if (!formatName) {
-    LOG("Unsupported file format.");
+    LOG("Assimp: unsupported file format.");
     return false;
   }
   AiSceneBuilder builder;
   if (!append_assimp(geom, builder)) {
-    LOG("Assimp export failed.");
+    LOG("Assimp: export failed.");
     return false;
   }
   auto scene = builder.toScene();
