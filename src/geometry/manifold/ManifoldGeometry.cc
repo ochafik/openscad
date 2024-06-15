@@ -3,6 +3,7 @@
 #include "Polygon2d.h"
 #include "manifold.h"
 #include "PolySet.h"
+#include "PolySetBuilder.h"
 #include "PolySetUtils.h"
 #include "manifoldutils.h"
 #ifdef ENABLE_CGAL
@@ -114,6 +115,63 @@ std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
         static_cast<int>(mesh.triVerts[i + 2])});
   ps->setColor(this->color);
   return ps;
+}
+
+std::vector<std::unique_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
+  std::vector<std::unique_ptr<PolySet>> out;
+
+  const auto & mesh = getManifold().GetMeshGL();
+  assert(mesh.runIndex.size() >= 2);
+
+  Color4f current_color;
+  PolySetBuilder builder(mesh.vertProperties.size() / mesh.numProp, mesh.triVerts.size(), 3);
+  auto flushBuilder = [&]() {
+    if (!builder.empty()) {
+      auto ps = builder.build();
+      ps->setColor(current_color);
+      out.emplace_back(std::move(ps));
+      builder.clear();
+    }
+  };
+
+  auto originalIDToColor = getOriginalIDToColor();
+  auto id = mesh.runOriginalID[0];
+  auto start = mesh.runIndex[0];
+
+  for (int run = 0, numRun = mesh.runIndex.size() - 1; run < numRun; ++run) {
+    const auto nextID = mesh.runOriginalID[run + 1];
+    if (nextID != id) {
+      Color4f color(getColor());
+      auto colorIt = originalIDToColor.find(id);
+      if (colorIt != originalIDToColor.end()) {
+        color = colorIt->second;
+      }
+
+      if (color != current_color) {
+        flushBuilder();
+        current_color = color;
+      }
+
+      const auto end = mesh.runIndex[run + 1];
+      for (int i = start; i < end; i += 3) {
+        builder.beginPolygon(3);
+        for (int j = 0; j < 3; ++j) {
+          auto iVert = mesh.triVerts[i + j];
+          auto propOffset = iVert * mesh.numProp;
+          builder.addVertex({
+            mesh.vertProperties[propOffset],
+            mesh.vertProperties[propOffset + 1],
+            mesh.vertProperties[propOffset + 2]
+          });
+        }
+        builder.endPolygon();
+      }
+      id = nextID;
+      start = end;
+    }
+  }
+  flushBuilder();
+  return out;
 }
 
 #ifdef ENABLE_CGAL

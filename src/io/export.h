@@ -149,7 +149,7 @@ struct ExportFileFormatOptions {
     {"amf", FileFormat::AMF},
     {"3mf", FileFormat::_3MF},
 
-    {"collada", FileFormat::COLLADA},
+    {"dae", FileFormat::COLLADA},
     {"stp", FileFormat::STP},
     {"ply", FileFormat::ASCIIPLY},
     {"plyb", FileFormat::PLY},

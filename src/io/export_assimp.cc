@@ -155,7 +155,7 @@ struct AiSceneBuilder {
     auto mesh = new aiMesh();
     mesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
     
-    if (ps.getColor().isValid()) {
+     if (ps.getColor().isValid()) {
       mesh->mMaterialIndex = addColorMaterial(ps.getColor());
     }
 
@@ -180,40 +180,8 @@ struct AiSceneBuilder {
   }
 
   void addMesh(const ManifoldGeometry & geom) {
-    auto originalIDToColor = geom.getOriginalIDToColor();
-    const auto & mesh = geom.getManifold().GetMeshGL();
-    assert(mesh.runIndex.size() >= 2);
-    auto id = mesh.runOriginalID[0];
-    auto start = mesh.runIndex[0];
-    for (int run = 0, numRun = mesh.runIndex.size() - 1; run < numRun; ++run) {
-      const auto nextID = mesh.runOriginalID[run + 1];
-      if (nextID != id) {
-        const auto end = mesh.runIndex[run + 1];
-        PolySetBuilder psb(end - start, end - start, 3);
-        for (int i = start; i < end; i += 3) {
-          psb.beginPolygon(3);
-          for (int j = 0; j < 3; ++j) {
-            auto iVert = mesh.triVerts[i + j];
-            auto propOffset = iVert * mesh.numProp;
-            psb.addVertex({
-              mesh.vertProperties[propOffset],
-              mesh.vertProperties[propOffset + 1],
-              mesh.vertProperties[propOffset + 2]
-            });
-          }
-          psb.endPolygon();
-        }
-        auto ps = psb.build();
-        auto colorIt = originalIDToColor.find(id);
-        if (colorIt != originalIDToColor.end()) {
-          ps->setColor(colorIt->second);
-        } else if (geom.getColor().isValid()) {
-          ps->setColor(geom.getColor());
-        }
-        addMesh(*ps);
-        id = nextID;
-        start = end;
-      }
+    for (const auto & ps : geom.toPolySets()) {
+      addMesh(*ps);
     }
   }
 

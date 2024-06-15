@@ -44,6 +44,18 @@ PolySetBuilder::PolySetBuilder(int vertices_count, int indices_count, int dim, b
   if (indices_count != 0) indices_.reserve(indices_count);
 }
 
+void PolySetBuilder::clear() {
+  vertices_.clear();
+  indices_.clear();
+  convexity_ = 1;
+  convex_ = unknown;
+  current_polygon_.clear();
+}
+
+bool PolySetBuilder::empty() const {
+  return indices_.empty();
+}
+
 void PolySetBuilder::setConvexity(int convexity){
   convexity_ = convexity;
 }
