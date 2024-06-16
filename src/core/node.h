@@ -109,6 +109,11 @@ public:
   VISITABLE();
   ListNode(const ModuleInstantiation *mi) : AbstractNode(mi) { }
   std::string name() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<ListNode>(modinst);
+    copyChildren(*node.get());
+    return node;
+  }
 };
 
 /*!
@@ -122,6 +127,11 @@ public:
   GroupNode(const ModuleInstantiation *mi, std::string name = "") : AbstractNode(mi), _name(std::move(name)) { }
   std::string name() const override;
   std::string verbose_name() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<GroupNode>(modinst, _name);
+    copyChildren(*node.get());
+    return node;
+  }
 private:
   const std::string _name;
 };
@@ -135,6 +145,11 @@ public:
   VISITABLE();
   RootNode() : GroupNode(&mi), mi("group") { }
   std::string name() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<RootNode>();
+    copyChildren(*node.get());
+    return node;
+  }
 private:
   ModuleInstantiation mi;
 };

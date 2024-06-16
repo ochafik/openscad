@@ -46,6 +46,15 @@ public:
   }
   std::string name() const override { return "cube"; }
   std::unique_ptr<const Geometry> createGeometry() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<CubeNode>(modinst);
+    node->x = x;
+    node->y = y;
+    node->z = z;
+    node->center = center;
+    copyChildren(*node.get());
+    return node;
+  }
 
   double x = 1, y = 1, z = 1;
   bool center = false;
@@ -69,6 +78,15 @@ public:
   }
   std::string name() const override { return "sphere"; }
   std::unique_ptr<const Geometry> createGeometry() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<SphereNode>(modinst);
+    node->fn = fn;
+    node->fa = fa;
+    node->fs = fs;
+    node->r = r;
+    copyChildren(*node.get());
+    return node;
+  }
 
   double fn, fs, fa;
   double r = 1;
@@ -95,6 +113,18 @@ public:
   }
   std::string name() const override { return "cylinder"; }
   std::unique_ptr<const Geometry> createGeometry() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<CylinderNode>(modinst);
+    node->fn = fn;
+    node->fs = fs;
+    node->fa = fa;
+    node->r1 = r1;
+    node->r2 = r2;
+    node->h = h;
+    node->center = center;
+    copyChildren(*node.get());
+    return node;
+  }
 
   double fn, fs, fa;
   double r1 = 1, r2 = 1, h = 1;
@@ -138,6 +168,14 @@ public:
   }
   std::string name() const override { return "square"; }
   std::unique_ptr<const Geometry> createGeometry() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<SquareNode>(modinst);
+    node->x = x;
+    node->y = y;
+    node->center = center;
+    copyChildren(*node.get());
+    return node;
+  }
 
   double x = 1, y = 1;
   bool center = false;
@@ -161,6 +199,15 @@ public:
   }
   std::string name() const override { return "circle"; }
   std::unique_ptr<const Geometry> createGeometry() const override;
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
+    auto node = std::make_unique<CircleNode>(modinst);
+    node->fn = fn;
+    node->fa = fa;
+    node->fs = fs;
+    node->r = r;
+    copyChildren(*node.get());
+    return node;
+  }
 
   double fn, fs, fa;
   double r = 1;

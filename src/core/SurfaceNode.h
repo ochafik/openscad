@@ -60,7 +60,7 @@ public:
   std::string toString() const override;
   std::string name() const override { return "surface"; }
   [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
-    auto node = std::make_unique<SurfaceNode>(modinst, _name);
+    auto node = std::make_unique<SurfaceNode>(modinst);
     node->filename = filename;
     node->center = center;
     node->invert = invert;
