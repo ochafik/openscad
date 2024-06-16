@@ -575,7 +575,7 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
       // OpenCSG or throwntogether png -> just render a preview
       glview = prepare_preview(tree, cmd.viewOptions, camera);
       if (!glview) return 1;
-    } else if (export_format == FileFormat::GLTF) {
+    } else if (export_format == FileFormat::GLTF || export_format == FileFormat::_3MF) {
       root_geom = evaluate_colors(*const_cast<AbstractNode*>(root_node.get()), fparent);
     } else {
       Tree tree(root_node, fparent.string());

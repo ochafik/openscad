@@ -8,6 +8,7 @@
 namespace fs = boost::filesystem;
 
 ColorPartition partition_colors(AbstractNode & node) {
+    LOG(message_group::Echo, "partition_colors: " + node.verbose_name());
     if (auto color_node = dynamic_cast<ColorNode *>(&node)) {
         NodeVector children(node.children.begin(), node.children.end());
         return {std::make_pair(color_node->color, children)};
@@ -95,62 +96,47 @@ ColorPartition partition_colors(AbstractNode & node) {
         if (auto csg_node = dynamic_cast<CsgOpNode *>(&node)) {
             if (csg_node->type == OpenSCADOperator::UNION) {
                 return handle_union();
-            
-                    // break;
-                // case OpenSCADOperator::DIFFERENCE:
-                //     if (child_partitions[0].size() <= 1) {
-                //         std::optional<Color4f> color;
-                //         if (!child_partitions[0].empty()) {
-                //             color = child_partitions[0].begin()->first;
-                //         }
-                //         return {std::make_pair(color, node.children)};
-                //     }
-                //     // fall through next case.
-            } else if (csg_node->type == OpenSCADOperator::DIFFERENCE || csg_node->type == OpenSCADOperator::INTERSECTION) {
+            } else {//} if (csg_node->type == OpenSCADOperator::DIFFERENCE || csg_node->type == OpenSCADOperator::INTERSECTION) {
                 // case OpenSCADOperator::DIFFERENCE:
                 // case OpenSCADOperator::INTERSECTION:
-                    if (all_colors.size() <= 1) {
-                        std::optional<Color4f> color;
-                        if (csg_node->type == OpenSCADOperator::DIFFERENCE) {
-                            if (!child_partitions[0].empty()) {
-                                color = child_partitions[0].begin()->first;
-                            }
-                        } else {
-                            if (!all_colors.empty()) {
-                                color = *all_colors.begin();
-                            }
+                if (all_colors.size() <= 1) {
+                    std::optional<Color4f> color;
+                    if (csg_node->type == OpenSCADOperator::DIFFERENCE) {
+                        if (!child_partitions[0].empty()) {
+                            color = child_partitions[0].begin()->first;
                         }
-                        return {std::make_pair(color, node.children)};
+                    } else {
+                        if (!all_colors.empty()) {
+                            color = *all_colors.begin();
+                        }
                     }
-                    ColorPartition result;
-                    auto & lhs = child_partitions[0];
-                    for (const auto & [color, lhs_nodes] : lhs) {
-                        std::shared_ptr<AbstractNode> lhs_node;
-                        if (lhs_nodes.size() == 1) {
-                            lhs_node = lhs_nodes[0];
-                        } else {
-                            auto op_node = std::make_shared<CsgOpNode>(new ModuleInstantiation("union"), OpenSCADOperator::UNION);
-                            for (const auto & lhs_node : lhs_nodes) {
-                                lhs_node->children.push_back(lhs_node);
-                            }
-                            lhs_node = op_node;
+                    return {std::make_pair(color, node.children)};
+                }
+                ColorPartition result;
+                auto & lhs = child_partitions[0];
+                for (const auto & [color, lhs_nodes] : lhs) {
+                    std::shared_ptr<AbstractNode> lhs_node;
+                    if (lhs_nodes.size() == 1) {
+                        lhs_node = lhs_nodes[0];
+                    } else {
+                        auto op_node = std::make_shared<CsgOpNode>(new ModuleInstantiation("union"), OpenSCADOperator::UNION);
+                        for (const auto & lhs_node : lhs_nodes) {
+                            lhs_node->children.push_back(lhs_node);
                         }
-                        auto res = std::make_shared<CsgOpNode>(new ModuleInstantiation(""), csg_node->type);
-                        res->children.push_back(lhs_node);
-                        for (int i = 1, n = child_partitions.size(); i < n; i++) {
-                            for (const auto & [other_color, other_nodes] : child_partitions[i]) {
-                                for (const auto & other_node : other_nodes) {
-                                    res->children.push_back(other_node);
-                                }
-                            }
-                        }
-                        result[color].push_back(res);
+                        lhs_node = op_node;
                     }
-                    return result;
-                    // break;
-                // default:
-                //     assert(false);
-                //     break;
+                    auto res = std::make_shared<CsgOpNode>(new ModuleInstantiation(""), csg_node->type);
+                    res->children.push_back(lhs_node);
+                    for (int i = 1, n = child_partitions.size(); i < n; i++) {
+                        for (const auto & [other_color, other_nodes] : child_partitions[i]) {
+                            for (const auto & other_node : other_nodes) {
+                                res->children.push_back(other_node);
+                            }
+                        }
+                    }
+                    result[color].push_back(res);
+                }
+                return result;
             }
         } else if (auto trans_node = dynamic_cast<TransformNode *>(&node)) {
             if (all_colors.size() <= 1) {
@@ -179,6 +165,7 @@ ColorPartition partition_colors(AbstractNode & node) {
             }
             return result;
         } else {
+            LOG(message_group::Error, "Unhandled node type in partition_colors: " + node.verbose_name());
             if (all_colors.size() <= 1) {
                 std::optional<Color4f> color;
                 if (!all_colors.empty()) {
