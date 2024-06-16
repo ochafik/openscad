@@ -36,6 +36,7 @@
 #include "printutils.h"
 #include "handle_dep.h"
 #include "Feature.h"
+#include "ColorPartitioner.h"
 #include "parsersettings.h"
 #include "RenderSettings.h"
 #include "PlatformUtils.h"
@@ -527,7 +528,6 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
   if (nextLocation) {
     LOG(message_group::Warning, *nextLocation, builtin_context->documentRoot(), "More than one Root Modifier (!)");
   }
-  Tree tree(root_node, fparent.string());
 
   if (export_format == FileFormat::CSG) {
     // https://github.com/openscad/openscad/issues/128
@@ -536,6 +536,7 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
     // the current working dir and neither to the location of the input nor
     // the output.
     fs::current_path(fparent); // Force exported filenames to be relative to document path
+    Tree tree(root_node, fparent.string());
     with_output(cmd.is_stdout, filename_str, [&tree, root_node](std::ostream& stream) {
       stream << tree.getString(*root_node, "\t") << "\n";
     });
@@ -551,6 +552,7 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
       export_param(root_file, fpath, stream);
     });
   } else if (export_format == FileFormat::TERM) {
+    Tree tree(root_node, fparent.string());
     CSGTreeEvaluator csgRenderer(tree);
     auto root_raw_term = csgRenderer.buildCSGTree(*root_node);
     with_output(cmd.is_stdout, filename_str, [root_raw_term](std::ostream& stream) {
@@ -565,14 +567,20 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
   } else {
     // start measuring render time
     RenderStatistic renderStatistic;
-    GeometryEvaluator geomevaluator(tree);
-    unique_ptr<OffscreenView> glview;
     std::shared_ptr<const Geometry> root_geom;
+    unique_ptr<OffscreenView> glview;
+
     if ((export_format == FileFormat::ECHO || export_format == FileFormat::PNG) && (cmd.viewOptions.renderer == RenderType::OPENCSG || cmd.viewOptions.renderer == RenderType::THROWNTOGETHER)) {
+      Tree tree(root_node, fparent.string());
       // OpenCSG or throwntogether png -> just render a preview
       glview = prepare_preview(tree, cmd.viewOptions, camera);
       if (!glview) return 1;
+    } else if (export_format == FileFormat::GLTF) {
+      root_geom = evaluate_colors(*const_cast<AbstractNode*>(root_node.get()), fparent);
     } else {
+      Tree tree(root_node, fparent.string());
+      GeometryEvaluator geomevaluator(tree);
+  
       // Force creation of concrete geometry (mostly for testing)
       // FIXME: Consider adding MANIFOLD as a valid --render argument and ViewOption, to be able to distinguish from CGAL
 
@@ -594,6 +602,7 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
         LOG("Converted to backend-specific geometry");
       }
     }
+
     if (is3D(export_format)) {
       if (!checkAndExport(root_geom, 3, export_format, cmd.is_stdout, filename_str)) {
         return 1;

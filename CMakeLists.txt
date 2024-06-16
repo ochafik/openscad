@@ -731,6 +731,7 @@ set(CORE_SOURCES
   src/core/CgalAdvNode.cc
   src/core/Children.cc
   src/core/ColorNode.cc
+  src/core/ColorPartitioner.cc
   src/core/Context.cc
   src/core/ContextFrame.cc
   src/core/ContextMemoryManager.cc
