@@ -67,12 +67,25 @@ static void export_3mf_error(std::string msg)
 /*
  * PolySet must be triangulated.
  */
-static bool append_polyset(std::shared_ptr<const PolySet> ps, Lib3MF::PWrapper& wrapper, Lib3MF::PModel& model)
+static bool append_polyset(const std::shared_ptr<const PolySet> & ps, Lib3MF::PWrapper& wrapper, Lib3MF::PModel& model)
 {
   try {
     auto mesh = model->AddMeshObject();
     if (!mesh) return false;
     mesh->SetName("OpenSCAD Model");
+
+    auto & color = ps->getColor();
+    if (color.isValid()) {
+      Lib3MF::sColor sc {
+        (Lib3MF_uint8) (color[0] * 255),
+        (Lib3MF_uint8) (color[1] * 255),
+        (Lib3MF_uint8) (color[2] * 255),
+        (Lib3MF_uint8) (color[3] * 255)
+      };
+      Lib3MF::PBaseMaterialGroup baseMaterialGroup = model->AddBaseMaterialGroup();
+      auto colorResourceID = baseMaterialGroup->AddMaterial("color", sc);
+      mesh->SetObjectLevelProperty(baseMaterialGroup->GetResourceID(), colorResourceID);
+    }
 
     auto vertexFunc = [&](const Vector3d& coords) -> bool {
       const auto f = coords.cast<float>();
@@ -163,7 +176,9 @@ static bool append_3mf(const std::shared_ptr<const Geometry>& geom, Lib3MF::PWra
 #endif
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    return append_polyset(mani->toPolySet(), wrapper, model);
+    for (auto& ps : mani->toPolySets()) {
+      if (!append_polyset(std::move(ps), wrapper, model)) return false;
+    }
 #endif
   } else if (const auto ps = std::dynamic_pointer_cast<const PolySet>(geom)) {
     return append_polyset(PolySetUtils::tessellate_faces(*ps), wrapper, model);

@@ -59,7 +59,7 @@ return format == FileFormat::ASCIISTL ||
   format == FileFormat::COLLADA ||
   format == FileFormat::STP ||
   format == FileFormat::PLY ||
-  format == FileFormat::GLB2 ||
+  format == FileFormat::GLTF ||
   format == FileFormat::X3D ||
   format == FileFormat::NEFDBG ||
   format == FileFormat::NEF3;

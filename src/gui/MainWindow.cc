@@ -2778,7 +2778,7 @@ void MainWindow::actionExportCOLLADA()
 
 void MainWindow::actionExportGLTF()
 {
-  actionExport(FileFormat::GLB2, "GLTF", ".glb", 3);
+  actionExport(FileFormat::GLTF, "GLTF", ".glb", 3);
 }
 
 void MainWindow::actionExportDXF()
