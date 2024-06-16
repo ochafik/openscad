@@ -69,7 +69,7 @@ const char *getAiFormatName(FileFormat fileFormat) {
       return "stp";
     case FileFormat::PLY:
       return "plyb";
-    case FileFormat::GLB2:
+    case FileFormat::GLTF:
       return "glb2";
     case FileFormat::X3D:
       return "x3d";
