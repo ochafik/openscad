@@ -10,7 +10,7 @@ public:
   OffsetNode(const ModuleInstantiation *mi) : AbstractPolyNode(mi) { }
   std::string toString() const override;
   std::string name() const override { return "offset"; }
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<OffsetNode>(modinst);
     node->chamfer = chamfer;
     node->fn = fn;

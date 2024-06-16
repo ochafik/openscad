@@ -13,7 +13,7 @@ public:
 
   std::string toString() const override;
   std::string name() const override { return "text"; }
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<TextNode>(modinst);
     node->params = params;
     copyChildren(*node.get());

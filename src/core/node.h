@@ -45,7 +45,7 @@ public:
   const std::vector<std::shared_ptr<AbstractNode>>& getChildren() const {
     return this->children;
   }
-  [[nodiscard]] virtual std::unique_ptr<Geometry> copy() const = 0;
+  [[nodiscard]] virtual std::unique_ptr<AbstractNode> copy() const = 0;
   
   size_t index() const { return this->idx; }
 
@@ -80,7 +80,7 @@ public:
   AbstractIntersectionNode(const ModuleInstantiation *mi) : AbstractNode(mi) { }
   std::string toString() const override;
   std::string name() const override;
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<AbstractIntersectionNode>(modinst);
     copyChildren(*node.get());
     return node;

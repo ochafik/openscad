@@ -59,7 +59,7 @@ public:
   SurfaceNode(const ModuleInstantiation *mi) : LeafNode(mi) { }
   std::string toString() const override;
   std::string name() const override { return "surface"; }
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<SurfaceNode>(modinst, _name);
     node->filename = filename;
     node->center = center;

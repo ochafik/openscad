@@ -26,7 +26,7 @@ public:
   ImportNode(const ModuleInstantiation *mi, ImportType type) : LeafNode(mi), type(type) { }
   std::string toString() const override;
   std::string name() const override;
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<ImportNode>(modinst, type);
     node->type = type;
     node->filename = filename;

@@ -11,7 +11,7 @@ public:
   TransformNode(const ModuleInstantiation *mi, const std::string & verbose_name);
   std::string toString() const override;
   std::string name() const override;
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<TransformNode>(modinst, _name);
     node->matrix = matrix;
     copyChildren(*node.get());

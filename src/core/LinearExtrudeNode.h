@@ -12,7 +12,7 @@ public:
   }
   std::string toString() const override;
   std::string name() const override { return "linear_extrude"; }
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<LinearExtrudeNode>(modinst, _name);
     node->height = height;
     node->origin_x = origin_x;

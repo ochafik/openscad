@@ -15,7 +15,7 @@ public:
   RoofNode(const ModuleInstantiation *mi) : AbstractPolyNode(mi) {}
   std::string toString() const override;
   std::string name() const override { return "roof"; }
-  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+  [[nodiscard]] std::unique_ptr<AbstractNode> copy() const override {
     auto node = std::make_unique<RoofNode>(modinst);
     node->fa = fa;
     node->fs = fs;
