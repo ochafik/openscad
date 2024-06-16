@@ -456,6 +456,10 @@ void GeometryEvaluator::addToParent(const State& state,
 
 Response GeometryEvaluator::visit(State& state, const ColorNode& node)
 {
+  if (!Feature::ExperimentalColorFaces.is_enabled() && !Feature::ExperimentalColorSolids.is_enabled()) {
+    return GeometryEvaluator::visit(state, (const AbstractNode&)node);
+  }
+    
   if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
   if (state.isPostfix()) {
     std::shared_ptr<const Geometry> geom;

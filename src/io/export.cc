@@ -71,6 +71,18 @@ bool is2D(const FileFormat format) {
     format == FileFormat::PDF;
 }
 
+bool supportsColor(const FileFormat format) {
+  if (Feature::ExperimentalAssimp.is_enabled()) {
+    return format == FileFormat::_3MF;
+  } else {
+    return format == FileFormat::COLLADA ||
+      format == FileFormat::STP ||
+      format == FileFormat::_3MF ||
+      format == FileFormat::PLY ||
+      format == FileFormat::GLTF;
+  }
+}
+
 void exportFile(const std::shared_ptr<const Geometry>& root_geom, std::ostream& output, const ExportInfo& exportInfo)
 {
   if (Feature::ExperimentalAssimp.is_enabled()) {

@@ -3,6 +3,8 @@
 
 #include "Tree.h"
 #include "GeometryEvaluator.h"
+#include "ColorPartitioner.h"
+#include "Feature.h"
 #include "progress.h"
 #include "printutils.h"
 #include "exceptions.h"
@@ -32,8 +34,12 @@ void CGALWorker::work()
   // this is a worker thread: we don't want any exceptions escaping and crashing the app.
   std::shared_ptr<const Geometry> root_geom;
   try {
-    GeometryEvaluator evaluator(*this->tree);
-    root_geom = evaluator.evaluateGeometry(*this->tree->root(), true);
+    if (Feature::ExperimentalColorSolids.is_enabled()) {
+      root_geom = render_solid_colors(*this->tree->root(), this->tree->getDocumentPath());
+    } else {
+      GeometryEvaluator evaluator(*this->tree);
+      root_geom = evaluator.evaluateGeometry(*this->tree->root(), true);
+    }
   } catch (const ProgressCancelException& e) {
     LOG("Rendering cancelled.");
   } catch (const HardWarningException& e) {

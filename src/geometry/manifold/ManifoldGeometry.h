@@ -37,8 +37,8 @@ public:
   [[nodiscard]] unsigned int getDimension() const override { return 3; }
   [[nodiscard]] std::unique_ptr<Geometry> copy() const override;
 
-  [[nodiscard]] std::shared_ptr<const PolySet> toPolySet() const;
-  [[nodiscard]] std::vector<std::unique_ptr<PolySet>> toPolySets() const;
+  [[nodiscard]] std::shared_ptr<PolySet> toPolySet() const;
+  [[nodiscard]] std::vector<std::shared_ptr<PolySet>> toPolySets() const;
 
   template <class Polyhedron>
   [[nodiscard]] std::shared_ptr<Polyhedron> toPolyhedron() const;

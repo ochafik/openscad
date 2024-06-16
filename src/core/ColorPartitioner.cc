@@ -7,13 +7,12 @@
 
 namespace fs = boost::filesystem;
 
-ColorPartition partition_colors(AbstractNode & node) {
+ColorPartition partition_colors(const AbstractNode & node) {
     LOG(message_group::Echo, "partition_colors: " + node.verbose_name());
-    if (auto color_node = dynamic_cast<ColorNode *>(&node)) {
-        NodeVector children(node.children.begin(), node.children.end());
-        return {std::make_pair(color_node->color, children)};
-    } else if (dynamic_cast<LeafNode *>(&node)) {
-        return {std::make_pair(std::nullopt, NodeVector {node.shared_from_this()})};
+    if (auto color_node = dynamic_cast<const ColorNode *>(&node)) {
+        return {std::make_pair(color_node->color, node.children)};
+    } else if (dynamic_cast<const LeafNode *>(&node)) {
+        return {std::make_pair(std::nullopt, NodeVector {node.copy()})};
     } else {
         std::vector<ColorPartition> child_partitions;
         for (const auto & child : node.children) {
@@ -31,14 +30,6 @@ ColorPartition partition_colors(AbstractNode & node) {
             }
         }
 
-        // if (all_colors.size() <= 1) {
-        //     return {
-        //         std::make_pair(
-        //             all_colors.empty() ? std::nullopt : *all_colors.begin(),
-        //             node.children)
-        //     };
-        // }
-
         auto handle_union = [&]() -> ColorPartition {//std::vector<std::shared_ptr<AbstractNode>> & children) {
             if (all_colors.size() <= 1) {
                 std::optional<Color4f> color;
@@ -46,12 +37,6 @@ ColorPartition partition_colors(AbstractNode & node) {
                     color = *all_colors.begin();
                 }
                 return {std::make_pair(color, node.children)};
-                // auto & nodes = result[all_colors.empty() ? std::nullopt : *all_colors.begin()];
-                // for (const auto & child_partition : child_partitions) {
-                //     for (const auto & [color, child_nodes] : child_partition) {
-                //         nodes.insert(nodes.end(), child_nodes.begin(), child_nodes.end());
-                //     }
-                // }
             } else 
             {
                 ColorPartition result;
@@ -65,7 +50,7 @@ ColorPartition partition_colors(AbstractNode & node) {
                             // union_of_others->children.push_back(node.children[j]);
                             for (const auto & [other_color, other_nodes] : child_partitions[j]) {
                                 for (const auto & other_node : other_nodes) {
-                                    union_of_others->children.push_back(other_node/*->copy()*/);
+                                    union_of_others->children.push_back(other_node->copy());
                                 }
                             }
                         }
@@ -73,14 +58,14 @@ ColorPartition partition_colors(AbstractNode & node) {
                     for (const auto & [color, nodes] : child_partition) {
                         for (const auto & node : nodes) {
                             auto specific_part = std::make_shared<CsgOpNode>(new ModuleInstantiation("difference"), OpenSCADOperator::DIFFERENCE);
-                            specific_part->children.push_back(node);
-                            specific_part->children.push_back(union_of_others/*->copy()*/);
+                            specific_part->children.push_back(node->copy());
+                            specific_part->children.push_back(union_of_others->copy());
                             result[color].push_back(specific_part);
 
                             if (i == 0) {
                                 auto intersection = std::make_shared<CsgOpNode>(new ModuleInstantiation("intersection"), OpenSCADOperator::INTERSECTION);
-                                intersection->children.push_back(node/*->copy()*/);
-                                intersection->children.push_back(union_of_others/*->copy()*/);
+                                intersection->children.push_back(node->copy());
+                                intersection->children.push_back(union_of_others->copy());
                                 result[color].push_back(intersection);
                             }
                         }
@@ -90,15 +75,13 @@ ColorPartition partition_colors(AbstractNode & node) {
             }
         };
 
-        if (dynamic_cast<ListNode *>(&node) || dynamic_cast<GroupNode *>(&node)) {
+        if (dynamic_cast<const ListNode *>(&node) || dynamic_cast<const GroupNode *>(&node)) {
             return handle_union();
         }
-        if (auto csg_node = dynamic_cast<CsgOpNode *>(&node)) {
+        if (auto csg_node = dynamic_cast<const CsgOpNode *>(&node)) {
             if (csg_node->type == OpenSCADOperator::UNION) {
                 return handle_union();
-            } else {//} if (csg_node->type == OpenSCADOperator::DIFFERENCE || csg_node->type == OpenSCADOperator::INTERSECTION) {
-                // case OpenSCADOperator::DIFFERENCE:
-                // case OpenSCADOperator::INTERSECTION:
+            } else {
                 if (all_colors.size() <= 1) {
                     std::optional<Color4f> color;
                     if (csg_node->type == OpenSCADOperator::DIFFERENCE) {
@@ -114,13 +97,13 @@ ColorPartition partition_colors(AbstractNode & node) {
                 }
                 ColorPartition result;
                 auto & lhs = child_partitions[0];
-                for (const auto & [color, lhs_nodes] : lhs) {
+                for (auto & [color, lhs_nodes] : lhs) {
                     std::shared_ptr<AbstractNode> lhs_node;
                     if (lhs_nodes.size() == 1) {
                         lhs_node = lhs_nodes[0];
                     } else {
                         auto op_node = std::make_shared<CsgOpNode>(new ModuleInstantiation("union"), OpenSCADOperator::UNION);
-                        for (const auto & lhs_node : lhs_nodes) {
+                        for (auto & lhs_node : lhs_nodes) {
                             lhs_node->children.push_back(lhs_node);
                         }
                         lhs_node = op_node;
@@ -130,7 +113,7 @@ ColorPartition partition_colors(AbstractNode & node) {
                     for (int i = 1, n = child_partitions.size(); i < n; i++) {
                         for (const auto & [other_color, other_nodes] : child_partitions[i]) {
                             for (const auto & other_node : other_nodes) {
-                                res->children.push_back(other_node);
+                                res->children.push_back(other_node->copy());
                             }
                         }
                     }
@@ -138,7 +121,7 @@ ColorPartition partition_colors(AbstractNode & node) {
                 }
                 return result;
             }
-        } else if (auto trans_node = dynamic_cast<TransformNode *>(&node)) {
+        } else if (auto trans_node = dynamic_cast<const TransformNode *>(&node)) {
             if (all_colors.size() <= 1) {
                 std::optional<Color4f> color;
                 if (!all_colors.empty()) {
@@ -176,20 +159,11 @@ ColorPartition partition_colors(AbstractNode & node) {
             return {std::make_pair(
                 std::nullopt,
                 node.children)};
-            // if (auto adv_node = dynamic_cast<CgalAdvNode &>(node)) {
-            // switch (adv_node.type) {
-            //     case CgalAdvType::MINKOWSKI:
-            //     case CgalAdvType::HULL:
-            //         // TODO: take lhs color, if any.
-            //         break;
-            //     case CgalAdvType::FILL:
-            //     case CgalAdvType::RESIZE:
-            //         auto res = std::make_shared<CgalAdvNode>(adv_node.modinst, adv_node.type);
         }
     }
 }
 
-std::unique_ptr<Geometry> evaluate_colors(AbstractNode & node, const fs::path & fparent) {
+std::unique_ptr<Geometry> render_solid_colors(const AbstractNode & node, const fs::path & fparent) {
     auto partition = partition_colors(node);
     std::cout << "Partitioned colors: " << partition.size() << " partitions.\n";
     auto root_node = std::make_shared<RootNode>();

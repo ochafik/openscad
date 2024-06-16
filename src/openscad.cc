@@ -575,8 +575,8 @@ int do_export(const CommandLine& cmd, const RenderVariables& render_variables, F
       // OpenCSG or throwntogether png -> just render a preview
       glview = prepare_preview(tree, cmd.viewOptions, camera);
       if (!glview) return 1;
-    } else if (export_format == FileFormat::GLTF || export_format == FileFormat::_3MF) {
-      root_geom = evaluate_colors(*const_cast<AbstractNode*>(root_node.get()), fparent);
+    } else if (Feature::ExperimentalColorSolids.is_enabled() && supportsColor(export_format)) {
+      root_geom = render_solid_colors(*root_node.get(), fparent);
     } else {
       Tree tree(root_node, fparent.string());
       GeometryEvaluator geomevaluator(tree);

@@ -103,6 +103,7 @@ struct ExportInfo {
 bool canPreview(const FileFormat format);
 bool is3D(const FileFormat format);
 bool is2D(const FileFormat format);
+bool supportsColor(const FileFormat format);
 
 bool exportFileByName(const std::shared_ptr<const class Geometry>& root_geom, const ExportInfo& exportInfo);
 

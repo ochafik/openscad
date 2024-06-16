@@ -3,6 +3,7 @@
 #include "Polygon2d.h"
 #include "manifold.h"
 #include "PolySet.h"
+#include "Feature.h"
 #include "PolySetBuilder.h"
 #include "PolySetUtils.h"
 #include "manifoldutils.h"
@@ -94,7 +95,7 @@ std::string ManifoldGeometry::dump() const {
   return out.str();
 }
 
-std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
+std::shared_ptr<PolySet> ManifoldGeometry::toPolySet() const {
   manifold::MeshGL mesh = getManifold().GetMeshGL();
   auto ps = std::make_shared<PolySet>(3);
   ps->setTriangular(true);
@@ -117,8 +118,11 @@ std::shared_ptr<const PolySet> ManifoldGeometry::toPolySet() const {
   return ps;
 }
 
-std::vector<std::unique_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
-  std::vector<std::unique_ptr<PolySet>> out;
+std::vector<std::shared_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
+  if (!Feature::ExperimentalColorFaces.is_enabled() && !Feature::ExperimentalColorSolids.is_enabled()) {
+    return {toPolySet()};
+  }
+  std::vector<std::shared_ptr<PolySet>> out;
 
   const auto & mesh = getManifold().GetMeshGL();
   assert(mesh.runIndex.size() >= 2);

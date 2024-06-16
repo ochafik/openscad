@@ -12,6 +12,6 @@
 typedef std::vector<std::shared_ptr<AbstractNode>> NodeVector;
 typedef std::map<std::optional<Color4f>, NodeVector> ColorPartition;
 
-ColorPartition partition_colors(AbstractNode & node);
+ColorPartition partition_colors(const AbstractNode & node);
 
-std::unique_ptr<Geometry> evaluate_colors(AbstractNode & node, const boost::filesystem::path & fparent);
+std::unique_ptr<Geometry> render_solid_colors(const AbstractNode & node, const boost::filesystem::path & fparent);
