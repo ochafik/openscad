@@ -12,6 +12,29 @@ public:
   }
   std::string toString() const override;
   std::string name() const override { return "linear_extrude"; }
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<LinearExtrudeNode>(modinst, _name);
+    node->height = height;
+    node->origin_x = origin_x;
+    node->origin_y = origin_y;
+    node->fn = fn;
+    node->fs = fs;
+    node->fa = fa;
+    node->scale_x = scale_x;
+    node->scale_y = scale_y;
+    node->twist = twist;
+    node->convexity = convexity;
+    node->slices = slices;
+    node->segments = segments;
+    node->has_twist = has_twist;
+    node->has_slices = has_slices;
+    node->has_segments = has_segments;
+    node->center = center;
+    node->filename = filename;
+    node->layername = layername;
+    copyChildren(*node.get());
+    return node;
+  }
 
   Vector3d height=Vector3d(0, 0, 100);
   double origin_x = 0.0, origin_y = 0.0;

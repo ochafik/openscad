@@ -26,6 +26,26 @@ public:
   ImportNode(const ModuleInstantiation *mi, ImportType type) : LeafNode(mi), type(type) { }
   std::string toString() const override;
   std::string name() const override;
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<ImportNode>(modinst, type);
+    node->type = type;
+    node->filename = filename;
+    node->id = id;
+    node->layer = layer;
+    node->convexity = convexity;
+    node->center = center;
+    node->dpi = dpi;
+    node->fn = fn;
+    node->fs = fs;
+    node->fa = fa;
+    node->origin_x = origin_x;
+    node->origin_y = origin_y;
+    node->scale = scale;
+    node->width = width;
+    node->height = height;
+    copyChildren(*node.get());
+    return node;
+  }
 
   ImportType type;
   Filename filename;

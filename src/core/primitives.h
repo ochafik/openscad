@@ -108,6 +108,13 @@ public:
   PolyhedronNode (const ModuleInstantiation *mi) : LeafNode(mi) {}
   std::string toString() const override;
   std::string name() const override { return "polyhedron"; }
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<PolyhedronNode>(modinst);
+    node->points = points;
+    node->faces = faces;
+    node->convexity = convexity;
+    return node;
+  }
   std::unique_ptr<const Geometry> createGeometry() const override;
 
   std::vector<Vector3d> points;
@@ -166,6 +173,13 @@ public:
   PolygonNode (const ModuleInstantiation *mi) : LeafNode(mi) {}
   std::string toString() const override;
   std::string name() const override { return "polygon"; }
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<PolygonNode>(modinst);
+    node->points = points;
+    node->paths = paths;
+    node->convexity = convexity;
+    return node;
+  }
   std::unique_ptr<const Geometry> createGeometry() const override;
 
   std::vector<Vector2d> points;

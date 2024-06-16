@@ -45,6 +45,8 @@ public:
   const std::vector<std::shared_ptr<AbstractNode>>& getChildren() const {
     return this->children;
   }
+  [[nodiscard]] virtual std::unique_ptr<Geometry> copy() const = 0;
+  
   size_t index() const { return this->idx; }
 
   static void resetIndexCounter() { idx_counter = 1; }
@@ -62,6 +64,13 @@ public:
   int idx; // Node index (unique per tree)
 
   std::shared_ptr<const AbstractNode> getNodeByID(int idx, std::deque<std::shared_ptr<const AbstractNode>>& path) const;
+
+ protected:
+  void copyChildren(AbstractNode &other) const {
+    for (const auto &child : this->children) {
+      other.children.push_back(child->copy());
+    }
+  }
 };
 
 class AbstractIntersectionNode : public AbstractNode
@@ -71,6 +80,11 @@ public:
   AbstractIntersectionNode(const ModuleInstantiation *mi) : AbstractNode(mi) { }
   std::string toString() const override;
   std::string name() const override;
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<AbstractIntersectionNode>(modinst);
+    copyChildren(*node.get());
+    return node;
+  }
 };
 
 class AbstractPolyNode : public AbstractNode

@@ -15,6 +15,21 @@ public:
   }
   std::string toString() const override;
   std::string name() const override { return "rotate_extrude"; }
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<RotateExtrudeNode>(modinst);
+    node->convexity = convexity;
+    node->fn = fn;
+    node->fs = fs;
+    node->fa = fa;
+    node->origin_x = origin_x;
+    node->origin_y = origin_y;
+    node->scale = scale;
+    node->angle = angle;
+    node->filename = filename;
+    node->layername = layername;
+    copyChildren(*node.get());
+    return node;
+  }
 
   int convexity;
   double fn, fs, fa;

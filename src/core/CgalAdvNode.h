@@ -18,6 +18,15 @@ public:
   }
   std::string toString() const override;
   std::string name() const override;
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<CgalAdvNode>(modinst, type);
+    node->convexity = convexity;
+    node->newsize = newsize;
+    node->autosize = autosize;
+    node->type = type;
+    copyChildren(*node.get());
+    return node;
+  }
 
   unsigned int convexity{1};
   Vector3d newsize;

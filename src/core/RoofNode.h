@@ -15,6 +15,16 @@ public:
   RoofNode(const ModuleInstantiation *mi) : AbstractPolyNode(mi) {}
   std::string toString() const override;
   std::string name() const override { return "roof"; }
+  [[nodiscard]] std::unique_ptr<Geometry> copy() const override {
+    auto node = std::make_unique<RoofNode>(modinst);
+    node->fa = fa;
+    node->fs = fs;
+    node->fn = fn;
+    node->convexity = convexity;
+    node->method = method;
+    copyChildren(*node.get());
+    return node;
+  }
 
   double fa, fs, fn;
   int convexity = 1;
