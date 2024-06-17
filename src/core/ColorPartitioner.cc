@@ -93,7 +93,7 @@ ColorPartition partition_colors(const AbstractNode & node) {
                             color = *all_colors.begin();
                         }
                     }
-                    return {std::make_pair(color, node.children)};
+                    return {std::make_pair(color, NodeVector {node.copy()})};
                 }
                 ColorPartition result;
                 auto & lhs = child_partitions[0];
@@ -127,7 +127,7 @@ ColorPartition partition_colors(const AbstractNode & node) {
                 if (!all_colors.empty()) {
                     color = *all_colors.begin();
                 }
-                return {std::make_pair(color, node.children)};
+                return {std::make_pair(color, NodeVector {node.copy()})};
             }
             
             ColorPartition result;
@@ -141,9 +141,7 @@ ColorPartition partition_colors(const AbstractNode & node) {
             for (auto & [color, nodes] : result) {
                 auto trans = std::make_shared<TransformNode>(trans_node->modinst, trans_node->verbose_name());
                 trans->matrix = trans_node->matrix;
-                for (const auto & node : nodes) {
-                    trans->children.push_back(node);
-                }
+                trans->children = nodes;
                 nodes = {trans};
             }
             return result;
@@ -154,11 +152,11 @@ ColorPartition partition_colors(const AbstractNode & node) {
                 if (!all_colors.empty()) {
                     color = *all_colors.begin();
                 }
-                return {std::make_pair(color, node.children)};
+                return {std::make_pair(color, NodeVector {node.copy()})};
             }
             return {std::make_pair(
                 std::nullopt,
-                node.children)};
+                NodeVector {node.copy()})};
         }
     }
 }
