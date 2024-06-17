@@ -115,8 +115,10 @@ struct AiSceneBuilder {
     auto mesh = new aiMesh();
     mesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
     
-     if (ps.getColor().isValid()) {
+    if (ps.getColor().isValid()) {
       mesh->mMaterialIndex = addColorMaterial(ps.getColor());
+    } else {
+      mesh->mMaterialIndex = -1;
     }
 
     mesh->mNumVertices = ps.vertices.size();
