@@ -134,7 +134,13 @@ void LegacyCGALRenderer::draw(bool showfaces, bool showedges, const shaderinfo_t
   for (const auto& polyset : this->polysets) {
     PRINTD("draw() polyset");
     // Draw 3D polygons
-    setColor(ColorMode::MATERIAL);
+    Color4f color = polyset->getColor();
+    if (color.isValid()) {
+      float col[4] = {color[0], color[1], color[2], color[3]};
+      setColor(col);
+    } else {
+      setColor(ColorMode::MATERIAL);
+    }
     render_surface(*polyset, Transform3d::Identity());
   }
 
