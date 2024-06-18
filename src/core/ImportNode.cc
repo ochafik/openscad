@@ -173,6 +173,14 @@ std::unique_ptr<const Geometry> ImportNode::createGeometry() const
   std::unique_ptr<Geometry> g;
   auto loc = this->modinst->location();
 
+  // if (Feature::ExperimentalAssimp.is_enabled()) {
+  //   g = import_assimp(this->filename, loc);
+  //   if (g) {
+  //     g->setConvexity(this->convexity);
+  //     return g;
+  //   }
+  // }
+
   switch (this->type) {
   case ImportType::STL: {
     g = import_stl(this->filename, loc);
