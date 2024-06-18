@@ -59,6 +59,7 @@ std::unique_ptr<PolySet> tessellate_faces(const PolySet& polyset)
 {
   int degeneratePolygons = 0;
   auto result = std::make_unique<PolySet>(3, polyset.convexValue());
+  result->setColor(polyset.getColor());
   result->setConvexity(polyset.getConvexity());
   result->setTriangular(true);
   // ideally this should not require a copy...

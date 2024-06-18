@@ -92,7 +92,12 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const Poly
     mesh.triVerts.emplace_back(face[0], face[1], face[2]);
   }
 
-  return std::make_shared<ManifoldGeometry>(std::make_shared<const manifold::Manifold>(std::move(mesh)));
+  auto mani = std::make_shared<const manifold::Manifold>(std::move(mesh));
+  std::map<int, Color4f> originalIDToColor;
+  if (ps.getColor().isValid()) {
+    originalIDToColor[mani->OriginalID()] = ps.getColor();
+  }
+  return std::make_shared<ManifoldGeometry>(mani, originalIDToColor);
 }
 
 std::shared_ptr<ManifoldGeometry> createManifoldFromPolySet(const PolySet& ps)
@@ -154,7 +159,11 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromPolySet(const PolySet& ps)
       }
     }
 
-    return createManifoldFromSurfaceMesh(m);
+    auto geom = createManifoldFromSurfaceMesh(m);
+    if (ps.getColor().isValid()) {
+      geom->setColor(ps.getColor());
+    }
+    return geom;
   #else
     return std::make_shared<ManifoldGeometry>();
   #endif
@@ -185,7 +194,8 @@ Polygon2d polygonsToPolygon2d(const manifold::Polygons& polygons) {
 
 std::unique_ptr<PolySet> createTriangulatedPolySetFromPolygon2d(const Polygon2d& polygon2d)
 {
-  auto polyset = std::make_unique<PolySet>(2); 
+  auto polyset = std::make_unique<PolySet>(2);
+  polyset->setColor(polygon2d.getColor());
   polyset->setTriangular(true);
 
   manifold::Polygons polygons;

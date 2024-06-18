@@ -80,7 +80,9 @@ void LegacyCGALRenderer::addGeometry(const std::shared_ptr<const Geometry>& geom
 #endif
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    this->polysets.push_back(mani->toPolySet());
+    for (auto& ps : mani->toPolySets()) {
+      this->polysets.push_back(std::move(ps));
+    }
 #endif
   } else {
     assert(false && "unsupported geom in LegacyCGALRenderer");
@@ -132,7 +134,13 @@ void LegacyCGALRenderer::draw(bool showfaces, bool showedges, const shaderinfo_t
   for (const auto& polyset : this->polysets) {
     PRINTD("draw() polyset");
     // Draw 3D polygons
-    setColor(ColorMode::MATERIAL);
+    Color4f color = polyset->getColor();
+    if (color.isValid()) {
+      float col[4] = {color[0], color[1], color[2], color[3]};
+      setColor(col);
+    } else {
+      setColor(ColorMode::MATERIAL);
+    }
     render_surface(*polyset, Transform3d::Identity());
   }
 

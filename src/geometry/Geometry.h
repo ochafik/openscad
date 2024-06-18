@@ -41,13 +41,21 @@ public:
   [[nodiscard]] unsigned int getConvexity() const { return convexity; }
   void setConvexity(int c) { this->convexity = c; }
 
+  virtual void setColor(const Color4f& c) {  
+    this->color = c;
+  }
   virtual void transform(const Transform3d& /*mat*/) { assert(!"transform not implemented!"); }
   virtual void resize(const Vector3d& /*newsize*/, const Eigen::Matrix<bool, 3, 1>& /*autosize*/) {
     assert(!"resize not implemented!");
   }
 
+  [[nodiscard]] const Color4f& getColor() const {
+    return this->color;
+  }
+
   virtual void accept(GeometryVisitor& visitor) const = 0;
 protected:
+  mutable Color4f color;
   int convexity{1};
 };
 
