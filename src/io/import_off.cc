@@ -1,5 +1,8 @@
 #include "import.h"
+#include "Feature.h"
 #include "PolySet.h"
+#include "ManifoldGeometry.h"
+#include "manifold.h"
 #include "printutils.h"
 #include "AST.h"
 #include <fstream>
@@ -11,7 +14,7 @@
 // References:
 // http://www.geomview.org/docs/html/OFF.html
 
-std::unique_ptr<PolySet> import_off(const std::string& filename, const Location& loc)
+std::unique_ptr<Geometry> import_off(const std::string& filename, const Location& loc)
 {
   boost::regex ex_magic(R"(^(ST)?(C)?(N)?(4)?(n)?OFF( BINARY)? *)");
   // XXX: are ST C N always in order?
@@ -148,9 +151,7 @@ std::unique_ptr<PolySet> import_off(const std::string& filename, const Location&
 
   PRINTDB("%d vertices, %d faces, %d edges.", vertices_count % faces_count % edges_count);
 
-  auto ps = PolySet::createEmpty();
-  ps->vertices.reserve(vertices_count);
-  ps->indices.reserve(faces_count);
+  std::vector<Vector3d> vertices;
 
   while ((!f.eof()) && (vertex++ < vertices_count)) {
     if (!getline_clean("reading vertices: end of file")) {
@@ -181,57 +182,122 @@ std::unique_ptr<PolySet> import_off(const std::string& filename, const Location&
       if (has_textures) {
         ; // TODO words[i++]
       }
-      ps->vertices.push_back(v);
+      vertices.push_back(v);
     } catch (const boost::bad_lexical_cast& blc) {
       AsciiError("can't parse vertex: bad data");
       return PolySet::createEmpty();
     }
   }
 
-  while (!f.eof() && (face++ < faces_count)) {
-    if (!getline_clean("reading faces: end of file")) {
-      return PolySet::createEmpty();
-    }
-
-    boost::split(words, line, boost::is_any_of(" \t"), boost::token_compress_on);
-    if (words.size() < 1) {
-      AsciiError("can't parse face: not enough data");
-      return PolySet::createEmpty();
-    }
-
-    try {
-      unsigned long face_size=boost::lexical_cast<unsigned long>(words[0]);
-      unsigned long i;
-      if (words.size() - 1 < face_size) {
-        AsciiError("can't parse face: missing indices");
-        return PolySet::createEmpty();
+  auto read_faces = [&](const std::function<void(const IndexedFace&, const std::optional<Color4f>& color)>& add_face) {
+    IndexedFace indexed_face;
+    while (!f.eof() && (face++ < faces_count)) {
+      if (!getline_clean("reading faces: end of file")) {
+        return false;
       }
-      ps->indices.emplace_back().reserve(face_size);
-      //PRINTDB("Index[%d] [%d] = { ", face % n);
-      for (i = 0; i < face_size; i++) {
-        int ind=boost::lexical_cast<int>(words[i+1]);
-        //PRINTDB("%d, ", ind);
-        if (ind >= 0 && ind < vertices_count) {
-          ps->indices.back().push_back(ind);
-        } else {
-          AsciiError((boost::format("ignored bad face vertex index: %d") % ind).str().c_str());
+
+      boost::split(words, line, boost::is_any_of(" \t"), boost::token_compress_on);
+      if (words.size() < 1) {
+        AsciiError("can't parse face: not enough data");
+        return false;
+      }
+
+      try {
+        unsigned long face_size=boost::lexical_cast<unsigned long>(words[0]);
+        unsigned long i;
+        if (words.size() - 1 < face_size) {
+          AsciiError("can't parse face: missing indices");
+          return false;
+        }
+        indexed_face.clear();
+        //PRINTDB("Index[%d] [%d] = { ", face % n);
+        for (i = 1; i <= face_size; i++) {
+          int ind=boost::lexical_cast<int>(words[i]);
+          //PRINTDB("%d, ", ind);
+          if (ind >= 0 && ind < vertices_count) {
+            indexed_face.push_back(ind);
+          } else {
+            AsciiError((boost::format("ignored bad face vertex index: %d") % ind).str().c_str());
+          }
+        }
+        //PRINTD("}");
+        std::optional<Color4f> color;
+        if (words.size() >= face_size + 4) {
+          i = face_size + 1;
+          // handle optional color info (r g b [a])
+          int r=boost::lexical_cast<int>(words[i++]);
+          int g=boost::lexical_cast<int>(words[i++]);
+          int b=boost::lexical_cast<int>(words[i++]);
+          int a=i < words.size() ? boost::lexical_cast<int>(words[i++]) : 255;
+          color = Color4f(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+        }
+        add_face(indexed_face, color);
+      } catch (const boost::bad_lexical_cast& blc) {
+        AsciiError("can't parse face: bad data");
+        return false;
+      }
+    }
+    return true;
+  };
+
+  if (Feature::ExperimentalColors.is_enabled()) {
+    manifold::MeshGL mesh;
+    mesh.vertProperties.resize(vertices.size() * 3);
+    for (size_t i = 0; i < vertices.size(); i++) {
+      mesh.vertProperties[i * 3 + 0] = vertices[i][0];
+      mesh.vertProperties[i * 3 + 1] = vertices[i][1];
+      mesh.vertProperties[i * 3 + 2] = vertices[i][2];
+    }
+    mesh.triVerts.reserve(faces_count * 3);
+    std::map<std::optional<Color4f>, std::vector<IndexedFace>> facesByColor;
+    auto ok = read_faces([&](const IndexedFace& indexed_face, const std::optional<Color4f>& color) {
+      facesByColor[color].push_back(indexed_face);
+    });
+    if (!ok) {
+      return PolySet::createEmpty();
+    }
+    std::map<uint32_t, Color4f> colorMap;
+    auto next_id = manifold::Manifold::ReserveIDs(facesByColor.size());
+    for (const auto& [color, faces] : facesByColor) {
+      mesh.runIndex.push_back(mesh.triVerts.size());
+      auto id = next_id++;
+      mesh.runOriginalID.push_back(id);
+      if (color.has_value()) {
+        colorMap[id] = color.value();
+      }
+      for (const auto& indexed_face : faces) {
+        // Trianglate the face if needed
+        auto len = indexed_face.size();
+        for (size_t tri = 0, numTri = len - 2; tri < numTri; tri++) {
+          mesh.triVerts.push_back(indexed_face[0]);
+          mesh.triVerts.push_back(indexed_face[tri + 1]);
+          mesh.triVerts.push_back(indexed_face[tri + 2]);
         }
       }
-      //PRINTD("}");
-      if (words.size() >= face_size + 4) {
-        // TODO: handle optional color info
-        /*
-        int r=boost::lexical_cast<int>(words[i++]);
-        int g=boost::lexical_cast<int>(words[i++]);
-        int b=boost::lexical_cast<int>(words[i++]);
-        */
-      }
-    } catch (const boost::bad_lexical_cast& blc) {
-      AsciiError("can't parse face: bad data");
+    }
+    mesh.runIndex.push_back(mesh.triVerts.size());
+    auto mani = std::make_unique<ManifoldGeometry>(std::make_shared<manifold::Manifold>(mesh), colorMap);
+    if (!mani->isValid()) {
+      LOG(message_group::Error, loc, "", "Imported geometry is not a valid manifold");
       return PolySet::createEmpty();
     }
+    return mani;
+  } else {
+    auto ps = PolySet::createEmpty();
+    ps->vertices.swap(vertices);
+    ps->indices.reserve(faces_count);
+    auto logged_color_warning = false;
+    auto ok = read_faces([&](const IndexedFace& face, const std::optional<Color4f>& color) {
+      if (color.has_value() && !logged_color_warning) {
+        LOG(message_group::Warning, "Ignoring color information in OFF file (enable `colors` feature to read it).");
+        logged_color_warning = true;
+      }
+      ps->indices.emplace_back(face);
+    });
+    if (!ok) {
+      return PolySet::createEmpty();
+    }
+    return ps;
+    //PRINTDB("PS: %ld vertices, %ld indices", ps->vertices.size() % ps->indices.size());
   }
-
-  //PRINTDB("PS: %ld vertices, %ld indices", ps->vertices.size() % ps->indices.size());
-  return ps;
 }
