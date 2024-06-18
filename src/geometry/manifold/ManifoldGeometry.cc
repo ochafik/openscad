@@ -22,7 +22,7 @@ Result vector_convert(V const& v) {
 
 ManifoldGeometry::ManifoldGeometry() : manifold_(std::make_shared<const manifold::Manifold>()) {}
 
-ManifoldGeometry::ManifoldGeometry(const std::shared_ptr<const manifold::Manifold>& mani, const std::map<int, Color4f> & originalIDToColor) : manifold_(mani), originalIDToColor_(originalIDToColor) {
+ManifoldGeometry::ManifoldGeometry(const std::shared_ptr<const manifold::Manifold>& mani, const std::map<uint32_t, Color4f> & originalIDToColor) : manifold_(mani), originalIDToColor_(originalIDToColor) {
   assert(manifold_);
   if (!manifold_) clear();
 }

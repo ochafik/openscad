@@ -19,7 +19,7 @@ public:
   VISITABLE_GEOMETRY();
 
   ManifoldGeometry();
-  ManifoldGeometry(const std::shared_ptr<const manifold::Manifold>& object, const std::map<int, Color4f> & originalIDToColor = std::map<int, Color4f>());
+  ManifoldGeometry(const std::shared_ptr<const manifold::Manifold>& object, const std::map<uint32_t, Color4f> & originalIDToColor = std::map<uint32_t, Color4f>());
   ManifoldGeometry(const ManifoldGeometry& other) = default;
   ManifoldGeometry& operator=(const ManifoldGeometry& other);
 
@@ -63,11 +63,11 @@ public:
   void foreachVertexUntilTrue(const std::function<bool(const glm::vec3& pt)>& f) const;
 
   const manifold::Manifold& getManifold() const;
-  const std::map<int, Color4f>& getOriginalIDToColor() const { return originalIDToColor_; }
+  const std::map<uint32_t, Color4f>& getOriginalIDToColor() const { return originalIDToColor_; }
 
 private:
   ManifoldGeometry binOp(const ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::OpType opType) const;
 
   std::shared_ptr<const manifold::Manifold> manifold_;
-  std::map<int, Color4f> originalIDToColor_;
+  std::map<uint32_t, Color4f> originalIDToColor_;
 };

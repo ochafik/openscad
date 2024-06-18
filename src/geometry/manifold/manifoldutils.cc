@@ -93,7 +93,7 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const Poly
   }
 
   auto mani = std::make_shared<const manifold::Manifold>(std::move(mesh));
-  std::map<int, Color4f> originalIDToColor;
+  std::map<uint32_t, Color4f> originalIDToColor;
   if (ps.getColor().isValid()) {
     originalIDToColor[mani->OriginalID()] = ps.getColor();
   }
