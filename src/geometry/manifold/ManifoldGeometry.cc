@@ -136,38 +136,36 @@ std::vector<std::shared_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
   auto start = mesh.runIndex[0];
 
   for (int run = 0, numRun = mesh.runIndex.size() - 1; run < numRun; ++run) {
-    const auto nextID = mesh.runOriginalID[run + 1];
-    if (nextID != id) {
-      Color4f color(getColor());
-      auto colorIt = originalIDToColor.find(id);
-      if (colorIt != originalIDToColor.end()) {
-        color = colorIt->second;
-      }
-
-      const auto end = mesh.runIndex[run + 1];
-      const size_t numTri = (end - start) / 3;
-
-      auto & builder = colorToBuilder[color];
-      builder.reserve(
-        std::min(meshNumVerts, builder.numVertices() + numTri * 3),
-        std::min(meshNumTris, builder.numPolygons() + numTri));
-
-      for (int i = start; i < end; i += 3) {
-        builder.beginPolygon(3);
-        for (int j = 0; j < 3; ++j) {
-          auto iVert = mesh.triVerts[i + j];
-          auto propOffset = iVert * mesh.numProp;
-          builder.addVertex({
-            mesh.vertProperties[propOffset],
-            mesh.vertProperties[propOffset + 1],
-            mesh.vertProperties[propOffset + 2]
-          });
-        }
-        builder.endPolygon();
-      }
-      id = nextID;
-      start = end;
+    const auto id = mesh.runOriginalID[run];
+    Color4f color(getColor());
+    auto colorIt = originalIDToColor.find(id);
+    if (colorIt != originalIDToColor.end()) {
+      color = colorIt->second;
     }
+    auto & builder = colorToBuilder[color];
+
+    const auto end = mesh.runIndex[run + 1];
+    const size_t numTri = (end - start) / 3;
+    assert(numTri > 0);
+
+    builder.reserve(
+      std::min(meshNumVerts, builder.numVertices() + numTri * 3),
+      std::min(meshNumTris, builder.numPolygons() + numTri));
+
+    for (int i = start; i < end; i += 3) {
+      builder.beginPolygon(3);
+      for (int j = 0; j < 3; ++j) {
+        auto iVert = mesh.triVerts[i + j];
+        auto propOffset = iVert * mesh.numProp;
+        builder.addVertex({
+          mesh.vertProperties[propOffset],
+          mesh.vertProperties[propOffset + 1],
+          mesh.vertProperties[propOffset + 2]
+        });
+      }
+      builder.endPolygon();
+    }
+    start = end;
   }
 
   for (auto& [color, builder] : colorToBuilder) {
