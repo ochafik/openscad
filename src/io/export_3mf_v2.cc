@@ -75,21 +75,6 @@ static bool append_polyset(const std::shared_ptr<const PolySet> & ps, Lib3MF::PW
     if (!mesh) return false;
     mesh->SetName("OpenSCAD Model");
 
-    if (Feature::ExperimentalColors.is_enabled()) {
-      auto & color = ps->getColor();
-      if (color.isValid()) {
-        Lib3MF::sColor sc {
-          (Lib3MF_uint8) (color[0] * 255),
-          (Lib3MF_uint8) (color[1] * 255),
-          (Lib3MF_uint8) (color[2] * 255),
-          (Lib3MF_uint8) (color[3] * 255)
-        };
-        Lib3MF::PBaseMaterialGroup baseMaterialGroup = model->AddBaseMaterialGroup();
-        auto colorResourceID = baseMaterialGroup->AddMaterial("color", sc);
-        mesh->SetObjectLevelProperty(baseMaterialGroup->GetResourceID(), colorResourceID);
-      }
-    }
-
     auto vertexFunc = [&](const Vector3d& coords) -> bool {
       const auto f = coords.cast<float>();
       try {

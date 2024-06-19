@@ -109,73 +109,44 @@ std::shared_ptr<PolySet> ManifoldGeometry::toPolySet() const {
         mesh.vertProperties[i],
         mesh.vertProperties[i + 1],
         mesh.vertProperties[i + 2]);
-  for (size_t i = 0; i < mesh.triVerts.size(); i += 3)
-    ps->indices.push_back({
-        static_cast<int>(mesh.triVerts[i]),
-        static_cast<int>(mesh.triVerts[i + 1]),
-        static_cast<int>(mesh.triVerts[i + 2])});
-  ps->setColor(this->color);
+
+  if (Feature::ExperimentalColors.is_enabled() && !originalIDToColor_.empty()) {
+    ps->color_indices.resize(ps->indices.size(), -1);
+    ps->colors.reserve(originalIDToColor_.size());
+    std::map<uint32_t, size_t> originalIDToColorIndex;
+    for (const auto& [originalID, color] : originalIDToColor_) {
+      originalIDToColorIndex[originalID] = ps->colors.size();
+      ps->colors.push_back(color);
+    }
+
+    auto start = mesh.runIndex[0];
+    for (int run = 0, numRun = mesh.runIndex.size() - 1; run < numRun; ++run) {
+      const auto id = mesh.runOriginalID[run];
+      const auto end = mesh.runIndex[run + 1];
+      const size_t numTri = (end - start) / 3;
+      assert(numTri > 0);
+
+      auto colorIt = originalIDToColorIndex.find(id);
+      int colorIndex = colorIt != originalIDToColorIndex.end() ? colorIt->second : -1;
+      
+      for (int i = start; i < end; i += 3) {
+        ps->indices.push_back({
+            static_cast<int>(mesh.triVerts[i]),
+            static_cast<int>(mesh.triVerts[i + 1]),
+            static_cast<int>(mesh.triVerts[i + 2])});
+        ps->color_indices.push_back(colorIndex);
+      }
+      start = end;
+    }
+  } else {
+    for (size_t i = 0; i < mesh.triVerts.size(); i += 3)
+      ps->indices.push_back({
+          static_cast<int>(mesh.triVerts[i]),
+          static_cast<int>(mesh.triVerts[i + 1]),
+          static_cast<int>(mesh.triVerts[i + 2])});
+  }
   return ps;
 }
-
-std::vector<std::shared_ptr<PolySet>> ManifoldGeometry::toPolySets() const {
-  if (!Feature::ExperimentalColors.is_enabled()) {
-    return {toPolySet()};
-  }
-  std::vector<std::shared_ptr<PolySet>> out;
-
-  const auto & mesh = getManifold().GetMeshGL();
-  assert(mesh.runIndex.size() >= 2);
-  const auto meshNumVerts = mesh.vertProperties.size() / mesh.numProp;
-  const auto meshNumTris = mesh.triVerts.size();
-
-  std::map<Color4f, PolySetBuilder> colorToBuilder;
-
-  auto originalIDToColor = getOriginalIDToColor();
-  auto id = mesh.runOriginalID[0];
-  auto start = mesh.runIndex[0];
-
-  for (int run = 0, numRun = mesh.runIndex.size() - 1; run < numRun; ++run) {
-    const auto id = mesh.runOriginalID[run];
-    Color4f color(getColor());
-    auto colorIt = originalIDToColor.find(id);
-    if (colorIt != originalIDToColor.end()) {
-      color = colorIt->second;
-    }
-    auto & builder = colorToBuilder[color];
-
-    const auto end = mesh.runIndex[run + 1];
-    const size_t numTri = (end - start) / 3;
-    assert(numTri > 0);
-
-    builder.reserve(
-      std::min(meshNumVerts, builder.numVertices() + numTri * 3),
-      std::min(meshNumTris, builder.numPolygons() + numTri));
-
-    for (int i = start; i < end; i += 3) {
-      builder.beginPolygon(3);
-      for (int j = 0; j < 3; ++j) {
-        auto iVert = mesh.triVerts[i + j];
-        auto propOffset = iVert * mesh.numProp;
-        builder.addVertex({
-          mesh.vertProperties[propOffset],
-          mesh.vertProperties[propOffset + 1],
-          mesh.vertProperties[propOffset + 2]
-        });
-      }
-      builder.endPolygon();
-    }
-    start = end;
-  }
-
-  for (auto& [color, builder] : colorToBuilder) {
-    auto ps = builder.build();
-    ps->setColor(color);
-    out.emplace_back(std::move(ps));
-  }
-  return out;
-}
-
 
 #ifdef ENABLE_CGAL
 template <typename Polyhedron>
@@ -289,8 +260,6 @@ void ManifoldGeometry::transform(const Transform3d& mat) {
 }
 
 void ManifoldGeometry::setColor(const Color4f& c) {
-  if (c == this->color) return;
-  Geometry::setColor(c);
   if (manifold_->OriginalID() == -1) {
     manifold_ = std::make_shared<manifold::Manifold>(manifold_->AsOriginal());
   }

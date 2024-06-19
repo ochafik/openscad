@@ -80,9 +80,7 @@ void LegacyCGALRenderer::addGeometry(const std::shared_ptr<const Geometry>& geom
 #endif
 #ifdef ENABLE_MANIFOLD
   } else if (const auto mani = std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {
-    for (auto& ps : mani->toPolySets()) {
-      this->polysets.push_back(std::move(ps));
-    }
+    this->polysets.emplace_back(mani->toPolySet());
 #endif
   } else {
     assert(false && "unsupported geom in LegacyCGALRenderer");

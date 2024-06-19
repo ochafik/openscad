@@ -193,7 +193,6 @@ std::unique_ptr<PolySet> assemblePolySetForManifold(
   std::vector<Vector3d>& vertices, PolygonIndices& indices,
   int convexity, boost::tribool isConvex, int index_offset) {
   auto final_polyset = std::make_unique<PolySet>(3, isConvex);
-  final_polyset->setColor(polyref.getColor());
   final_polyset->setTriangular(true);
   final_polyset->setConvexity(convexity);
   final_polyset->vertices = std::move(vertices);

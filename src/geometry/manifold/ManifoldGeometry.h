@@ -38,7 +38,6 @@ public:
   [[nodiscard]] std::unique_ptr<Geometry> copy() const override;
 
   [[nodiscard]] std::shared_ptr<PolySet> toPolySet() const;
-  [[nodiscard]] std::vector<std::shared_ptr<PolySet>> toPolySets() const;
 
   template <class Polyhedron>
   [[nodiscard]] std::shared_ptr<Polyhedron> toPolyhedron() const;

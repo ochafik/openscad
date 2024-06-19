@@ -79,24 +79,56 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const Poly
 {
   assert(ps.isTriangular());
 
-  manifold::Mesh mesh;
+  manifold::MeshGL mesh;
 
-  mesh.vertPos.reserve(ps.vertices.size());
+  mesh.vertProperties.reserve(ps.vertices.size() * 3);
   for (const auto& v : ps.vertices) {
-    mesh.vertPos.emplace_back((float)v.x(), (float)v.y(), (float)v.z());
+    mesh.vertProperties.push_back((float)v.x());
+    mesh.vertProperties.push_back((float)v.y());
+    mesh.vertProperties.push_back((float)v.z());
   }
 
-  mesh.triVerts.reserve(ps.indices.size());
-  for (const auto& face : ps.indices) {
-    assert(face.size() == 3);
-    mesh.triVerts.emplace_back(face[0], face[1], face[2]);
-  }
+  mesh.triVerts.reserve(ps.indices.size() * 3);
 
-  auto mani = std::make_shared<const manifold::Manifold>(std::move(mesh));
   std::map<uint32_t, Color4f> originalIDToColor;
-  if (ps.getColor().isValid()) {
-    originalIDToColor[mani->OriginalID()] = ps.getColor();
+
+  if (!ps.colors.empty()) {
+    assert(ps.color_indices.size() == ps.indices.size());
+    std::map<std::optional<Color4f>, std::vector<size_t>> facesByColor;
+    for (size_t i = 0, n = ps.color_indices.size(); i < n; i++) {
+      auto colorIndex = ps.color_indices[i];
+      std::optional<Color4f> color;
+      if (colorIndex >= 0) {
+        color = ps.colors[colorIndex];
+      }
+      facesByColor[color].push_back(i);
+    }
+    auto next_id = manifold::Manifold::ReserveIDs(facesByColor.size());
+    for (const auto& [color, faceIndices] : facesByColor) {
+      mesh.runIndex.push_back(mesh.triVerts.size());
+      auto id = next_id++;
+      mesh.runOriginalID.push_back(id);
+      if (color.has_value()) {
+        originalIDToColor[id] = color.value();
+      }
+      for (size_t i : faceIndices) {
+        auto & face = ps.indices[i];
+        assert(face.size() == 3);
+        mesh.triVerts.push_back(face[0]);
+        mesh.triVerts.push_back(face[1]);
+        mesh.triVerts.push_back(face[2]);
+      }
+    }
+    mesh.runIndex.push_back(mesh.triVerts.size());
+  } else {
+    for (const auto& face : ps.indices) {
+      assert(face.size() == 3);
+      mesh.triVerts.push_back(face[0]);
+      mesh.triVerts.push_back(face[1]);
+      mesh.triVerts.push_back(face[2]);
+    }
   }
+  auto mani = std::make_shared<const manifold::Manifold>(std::move(mesh));
   return std::make_shared<ManifoldGeometry>(mani, originalIDToColor);
 }
 
@@ -160,9 +192,7 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromPolySet(const PolySet& ps)
     }
 
     auto geom = createManifoldFromSurfaceMesh(m);
-    if (ps.getColor().isValid()) {
-      geom->setColor(ps.getColor());
-    }
+    // TODO: preserve fully colored polyset?
     return geom;
   #else
     return std::make_shared<ManifoldGeometry>();
@@ -195,7 +225,6 @@ Polygon2d polygonsToPolygon2d(const manifold::Polygons& polygons) {
 std::unique_ptr<PolySet> createTriangulatedPolySetFromPolygon2d(const Polygon2d& polygon2d)
 {
   auto polyset = std::make_unique<PolySet>(2);
-  polyset->setColor(polygon2d.getColor());
   polyset->setTriangular(true);
 
   manifold::Polygons polygons;
