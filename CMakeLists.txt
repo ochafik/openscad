@@ -53,7 +53,9 @@ option(ENABLE_CAIRO "Enable support for cairo vector graphics library." ON)
 option(ENABLE_SPNAV "Enable support for libspnav input driver." ON)
 option(ENABLE_HIDAPI "Enable support for HIDAPI input driver." ON)
 option(ENABLE_TBB "Enable support for oneAPI Threading Building Blocks." ON)
+option(ENABLE_ASSIMP "Enable support for assimp for export of 3D models." ON)
 option(ENABLE_CGAL "Enable CGAL." ON)
+option(ENABLE_LIBZIP "Enable libzip for zip file support." ON)
 option(ALLOW_BUNDLED_HIDAPI "Allow usage of bundled HIDAPI library (Windows only)." OFF)
 option(ENABLE_PYTHON "Enable experimental Python Interpreter" OFF)
 option(BUILD_SHARED_LIBS "Build shared library" OFF)
@@ -140,6 +142,9 @@ if(WASM)
   set(NULLGL ON CACHE BOOL "" FORCE)
   set(ENV{PKG_CONFIG_PATH} "/emsdk/upstream/emscripten/cache/sysroot/lib/pkgconfig")
   target_compile_definitions(OpenSCAD PRIVATE CGAL_DISABLE_ROUNDING_MATH_CHECK)
+  if (ENABLE_ASSIMP)
+    set(ENABLE_LIBZIP OFF CACHE BOOL "" FORCE)
+  endif()
 endif()
 
 if(NULLGL)
@@ -382,11 +387,13 @@ if(ENABLE_CGAL)
   set(CMAKE_MODULE_PATH ${OPENSCAD_ORIGINAL_CMAKE_MODULE_PATH})
 endif(ENABLE_CGAL)
 
-find_package(LibZip REQUIRED QUIET)
-message(STATUS "libzip: ${LIBZIP_VERSION}")
-target_include_directories(OpenSCAD SYSTEM PRIVATE ${LIBZIP_INCLUDE_DIR_ZIP} ${LIBZIP_INCLUDE_DIR_ZIPCONF})
-target_link_libraries(OpenSCAD PRIVATE ${LIBZIP_LIBRARY})
-target_compile_definitions(OpenSCAD PRIVATE ENABLE_LIBZIP)
+if (ENABLE_LIBZIP)
+  find_package(LibZip REQUIRED QUIET)
+  message(STATUS "libzip: ${LIBZIP_VERSION}")
+  target_include_directories(OpenSCAD SYSTEM PRIVATE ${LIBZIP_INCLUDE_DIR_ZIP} ${LIBZIP_INCLUDE_DIR_ZIPCONF})
+  target_link_libraries(OpenSCAD PRIVATE ${LIBZIP_LIBRARY})
+  target_compile_definitions(OpenSCAD PRIVATE ENABLE_LIBZIP)
+endif()
 
 find_package(Freetype 2.4.9 REQUIRED QUIET)
 message(STATUS "Freetype: ${FREETYPE_VERSION_STRING}")
@@ -479,6 +486,16 @@ if(NOT MSVC)
     set(LIB3MF_SOURCES src/io/export_3mf_dummy.cc src/io/import_3mf_dummy.cc)
     message(STATUS "lib3mf: disabled")
   endif()
+endif()
+
+if (ENABLE_ASSIMP)
+  find_package(ASSIMP REQUIRED)
+  message(STATUS "ASSIMP: ${assimp_VERSION}")
+  target_include_directories(OpenSCAD SYSTEM PRIVATE ${ASSIMP_INCLUDE_DIRS})
+  target_link_libraries(OpenSCAD PRIVATE ${ASSIMP_LIBRARIES})
+  target_compile_definitions(OpenSCAD PRIVATE ENABLE_ASSIMP)
+else()
+  message(STATUS "ASSIMP: disabled")
 endif()
 
 # Automatically add the current source and build directories to the include path.
@@ -719,6 +736,7 @@ set(CORE_SOURCES
   src/core/CgalAdvNode.cc
   src/core/Children.cc
   src/core/ColorNode.cc
+  src/core/ColorPartitioner.cc
   src/core/Context.cc
   src/core/ContextFrame.cc
   src/core/ContextMemoryManager.cc
@@ -797,6 +815,7 @@ set(CORE_SOURCES
   src/io/DxfData.cc
   src/io/dxfdim.cc
   src/io/export.cc
+  src/io/export_assimp.cc
   src/io/export_amf.cc
   src/io/export_dxf.cc
   src/io/export_obj.cc
@@ -807,6 +826,7 @@ set(CORE_SOURCES
   src/io/export_svg.cc
   src/io/export_param.cc
   src/io/fileutils.cc
+  # src/io/import_assimp.cc
   src/io/import_amf.cc
   src/io/import_stl.cc
   src/io/import_obj.cc

@@ -37,6 +37,7 @@ OPTION_ARM64=false
 OPTION_X86_64=false
 
 PACKAGES=(
+    "assimp 5.4.1"
     "double_conversion 3.2.1"
     "boost 1.81.0"
     "eigen 3.4.0"
@@ -394,6 +395,21 @@ build_onetbb()
   fi
   tar xzf oneTBB-$version.tar.gz
   cd oneTBB-$version
+  cmake . -DCMAKE_INSTALL_PREFIX=$DEPLOYDIR -DCMAKE_BUILD_TYPE=Release -DTBB_TEST=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET="$MAC_OSX_VERSION_MIN" -DCMAKE_OSX_ARCHITECTURES="$ARCHS_COMBINED" -DBOOST_ROOT=$DEPLOYDIR -DBoost_USE_MULTITHREADED=false
+  make -j"$NUMCPU" install
+  make install  
+}
+
+build_assimp()
+{
+  version=$1
+  cd $BASEDIR/src
+  rm -rf assimp-$version
+  if [ ! -f assimp-$version.tar.gz ]; then
+      curl -L https://github.com/assimp/assimp/archive/refs/tags/v${version}.tar.gz --output assimp-$version.tar.gz
+  fi
+  tar xzf assimp-$version.tar.gz
+  cd assimp-$version
   cmake . -DCMAKE_INSTALL_PREFIX=$DEPLOYDIR -DCMAKE_BUILD_TYPE=Release -DTBB_TEST=OFF -DCMAKE_OSX_DEPLOYMENT_TARGET="$MAC_OSX_VERSION_MIN" -DCMAKE_OSX_ARCHITECTURES="$ARCHS_COMBINED" -DBOOST_ROOT=$DEPLOYDIR -DBoost_USE_MULTITHREADED=false
   make -j"$NUMCPU" install
   make install  
