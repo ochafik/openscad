@@ -92,27 +92,37 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const Poly
 
   std::map<uint32_t, Color4f> originalIDToColor;
 
-  if (!ps.colors.empty()) {
-    assert(ps.color_indices.size() == ps.indices.size());
-    std::map<std::optional<Color4f>, std::vector<size_t>> facesByColor;
-    for (size_t i = 0, n = ps.color_indices.size(); i < n; i++) {
-      auto colorIndex = ps.color_indices[i];
-      std::optional<Color4f> color;
-      if (colorIndex >= 0) {
-        color = ps.colors[colorIndex];
-      }
-      facesByColor[color].push_back(i);
+  if (ps.colors.empty()) {
+    for (const auto& face : ps.indices) {
+      assert(face.size() == 3);
+      mesh.triVerts.push_back(face[0]);
+      mesh.triVerts.push_back(face[1]);
+      mesh.triVerts.push_back(face[2]);
     }
-    auto next_id = manifold::Manifold::ReserveIDs(facesByColor.size());
-    for (const auto& [color, faceIndices] : facesByColor) {
-      mesh.runIndex.push_back(mesh.triVerts.size());
+  } else {
+    assert(ps.color_indices.size() == ps.indices.size());
+    std::map<std::optional<Color4f>, std::vector<size_t>> colorToFaceIndices;
+    for (size_t i = 0, n = ps.color_indices.size(); i < n; i++) {
+      auto color_index = ps.color_indices[i];
+      std::optional<Color4f> color;
+      if (color_index >= 0) {
+        color = ps.colors[color_index];
+      }
+      colorToFaceIndices[color].push_back(i);
+    }
+    auto next_id = manifold::Manifold::ReserveIDs(colorToFaceIndices.size());
+    for (const auto& [color, faceIndices] : colorToFaceIndices) {
+      
       auto id = next_id++;
-      mesh.runOriginalID.push_back(id);
       if (color.has_value()) {
         originalIDToColor[id] = color.value();
       }
-      for (size_t i : faceIndices) {
-        auto & face = ps.indices[i];
+
+      mesh.runIndex.push_back(mesh.triVerts.size());
+      mesh.runOriginalID.push_back(id);
+      
+      for (size_t faceIndex : faceIndices) {
+        auto & face = ps.indices[faceIndex];
         assert(face.size() == 3);
         mesh.triVerts.push_back(face[0]);
         mesh.triVerts.push_back(face[1]);
@@ -120,13 +130,6 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const Poly
       }
     }
     mesh.runIndex.push_back(mesh.triVerts.size());
-  } else {
-    for (const auto& face : ps.indices) {
-      assert(face.size() == 3);
-      mesh.triVerts.push_back(face[0]);
-      mesh.triVerts.push_back(face[1]);
-      mesh.triVerts.push_back(face[2]);
-    }
   }
   auto mani = std::make_shared<const manifold::Manifold>(std::move(mesh));
   return std::make_shared<ManifoldGeometry>(mani, originalIDToColor);
