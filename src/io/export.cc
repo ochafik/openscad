@@ -66,7 +66,7 @@ bool is2D(const FileFormat format) {
     format == FileFormat::PDF;
 }
 
-void exportFile(const shared_ptr<const Geometry>& root_geom, std::ostream& output, const ExportInfo& exportInfo)
+void exportFile(const std::shared_ptr<const Geometry>& root_geom, std::ostream& output, const ExportInfo& exportInfo)
 {
   switch (exportInfo.format) {
   case FileFormat::ASCIISTL:
@@ -99,18 +99,20 @@ void exportFile(const shared_ptr<const Geometry>& root_geom, std::ostream& outpu
   case FileFormat::PDF:
     export_pdf(root_geom, output, exportInfo);
     break;
+#ifdef ENABLE_CGAL
   case FileFormat::NEFDBG:
     export_nefdbg(root_geom, output);
     break;
   case FileFormat::NEF3:
     export_nef3(root_geom, output);
     break;
+#endif
   default:
     assert(false && "Unknown file format");
   }
 }
 
-bool exportFileByNameStdout(const shared_ptr<const Geometry>& root_geom, const ExportInfo& exportInfo)
+bool exportFileByNameStdout(const std::shared_ptr<const Geometry>& root_geom, const ExportInfo& exportInfo)
 {
 #ifdef _WIN32
   _setmode(_fileno(stdout), _O_BINARY);
@@ -119,7 +121,7 @@ bool exportFileByNameStdout(const shared_ptr<const Geometry>& root_geom, const E
   return true;
 }
 
-bool exportFileByNameStream(const shared_ptr<const Geometry>& root_geom, const ExportInfo& exportInfo)
+bool exportFileByNameStream(const std::shared_ptr<const Geometry>& root_geom, const ExportInfo& exportInfo)
 {
   std::ios::openmode mode = std::ios::out | std::ios::trunc;
   if (exportInfo.format == FileFormat::_3MF || exportInfo.format == FileFormat::STL || exportInfo.format == FileFormat::PDF) {
@@ -149,7 +151,7 @@ bool exportFileByNameStream(const shared_ptr<const Geometry>& root_geom, const E
   }
 }
 
-bool exportFileByName(const shared_ptr<const Geometry>& root_geom, const ExportInfo& exportInfo)
+bool exportFileByName(const std::shared_ptr<const Geometry>& root_geom, const ExportInfo& exportInfo)
 {
   if (exportInfo.useStdOut) {
     return exportFileByNameStdout(root_geom, exportInfo);
@@ -158,76 +160,73 @@ bool exportFileByName(const shared_ptr<const Geometry>& root_geom, const ExportI
   }
 }
 
-namespace Export {
+namespace {
 
-double normalize(double x) {
+double remove_negative_zero(double x) {
   return x == -0 ? 0 : x;
 }
 
-ExportMesh::Vertex vectorToVertex(const Vector3d& pt) {
-  return {normalize(pt.x()), normalize(pt.y()), normalize(pt.z())};
+Vector3d remove_negative_zero(const Vector3d& pt) {
+  return {
+    remove_negative_zero(pt[0]), 
+    remove_negative_zero(pt[1]), 
+    remove_negative_zero(pt[2]),
+  };
 }
 
-ExportMesh::ExportMesh(const PolySet& ps)
+#if EIGEN_VERSION_AT_LEAST(3,4,0)
+// Eigen 3.4.0 added begin()/end()
+struct LexographicLess {
+  template<class T>
+  bool operator()(T const& lhs, T const& rhs) const {
+    return std::lexicographical_compare(lhs.begin(), lhs.end(), rhs.begin(), rhs.end(), std::less{});
+  }
+};
+#else
+struct LexographicLess {
+  template<class T>
+  bool operator()(T const& lhs, T const& rhs) const {
+    return std::lexicographical_compare(lhs.data(), lhs.data() + lhs.size(), rhs.data(), rhs.data() + rhs.size(), std::less{});
+  }
+};
+#endif
+
+} // namespace 
+
+std::unique_ptr<PolySet> createSortedPolySet(const PolySet& ps)
 {
-  std::map<Vertex, int> vertexMap;
-  std::vector<std::array<int, 3>> triangleIndices;
+  auto out = std::make_unique<PolySet>(ps.getDimension(), ps.convexValue());
+  out->setTriangular(ps.isTriangular());
+  out->setConvexity(ps.getConvexity());
 
-  for (const auto& pts : ps.polygons) {
-    auto pos1 = vertexMap.emplace(std::make_pair(vectorToVertex(pts[0]), vertexMap.size()));
-    auto pos2 = vertexMap.emplace(std::make_pair(vectorToVertex(pts[1]), vertexMap.size()));
-    auto pos3 = vertexMap.emplace(std::make_pair(vectorToVertex(pts[2]), vertexMap.size()));
-    triangleIndices.push_back({pos1.first->second, pos2.first->second, pos3.first->second});
-  }
+  std::map<Vector3d, int, LexographicLess> vertexMap;
 
-  std::vector<size_t> indexTranslationMap(vertexMap.size());
-  vertices.reserve(vertexMap.size());
-
-  size_t index = 0;
-  for (const auto& e : vertexMap) {
-    vertices.push_back(e.first);
-    indexTranslationMap[e.second] = index++;
-  }
-
-  for (const auto& i : triangleIndices) {
-    triangles.emplace_back(indexTranslationMap[i[0]], indexTranslationMap[i[1]], indexTranslationMap[i[2]]);
-  }
-  std::sort(triangles.begin(), triangles.end(), [](const Triangle& t1, const Triangle& t2) -> bool {
-      return t1.key < t2.key;
-    });
-}
-
-bool ExportMesh::foreach_vertex(const std::function<bool(const Vertex&)>& callback) const
-{
-  for (const auto& v : vertices) {
-    if (!callback(v)) {
-      return false;
+  for (const auto& poly : ps.indices) {
+    IndexedFace face;
+    for (const auto idx : poly) {
+      auto pos = vertexMap.emplace(remove_negative_zero(ps.vertices[idx]), vertexMap.size());
+      face.push_back(pos.first->second);
     }
+    out->indices.push_back(face);
   }
-  return true;
-}
 
-bool ExportMesh::foreach_indexed_triangle(const std::function<bool(const std::array<int, 3>&)>& callback) const
-{
-  for (const auto& t : triangles) {
-    if (!callback(t.key)) {
-      return false;
+  std::vector<int> indexTranslationMap(vertexMap.size());
+  out->vertices.reserve(vertexMap.size());
+
+  for (const auto& [v,i] : vertexMap) {
+    indexTranslationMap[i] = out->vertices.size();
+    out->vertices.push_back(v);
+  }
+
+  for (auto& poly : out->indices) {
+    IndexedFace polygon;
+    for (const auto idx : poly) {
+      polygon.push_back(indexTranslationMap[idx]);
     }
+    std::rotate(polygon.begin(), std::min_element(polygon.begin(), polygon.end()), polygon.end());
+    poly = polygon;
   }
-  return true;
-}
+  std::sort(out->indices.begin(), out->indices.end());
 
-bool ExportMesh::foreach_triangle(const std::function<bool(const std::array<std::array<double, 3>, 3>&)>& callback) const
-{
-  for (const auto& t : triangles) {
-    auto& v0 = vertices[t.key[0]];
-    auto& v1 = vertices[t.key[1]];
-    auto& v2 = vertices[t.key[2]];
-    if (!callback({ v0, v1, v2 })) {
-      return false;
-    }
-  }
-  return true;
+  return out;
 }
-
-} // namespace Export
