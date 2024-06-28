@@ -866,6 +866,9 @@ list(APPEND SCADFILES_WITH_DIFFERENT_MANIFOLD_EXPECTATIONS
   # No more green faces from differences.
   ${SCADFILES_WITH_GREEN_FACES}
 
+  # Faces w/ collinear edges
+  ${TEST_SCAD_DIR}/3D/issues/issue1089.scad
+
   # Different vertex order
   ${TEST_SCAD_DIR}/3mf/3mf-export.scad
   ${TEST_SCAD_DIR}/stl/stl-import-nonmanifold.scad

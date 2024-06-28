@@ -18,7 +18,6 @@ public:
   static const Feature ExperimentalFastCsgSafer;
   static const Feature ExperimentalFastCsgDebug;
   static const Feature ExperimentalManifold;
-  static const Feature ExperimentalManifoldHull;
   static const Feature ExperimentalRoof;
   static const Feature ExperimentalInputDriverDBus;
   static const Feature ExperimentalLazyUnion;
