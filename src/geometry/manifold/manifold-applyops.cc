@@ -16,14 +16,14 @@ Location getLocation(const std::shared_ptr<const AbstractNode>& node)
   return node && node->modinst ? node->modinst->location() : Location::NONE;
 }
 
-std::shared_ptr<const Geometry> applyHullManifold(const Geometry::Geometries& children)
+std::unique_ptr<Geometry> applyHullManifold(const Geometry::Geometries& children)
 {
   std::vector<manifold::Manifold> manifolds;
   for (const auto& item : children) {
-    auto chN = item.second ? createMutableManifoldFromGeometry(item.second) : nullptr;
-    if (chN) manifolds.push_back(chN->getManifold());
+    auto chN = item.second ? createManifoldFromGeometry(item.second) : nullptr;
+    if (chN) manifolds.emplace_back(chN->getManifold());
   }
-  return std::make_shared<ManifoldGeometry>(std::make_shared<manifold::Manifold>(manifold::Manifold::Hull(manifolds)));
+  return std::make_unique<ManifoldGeometry>(std::make_shared<manifold::Manifold>(manifold::Manifold::Hull(manifolds)));
 }
 
 /*!
