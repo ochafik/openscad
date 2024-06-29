@@ -5,7 +5,6 @@
 #include "cgalutils.h"
 #include <CGAL/convex_hull_3.h>
 
-#include "Feature.h"
 #include "PolySet.h"
 #include "printutils.h"
 #include "manifoldutils.h"

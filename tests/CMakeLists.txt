@@ -880,9 +880,6 @@ list(APPEND SCADFILES_FAILING_WITH_MANIFOLD
   ${TEST_SCAD_DIR}/3D/features/resize-convexity-tests.scad
   ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
 
-  # Faces w/ collinear edges
-  ${TEST_SCAD_DIR}/3D/issues/issue1089.scad
-
   # Misc
   ${TEST_SCAD_DIR}/misc/normal-nan.scad
 )
