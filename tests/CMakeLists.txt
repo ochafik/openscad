@@ -825,8 +825,10 @@ list(APPEND SVG_VIEWBOX_TESTS
 )
 
 list(APPEND SCADFILES_WITH_DIFFERENT_MANIFOLD_EXPECTATIONS
+  ${TEST_SCAD_DIR}/3D/features/color-tests.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests2.scad
   ${TEST_SCAD_DIR}/3D/features/render-tests.scad
+  ${TEST_SCAD_DIR}/3D/issues/issue913.scad
   
   # Manifold colors are better here
   ${TEST_SCAD_DIR}/misc/internal-cavity.scad
@@ -1047,6 +1049,7 @@ list(APPEND FILES_COLOR_CORNER_CASES
   ${FILES_MANIFOLD_CORNER_CASES}
   ${EXAMPLES_DIR}/Basics/roof.scad
   ${TEST_SCAD_DIR}/off/off-export.scad
+  ${TEST_SCAD_DIR}/misc/internal-cavity.scad
   # Transparent colors render differently in different CI envs.
   ${TEST_SCAD_DIR}/3D/features/color-tests.scad
   # Bug with render color caching
