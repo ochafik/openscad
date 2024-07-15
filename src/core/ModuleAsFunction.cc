@@ -98,12 +98,11 @@ CallableFunction wrapModuleAsFunction(const InstantiableModule& module, const Lo
     };
     VectorType ret(context->session());
     ret.reserve(3);
-    ret.emplace_back(std::move(make_pair("vertices", std::move(vertices))));
-    ret.emplace_back(std::move(make_pair("faces", std::move(faces))));
+    ret.emplace_back(std::move(vertices));
+    ret.emplace_back(std::move(faces));
     if (!colors.empty()) {
-      ret.emplace_back(std::move(make_pair("colors", std::move(colors))));
+      ret.emplace_back(std::move(colors));
     }
-
     return std::move(ret);
   });
 }
