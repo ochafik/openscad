@@ -112,6 +112,7 @@ public:
 
   std::vector<Vector3d> points;
   std::vector<IndexedFace> faces;
+  std::vector<Color4f> colors;
   int convexity = 1;
 };
 

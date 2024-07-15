@@ -424,6 +424,24 @@ std::unique_ptr<const Geometry> PolyhedronNode::createGeometry() const
       is_triangular = false;
     }
   }
+  if (!colors.empty()) {
+    if (colors.size() != faces.size()) {
+      throw std::runtime_error("Number of colors must match number of faces");
+    }
+    std::map<Color4f, uint32_t> color_map;
+    for (const auto& color : colors) {
+      auto it = color_map.find(color);
+      uint32_t color_index;
+      if (it != color_map.end()) {
+        color_index = it->second;
+      } else {
+        color_index = p->colors.size();
+        color_map[color] = color_index;
+        p->colors.push_back(color);
+      }
+      p->color_indices.push_back(color_index);;
+    }
+  }
   p->setTriangular(is_triangular);
   return p;
 }
@@ -437,7 +455,7 @@ static std::shared_ptr<AbstractNode> builtin_polyhedron(const ModuleInstantiatio
         "module %1$s() does not support child modules", node->name());
   }
 
-  Parameters parameters = Parameters::parse(std::move(arguments), inst->location(), {"points", "faces", "convexity"}, {"triangles"});
+  Parameters parameters = Parameters::parse(std::move(arguments), inst->location(), {"points", "faces", "convexity"}, {"triangles", "colors"});
 
   if (parameters["points"].type() != Value::Type::VECTOR) {
     LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert points = %1$s to a vector of coordinates", parameters["points"].toEchoStringNoThrow());
@@ -495,6 +513,23 @@ static std::shared_ptr<AbstractNode> builtin_polyhedron(const ModuleInstantiatio
       }
     }
     faceIndex++;
+  }
+
+  const Value *colors = nullptr;
+  if (parameters["colors"].type() == Value::Type::VECTOR) {
+    colors = &parameters["colors"];
+    node->colors.reserve(colors->toVector().size());
+    for (const Value& colorValue : colors->toVector()) {
+      double r, g, b, a;
+      if (!colorValue.getVec4(r, g, b, a, 1.0) ||
+          !std::isfinite(r) || !std::isfinite(g) || !std::isfinite(b) || !std::isfinite(a)
+          ) {
+        LOG(message_group::Error, inst->location(), parameters.documentRoot(), "Unable to convert colors[%1$d] = %2$s to a vec4 of numbers", node->colors.size(), colorValue.toEchoStringNoThrow());
+        node->colors.push_back({0, 0, 0, 1});
+      } else {
+        node->colors.emplace_back((float) r, (float) g, (float) b, (float) a);
+      }
+    }
   }
 
   node->convexity = (int)parameters["convexity"].toDouble();

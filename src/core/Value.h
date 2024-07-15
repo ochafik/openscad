@@ -342,6 +342,7 @@ public:
   bool getVec2(double& x, double& y, bool ignoreInfinite = false) const;
   bool getVec3(double& x, double& y, double& z) const;
   bool getVec3(double& x, double& y, double& z, double defaultval) const;
+  bool getVec4(double& x, double& y, double& z, double& w, double defaultval) const;
 
   // Common Operators
   operator bool() const = delete;

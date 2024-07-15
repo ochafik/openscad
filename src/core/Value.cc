@@ -678,6 +678,20 @@ bool Value::getVec3(double& x, double& y, double& z, double defaultval) const
   return (v[0].getDouble(x) && v[1].getDouble(y) && v[2].getDouble(z));
 }
 
+bool Value::getVec4(double& x, double& y, double& z, double& w, double defaultval) const
+{
+  if (this->type() != Type::VECTOR) return false;
+  const VectorType& v = toVector();
+  if (v.size() == 3) {
+    getVec3(x, y, z);
+    w = defaultval;
+    return true;
+  } else {
+    if (v.size() != 4) return false;
+  }
+  return (v[0].getDouble(x) && v[1].getDouble(y) && v[2].getDouble(z) && v[3].getDouble(w));
+}
+
 const RangeType& Value::toRange() const
 {
   const RangePtr *val = std::get_if<RangePtr>(&this->value);
