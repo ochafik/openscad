@@ -109,7 +109,7 @@ boost::optional<CallableFunction> Context::lookup_function(const std::string& na
   }
   if (Feature::ExperimentalModuleFunctions.is_enabled()) {
     if (auto module = lookup_module(name, loc)) {
-      LOG(message_group::Warning, loc, documentRoot(), "Converting unknown function '%1$s' to module", name);
+      LOG(message_group::Warning, loc, documentRoot(), "Converting function '%1$s' to module: this might make everything very slow", name);
       return wrapModuleAsFunction(*module, loc);
     }
   }
