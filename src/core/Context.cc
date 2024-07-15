@@ -94,6 +94,8 @@ const Value& Context::lookup_variable(const std::string& name, const Location& l
   return *result;
 }
 
+CallableFunction wrapModuleAsFunction(const InstantiableModule& module, const Location& loc);
+
 boost::optional<CallableFunction> Context::lookup_function(const std::string& name, const Location& loc) const
 {
   if (is_config_variable(name)) {
@@ -108,78 +110,7 @@ boost::optional<CallableFunction> Context::lookup_function(const std::string& na
   if (Feature::ExperimentalModuleFunctions.is_enabled()) {
     if (auto module = lookup_module(name, loc)) {
       LOG(message_group::Warning, loc, documentRoot(), "Converting unknown function '%1$s' to module", name);
-      CallableFunction result = std::make_shared<const BuiltinFunction>([module, loc] (const std::shared_ptr<const Context>& context, const FunctionCall *call) {
-        auto inst = std::make_unique<ModuleInstantiation>(call->name, call->arguments, loc);
-        auto node = module->module->instantiate(module->defining_context, inst.get(), context);
-        if (!node) {
-          throw std::runtime_error("ModuleFunctionAdapter: failed to instantiate module");
-        }
-        Tree tree(node);
-        GeometryEvaluator evaluator(tree);
-        auto geom = evaluator.evaluateGeometry(*node, /* allownef= */ false);
-        auto ps = PolySetUtils::getGeometryAsPolySet(geom);
-        if (ps) {
-          ps = PolySetUtils::tessellate_faces(*ps);
-        }
-        if (!ps) {
-          throw std::runtime_error("ModuleFunctionAdapter: failed to evaluate geometry");
-        }
-
-        VectorType vertices(context->session());
-        vertices.reserve(ps->vertices.size());
-        for (const auto & v : ps->vertices) {
-          VectorType vertex(context->session());
-          vertex.reserve(3);
-          vertex.emplace_back(v[0]);
-          vertex.emplace_back(v[1]);
-          vertex.emplace_back(v[2]);
-          vertices.emplace_back(std::move(vertex));
-        }
-        
-        VectorType faces(context->session());
-        faces.reserve(ps->indices.size());
-        for (const auto & f : ps->indices) {
-          VectorType face(context->session());
-          face.reserve(3);
-          face.emplace_back(f[0]);
-          face.emplace_back(f[1]);
-          face.emplace_back(f[2]);
-          faces.emplace_back(std::move(face));
-        }
-
-        const Color4f invalid_color;
-        VectorType colors(context->session());
-        colors.reserve(ps->color_indices.size());
-        for (const auto & ci : ps->color_indices) {
-          const auto & color = ci >= 0 && ci < ps->colors.size() ? ps->colors[ci] : invalid_color;
-          VectorType colorVec(context->session());
-          colorVec.reserve(4);
-          colorVec.emplace_back(color[0]);
-          colorVec.emplace_back(color[1]);
-          colorVec.emplace_back(color[2]);
-          colorVec.emplace_back(color[3]);
-          colors.emplace_back(std::move(colorVec));
-        }
-
-        auto make_pair = [&](const char* name, VectorType && v) {
-          VectorType pair(context->session());
-          pair.reserve(2);
-          pair.emplace_back(std::string(name));
-          pair.emplace_back(std::move(v));
-          return std::move(pair);
-        };
-        VectorType ret(context->session());
-        ret.reserve(3);
-        ret.emplace_back(std::move(make_pair("vertices", std::move(vertices))));
-        ret.emplace_back(std::move(make_pair("faces", std::move(faces))));
-        if (!colors.empty()) {
-          ret.emplace_back(std::move(make_pair("colors", std::move(colors))));
-        }
-
-        return std::move(ret);
-      });
-      // boost::optional<CallableFunction> 
-      return result;
+      return wrapModuleAsFunction(*module, loc);
     }
   }
   LOG(message_group::Warning, loc, documentRoot(), "Ignoring unknown function '%1$s'", name);
