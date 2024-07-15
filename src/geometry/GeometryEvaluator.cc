@@ -71,6 +71,12 @@ std::shared_ptr<const Geometry> GeometryEvaluator::evaluateGeometry(const Abstra
     smartCacheInsert(node, result);
   }
 
+  if (Feature::ExperimentalRenderModifiers.is_enabled() && !extra_geometries.empty()) {
+    Geometry::Geometries geoms(extra_geometries.begin(), extra_geometries.end());
+    geoms.emplace_back(nullptr, result);
+    result = std::make_shared<GeometryList>(geoms);
+  }
+
   // Convert engine-specific 3D geometry to PolySet if needed
   // Note: we don't store the converted into the cache as it would conflict with subsequent calls where allownef is true.
   if (!allownef) {
@@ -315,6 +321,11 @@ std::vector<std::shared_ptr<const Polygon2d>> GeometryEvaluator::collectChildren
 void GeometryEvaluator::smartCacheInsert(const AbstractNode& node,
                                          const std::shared_ptr<const Geometry>& geom)
 {
+  if (Feature::ExperimentalRenderModifiers.is_enabled() && (
+      node.modinst->isBackground() || (node.modinst->isHighlight()))) {
+    return;
+  }
+
   const std::string& key = this->tree.getIdString(node);
 
   if (CGALCache::acceptsGeometry(geom)) {
@@ -441,13 +452,42 @@ void GeometryEvaluator::addToParent(const State& state,
                                     const std::shared_ptr<const Geometry>& geom)
 {
   this->visitedchildren.erase(node.index());
-  if (state.parent()) {
-    this->visitedchildren[state.parent()->index()].push_back(std::make_pair(node.shared_from_this(), geom));
-  } else {
-    // Root node
-    this->root = geom;
-    assert(this->visitedchildren.empty());
+  auto doAdd = [&](const std::shared_ptr<const Geometry>& geom) {
+    if (state.parent()) {
+      this->visitedchildren[state.parent()->index()].push_back(std::make_pair(node.shared_from_this(), geom));
+    } else {
+      // Root node
+      this->root = geom;
+      assert(this->visitedchildren.empty());
+    }
+  };
+
+  if (Feature::ExperimentalRenderModifiers.is_enabled() && (
+      node.modinst->isBackground() || (node.modinst->isHighlight()))) {  
+    auto ps = std::make_shared<PolySet>(*PolySetUtils::getGeometryAsPolySet(geom));
+
+    if (node.modinst->isHighlight()) {
+      if (state.subtraction()) {
+        ps->setColor(Color4f(1.0f, 0.0f, 0.0f, 1.0f));
+        doAdd(std::make_shared<PolySet>(*ps));
+        
+        ps->setColor(Color4f(1.0f, 0.0f, 0.0f, 0.5f));
+        ps->transform(state.matrix());
+        extra_geometries.emplace_back(nullptr, ps);
+      } else {
+        ps->setColor(Color4f(1.0f, 0.0f, 0.0f, 0.5f));
+        doAdd(ps);
+      }
+    } else {
+      assert(node.modinst->isBackground());
+      ps->setColor(Color4f(0.5f, 0.5f, 0.5f, 0.5f));
+      ps->transform(state.matrix());
+      extra_geometries.emplace_back(nullptr, ps);
+    }
+    return;
   }
+
+  doAdd(geom);
 }
 
 Response GeometryEvaluator::visit(State& state, const ColorNode& node)
@@ -718,6 +758,9 @@ Response GeometryEvaluator::visit(State& state, const CsgOpNode& node)
  */
 Response GeometryEvaluator::visit(State& state, const TransformNode& node)
 {
+  if (state.isPrefix()) {
+    state.setMatrix(state.matrix() * node.matrix);
+  }
   if (state.isPrefix() && isSmartCached(node)) return Response::PruneTraversal;
   if (state.isPostfix()) {
     std::shared_ptr<const Geometry> geom;

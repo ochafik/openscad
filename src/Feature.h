@@ -26,6 +26,7 @@ public:
   static const Feature ExperimentalImportFunction;
   static const Feature ExperimentalPredictibleOutput;
   static const Feature ExperimentalRenderColors;
+  static const Feature ExperimentalRenderModifiers;
 #ifdef ENABLE_PYTHON
   static const Feature ExperimentalPythonEngine;
 #endif
