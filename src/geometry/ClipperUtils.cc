@@ -1,5 +1,6 @@
 #include "ClipperUtils.h"
 #include "printutils.h"
+#include "Feature.h"
 
 namespace ClipperUtils {
 
@@ -71,7 +72,11 @@ ClipperLib::PolyTree sanitize(const ClipperLib::Paths& paths)
 std::unique_ptr<Polygon2d> sanitize(const Polygon2d& poly)
 {
   auto tmp = ClipperUtils::fromPolygon2d(poly);
-  return toPolygon2d(sanitize(tmp.geometry), ClipperUtils::getScalePow2(tmp.bounds));
+  auto result = toPolygon2d(sanitize(tmp.geometry), ClipperUtils::getScalePow2(tmp.bounds));
+  if (poly.getColor().isValid()) {
+    result->setColor(poly.getColor());
+  }
+  return result;
 }
 
 /*!
@@ -183,6 +188,23 @@ std::unique_ptr<Polygon2d> apply(const std::vector<std::shared_ptr<const Polygon
     }
   }
   auto res = apply(pathsvector, clipType, pow2);
+  if (Feature::ExperimentalRenderColors.is_enabled() && 
+      (clipType == ClipperLib::ctDifference || clipType == ClipperLib::ctIntersection)) {
+    Color4f color;
+    for (const auto& polygon : polygons) {
+      if (polygon) {
+        if (polygon->getColor().isValid()) {
+          color = polygon->getColor();
+          break;
+        }
+        if (clipType == ClipperLib::ctDifference) {
+          // Only use the first polygon's color for difference
+          break;
+        }
+      }
+    }
+    res->setColor(color);
+  }
   assert(res);
   return res;
 }

@@ -718,8 +718,13 @@ list(APPEND EXPORT_STL_TEST_FILES
 
 list(APPEND COLOR_3D_TEST_FILES
   ${TEST_SCAD_DIR}/3D/features/color-tests3.scad
+  ${TEST_SCAD_DIR}/3D/features/color-extrude.scad
   ${TEST_SCAD_DIR}/3D/features/linear_extrude-parameter-tests.scad
   ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
+)
+
+list(APPEND COLOR_2D_TEST_FILES
+  ${TEST_SCAD_DIR}/2D/features/color-2d-tests.scad
 )
 
 list(APPEND EXPORT_OFFEXPORT_TEST_FILES
@@ -1030,6 +1035,7 @@ add_cmdline_test(manifold-cgalpng      EXPERIMENTAL OPENSCAD SUFFIX png FILES ${
 set(EXP_IMP_2D_TEST ${TEST_SCAD_DIR}/misc/square10.scad)
 set(EXP_IMP_3D_TEST ${TEST_SCAD_DIR}/misc/cube10.scad)
 set(EXP_IMP_3D_COLOR_TEST ${COLOR_3D_TEST_FILES})
+set(EXP_IMP_2D_COLOR_TEST ${COLOR_2D_TEST_FILES})
 add_cmdline_test(monotonepngtest OPENSCAD SUFFIX png FILES ${EXP_IMP_2D_TEST} ${EXP_IMP_3D_TEST} ARGS --colorscheme=Monotone --render)
 add_cmdline_test(stlpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP_IMP_3D_TEST} EXPECTEDDIR monotonepngtest ARGS ${OPENSCAD_ARG} --format=STL)
 add_cmdline_test(offpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP_IMP_3D_TEST} EXPECTEDDIR monotonepngtest ARGS ${OPENSCAD_ARG} --format=OFF)
@@ -1039,6 +1045,7 @@ add_cmdline_test(3mfpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP
 add_cmdline_test(objpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP_IMP_3D_TEST} EXPECTEDDIR monotonepngtest ARGS ${OPENSCAD_ARG} --format=OBJ)
 add_cmdline_test(dxfpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP_IMP_2D_TEST} EXPECTEDDIR monotonepngtest ARGS ${OPENSCAD_ARG} --format=DXF --render=force)
 add_cmdline_test(svgpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP_IMP_2D_TEST} EXPECTEDDIR monotonepngtest ARGS ${OPENSCAD_ARG} --format=SVG --render=force)
+add_cmdline_test(svgcolorpngtest    SCRIPT ${EX_IM_PNGTEST_PY} SUFFIX png FILES ${EXP_IMP_2D_COLOR_TEST} EXPECTEDDIR monotonepngtest ARGS ${OPENSCAD_ARG} --format=SVG --render=force --enable=render-colors --enable=lazy-union)
 add_cmdline_test(pdfexporttest SCRIPT ${EXPORT_PNGTEST_PY} SUFFIX png FILES ${SCAD_PDF_FILES} EXPECTEDDIR pdfexporttest ARGS ${OPENSCAD_ARG} --format=PDF KERNEL Square:2)
 
 # Corner-case Export/Import tests

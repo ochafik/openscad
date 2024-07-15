@@ -11,7 +11,7 @@ std::unique_ptr<class PolySet> import_off(const std::string& filename, const Loc
 std::unique_ptr<class PolySet> import_amf(const std::string&, const Location& loc);
 std::unique_ptr<class Geometry> import_3mf(const std::string&, const Location& loc);
 
-std::unique_ptr<class Polygon2d> import_svg(double fn, double fs, double fa,
+std::unique_ptr<class Geometry> import_svg(double fn, double fs, double fa,
 					  const std::string& filename,
 					  const boost::optional<std::string>& id, const boost::optional<std::string>& layer,
 					  const double dpi, const bool center, const Location& loc);

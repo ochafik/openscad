@@ -32,6 +32,7 @@
 #include "Parameters.h"
 #include "printutils.h"
 #include <cctype>
+#include <regex>
 #include <sstream>
 #include <iterator>
 #include <unordered_map>
@@ -235,6 +236,34 @@ boost::optional<Color4f> parse_hex_color(const std::string& hex) {
   return rgba;
 }
 
+boost::optional<Color4f> parse_rgba_fncall_color(const std::string& s) {
+  static std::regex rgb_rx("rgb\\((\\d+),\\s*(\\d+),\\s*(\\d+)\\)");
+  static std::regex rgba_rx("rgba\\((\\d+),\\s*(\\d+),\\s*(\\d+),\\s*(\\d*\\.?\\d+)\\)");
+
+  std::smatch match;
+  if (std::regex_search(s, match, rgb_rx)) {
+    return Color4f{std::stoi(match[1]) / 255.0f, std::stoi(match[2]) / 255.0f, std::stoi(match[3]) / 255.0f, 1.0f};
+  } else if (std::regex_search(s, match, rgba_rx)) {
+    return Color4f{std::stoi(match[1]) / 255.0f, std::stoi(match[2]) / 255.0f, std::stoi(match[3]) / 255.0f, (float) std::stod(match[4])};
+  }
+  return boost::none;
+}
+
+boost::optional<Color4f> parse_openscad_color(const std::string& s) {
+  auto webColor = webcolors.find(s);
+  if (webColor != webcolors.end()) {
+    return webColor->second;
+  }
+  return parse_hex_color(s);
+}
+
+boost::optional<Color4f> parse_svg_color(const std::string& s) {
+  if (auto color = parse_openscad_color(s)) {
+    return color;
+  }
+  return parse_rgba_fncall_color(s);
+}
+
 static std::shared_ptr<AbstractNode> builtin_color(const ModuleInstantiation *inst, Arguments arguments, const Children& children)
 {
   auto node = std::make_shared<ColorNode>(inst);
@@ -251,17 +280,12 @@ static std::shared_ptr<AbstractNode> builtin_color(const ModuleInstantiation *in
   } else if (parameters["c"].type() == Value::Type::STRING) {
     auto colorname = parameters["c"].toString();
     boost::algorithm::to_lower(colorname);
-    if (webcolors.find(colorname) != webcolors.end()) {
-      node->color = webcolors.at(colorname);
+    auto color = parse_openscad_color(colorname);
+    if (color) {
+      node->color = *color;
     } else {
-      // Try parsing it as a hex color such as "#rrggbb".
-      const auto hexColor = parse_hex_color(colorname);
-      if (hexColor) {
-        node->color = *hexColor;
-      } else {
-        LOG(message_group::Warning, inst->location(), parameters.documentRoot(), "Unable to parse color \"%1$s\"", colorname);
-        LOG("Please see https://en.wikipedia.org/wiki/Web_colors");
-      }
+      LOG(message_group::Warning, inst->location(), parameters.documentRoot(), "Unable to parse color \"%1$s\"", colorname);
+      LOG("Please see https://en.wikipedia.org/wiki/Web_colors");
     }
   }
   if (parameters["alpha"].type() == Value::Type::NUMBER) {

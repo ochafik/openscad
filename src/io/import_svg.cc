@@ -28,6 +28,7 @@
 #include <Eigen/Geometry>
 
 #include "import.h"
+#include "Feature.h"
 #include "Polygon2d.h"
 #include "printutils.h"
 #include "libsvg/libsvg.h"
@@ -83,7 +84,7 @@ double calc_alignment(const libsvg::align_t alignment, double page_mm, double sc
 } // namespace
 
 
-std::unique_ptr<Polygon2d> import_svg(double fn, double fs, double fa,
+std::unique_ptr<Geometry> import_svg(double fn, double fs, double fa,
 				      const std::string& filename,
 				      const boost::optional<std::string>& id, const boost::optional<std::string>& layer,
 				      const double dpi, const bool center, const Location& loc)
@@ -192,6 +193,9 @@ std::unique_ptr<Polygon2d> import_svg(double fn, double fs, double fa,
     for (const auto& shape_ptr : *shapes) {
       if (!shape_ptr->is_excluded()) {
         auto poly = std::make_shared<Polygon2d>();
+        if (Feature::ExperimentalRenderColors.is_enabled()) {
+          poly->setColor(shape_ptr->get_fill_color());
+        }
         const auto& s = *shape_ptr;
         for (const auto& p : s.get_path_list()) {
           Outline2d outline;
@@ -207,7 +211,34 @@ std::unique_ptr<Polygon2d> import_svg(double fn, double fs, double fa,
       }
     }
     libsvg_free(shapes);
-    return ClipperUtils::apply(polygons, ClipperLib::ctUnion);
+
+    if (Feature::ExperimentalRenderColors.is_enabled()) {
+      Geometry::Geometries geoms;
+      // Implement a crude painter's algorithm: make sure the last polygons are drawn on top by masking the others.
+      std::shared_ptr<const Polygon2d> mask;
+      for (int i = polygons.size() - 1; i >= 0; --i) {
+        auto& poly = polygons[i];
+        if (!poly) continue;
+        std::shared_ptr<const Polygon2d> full_poly(std::move(ClipperUtils::sanitize(*poly)));
+        std::shared_ptr<const Polygon2d> result_poly;
+        if (!mask) {
+          result_poly = full_poly;
+          mask = result_poly;
+        } else {
+          result_poly = std::move(ClipperUtils::apply({full_poly, mask}, ClipperLib::ctDifference));
+          mask = std::move(ClipperUtils::apply({mask, result_poly}, ClipperLib::ctUnion));
+        }
+        if (result_poly->area() > 0) {
+          geoms.emplace_back(nullptr, result_poly);
+        } else {
+          LOG(message_group::Warning, loc, "", "import_svg ignoring empty polygon");
+        }
+      }
+      for (const auto& poly : polygons) {
+      return std::make_unique<GeometryList>(geoms);
+    } else {
+      return ClipperUtils::apply(polygons, ClipperLib::ctUnion);
+    }
   } catch (const std::exception& e) {
     LOG(message_group::Error, "%1$s, import() at line %2$d", e.what(), loc.firstLine());
     return std::make_unique<Polygon2d>();
