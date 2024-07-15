@@ -1,0 +1,4 @@
+linear_extrude(height = 1, $fn = 0, $fa = 12, $fs = 2) {
+	import(file = "../../../svg/color/stacked.svg", origin = [0, 0], center = false, dpi = 72, scale = 1, convexity = 1, $fn = 0, $fa = 12, $fs = 2, timestamp = 1721006448);
+}
+

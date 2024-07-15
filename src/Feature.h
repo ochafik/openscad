@@ -21,6 +21,7 @@ public:
   static const Feature ExperimentalRoof;
   static const Feature ExperimentalInputDriverDBus;
   static const Feature ExperimentalLazyUnion;
+  static const Feature ExperimentalRenderColors2D;
   static const Feature ExperimentalVxORenderersIndexing;
   static const Feature ExperimentalTextMetricsFunctions;
   static const Feature ExperimentalImportFunction;

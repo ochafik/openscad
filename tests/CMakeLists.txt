@@ -361,7 +361,7 @@ function(add_cmdline_test TESTCMD_BASENAME)
     endif()
 
     # add global experimental options here
-    set(EXPERIMENTAL_OPTION "")
+    set(EXPERIMENTAL_OPTION "--enable=render-colors-2d")
 
     # # To give manifold some extra test coverage, enable manifold 
     # # for all tests except those marked as skipped.
@@ -744,6 +744,7 @@ list(APPEND THROWNTOGETHERTEST_FILES ${RENDERTEST_FILES} ${PRUNE_TEST} ${PREVIEW
 
 list(APPEND COLOR_3D_TEST_FILES
   ${TEST_SCAD_DIR}/3D/features/color-tests3.scad
+  ${TEST_SCAD_DIR}/3D/features/color-extrude.scad
   ${TEST_SCAD_DIR}/3D/features/linear_extrude-parameter-tests.scad
   ${TEST_SCAD_DIR}/3D/features/resize-tests.scad
 )
@@ -840,6 +841,7 @@ list(APPEND SCADFILES_WITH_COLOR
   ${TEST_SCAD_DIR}/3D/features/background-modifier2.scad
   ${TEST_SCAD_DIR}/3D/features/child-child-test.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests.scad
+  ${TEST_SCAD_DIR}/3D/features/color-extrude.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests2.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests3.scad
   ${TEST_SCAD_DIR}/3D/features/linear_extrude-parameter-tests.scad
@@ -1348,10 +1350,12 @@ add_cmdline_test(lazyunion-dump        EXPERIMENTAL OPENSCAD SUFFIX csg FILES ${
 add_cmdline_test(lazyunion-preview     EXPERIMENTAL OPENSCAD SUFFIX png FILES ${LAZYUNION_FILES} ARGS --enable=lazy-union)
 add_cmdline_test(lazyunion-render      EXPERIMENTAL OPENSCAD SUFFIX png FILES ${LAZYUNION_FILES} ARGS --enable=lazy-union --render)
 add_cmdline_test(lazyunion-monotonepng EXPERIMENTAL OPENSCAD SUFFIX png FILES ${LAZYUNION_3D_FILES} ARGS --colorscheme=Monotone --enable=lazy-union --render )
-add_cmdline_test(lazyunion-stlpreviewtest  EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_3D_FILES} EXPECTEDDIR lazyunion-monotonepng ARGS ${OPENSCAD_EXE_ARG} --format=STL --enable=lazy-union --render=force)
-add_cmdline_test(lazyunion-offpreviewtest  EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_3D_FILES} EXPECTEDDIR lazyunion-monotonepng ARGS ${OPENSCAD_EXE_ARG} --format=OFF --enable=lazy-union --render=force)
-add_cmdline_test(lazyunion-dxfrendertest  EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_FILES} EXPECTEDDIR lazyunion-render     ARGS ${OPENSCAD_EXE_ARG} --format=DXF --enable=lazy-union --render=force)
-add_cmdline_test(lazyunion-svgrendertest  EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_FILES} EXPECTEDDIR lazyunion-render     ARGS ${OPENSCAD_EXE_ARG} --format=SVG --enable=lazy-union --render=force)
+add_cmdline_test(lazyunion-stlpreviewtest      EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_3D_FILES} EXPECTEDDIR lazyunion-monotonepng ARGS ${OPENSCAD_EXE_ARG} --format=STL --enable=lazy-union --render=force)
+add_cmdline_test(lazyunion-offpreviewtest      EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_3D_FILES} EXPECTEDDIR lazyunion-monotonepng ARGS ${OPENSCAD_EXE_ARG} --format=OFF --enable=lazy-union --render=force)
+add_cmdline_test(lazyunion-dxfrendertest       EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_FILES} EXPECTEDDIR lazyunion-render     ARGS ${OPENSCAD_EXE_ARG} --format=DXF --enable=lazy-union --render=force)
+add_cmdline_test(lazyunion-svgrendertest       EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_FILES} EXPECTEDDIR lazyunion-render     ARGS ${OPENSCAD_EXE_ARG} --format=SVG --enable=lazy-union --render=force)
+add_cmdline_test(lazyunion-svgrendercolortest  EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${LAZYUNION_2D_COLOR_FILES} EXPECTEDDIR lazyunion-rendercolor     ARGS ${OPENSCAD_EXE_ARG} --format=SVG --enable=lazy-union --render=force --enable=render-colors-2d)
+
 
 #
 # --enable=roof tests
@@ -1579,7 +1583,7 @@ else()
     throwntogethertest_import_3mf-tests
     PROPERTIES DISABLED TRUE
   )
-endif(NOT LIB3MF_FOUND)
+endif(LIB3MF_FOUND)
 
 list(APPEND NEF3_BROKEN_TESTS
   rendertest_nef3_broken
