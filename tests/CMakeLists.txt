@@ -844,6 +844,7 @@ list(APPEND SCADFILES_WITH_COLOR
   ${TEST_SCAD_DIR}/3D/features/background-modifier2.scad
   ${TEST_SCAD_DIR}/3D/features/child-child-test.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests.scad
+  ${TEST_SCAD_DIR}/3D/features/color-extrude.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests2.scad
   ${TEST_SCAD_DIR}/3D/features/color-tests3.scad
   ${TEST_SCAD_DIR}/3D/features/linear_extrude-parameter-tests.scad
