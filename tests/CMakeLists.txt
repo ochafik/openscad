@@ -922,8 +922,8 @@ endforeach()
 
 # Heavy tests are tests taking more than 5 seconds on a decent 2023 desktop
 set_test_config(Heavy FILES
-  csgrendertest_issue267-normalization-crash
-  rendertest_issue267-normalization-crash
+  csgrenderlegacytest_issue267-normalization-crash
+  renderlegacytest_issue267-normalization-crash
 )
 
 # Bugs
