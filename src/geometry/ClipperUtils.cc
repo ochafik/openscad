@@ -168,7 +168,7 @@ std::unique_ptr<Polygon2d> apply(const std::vector<ClipperLib::Paths>& pathsvect
 
    May return an empty Polygon2d, but will not return nullptr.
  */
-std::unique_ptr<Polygon2d> apply(const std::vector<std::shared_ptr<const Polygon2d>>& polygons,
+std::unique_ptr<Geometry> apply(const std::vector<std::shared_ptr<const Polygon2d>>& polygons,
 				 ClipperLib::ClipType clipType)
 {
   BoundingBox bounds;
@@ -178,36 +178,63 @@ std::unique_ptr<Polygon2d> apply(const std::vector<std::shared_ptr<const Polygon
   int pow2 = ClipperUtils::getScalePow2(bounds);
 
   std::vector<ClipperLib::Paths> pathsvector;
+  std::vector<Color4f> colors;
   for (const auto& polygon : polygons) {
     if (polygon) {
       auto polypaths = fromPolygon2d(*polygon, pow2);
       if (!polygon->isSanitized()) ClipperLib::PolyTreeToPaths(sanitize(polypaths), polypaths);
       pathsvector.push_back(polypaths);
+      colors.push_back(polygon->getColor());
     } else {
       pathsvector.emplace_back();
+      colors.emplace_back();
     }
   }
-  auto res = apply(pathsvector, clipType, pow2);
-  if (Feature::ExperimentalRenderColors2D.is_enabled() && 
-      (clipType == ClipperLib::ctDifference || clipType == ClipperLib::ctIntersection)) {
-    Color4f color;
-    for (const auto& polygon : polygons) {
-      if (polygon) {
-        if (polygon->getColor().isValid()) {
-          color = polygon->getColor();
-          break;
+  
+  if (Feature::ExperimentalRenderColors2D.is_enabled() && clipType == ClipperLib::ctUnion) {
+    std::set<Color4f> color_set(colors.begin(), colors.end());
+    if (color_set.size() == 1) {
+      // All polygons have the same color (or invalid / no color), so we can use the faster path
+      auto res = apply(pathsvector, clipType, pow2);
+      res->setColor(*color_set.begin());
+      return res;
+    }
+    // Implement a crude painter's algorithm: make sure the last polygons are drawn on top by masking the others.
+    std::vector<std::shared_ptr<const Polygon2d>> results;
+    ClipperLib::Paths maskpaths;
+    for (int i = pathsvector.size() - 1; i >= 0; --i) {
+      const auto& poly = polygons[i];
+      const auto& paths = pathsvector[i];
+      if (poly->area() == 0 || paths.empty()) {
+        LOG(message_group::Warning, "import_svg ignoring empty polygon");
+        continue;
+      }
+      if (maskpaths.empty()) {
+        results.emplace_back(poly);
+        maskpaths = paths;
+      } else {
+        auto result = ClipperUtils::apply({paths, maskpaths}, ClipperLib::ctDifference, pow2);
+        if (result->area() == 0) {
+          LOG(message_group::Warning, "import_svg ignoring empty polygon");
+          continue;
         }
-        if (clipType == ClipperLib::ctDifference) {
-          // Only use the first polygon's color for difference
-          break;
-        }
+        result->setColor(colors[i]);
+        results.emplace_back(std::move(result));
+
+        auto resultpaths = fromPolygon2d(*result, pow2);
+        maskpaths = fromPolygon2d(*ClipperUtils::apply({maskpaths, resultpaths}, ClipperLib::ctUnion, pow2), pow2);
       }
     }
-    res->setColor(color);
+    Geometry::Geometries geoms;
+    for (auto& result : results) {
+      geoms.emplace_back(nullptr, std::move(result));
+    }
+    return std::make_unique<GeometryList>(geoms);
   }
-  assert(res);
-  return res;
+  return apply(pathsvector, clipType, pow2);
 }
+
+
 
 // This is a copy-paste from ClipperLib with the modification that the union operation is not performed
 // The reason is numeric robustness. With the insides missing, the intersection points created by the union operation may

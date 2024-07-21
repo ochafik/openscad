@@ -240,18 +240,29 @@ std::unique_ptr<Polygon2d> GeometryEvaluator::applyHull2D(const AbstractNode& no
   return geometry;
 }
 
-std::unique_ptr<Polygon2d> GeometryEvaluator::applyFill2D(const AbstractNode& node)
+std::unique_ptr<Geometry> GeometryEvaluator::applyFill2D(const AbstractNode& node)
 {
   // Merge and sanitize input geometry
   auto geometry_in = ClipperUtils::apply(collectChildren2D(node), ClipperLib::ctUnion);
 
   std::vector<std::shared_ptr<const Polygon2d>> newchildren;
   // Keep only the 'positive' outlines, eg: the outside edges
-  for (const auto& outline : geometry_in->outlines()) {
-    if (outline.positive) {
-      newchildren.push_back(std::make_shared<Polygon2d>(outline));
+  std::function<void(const std::shared_ptr<const Geometry>&)> collect_pos_outlines = [&](const std::shared_ptr<const Geometry>& geom) {
+    if (auto geomlist = std::dynamic_pointer_cast<const GeometryList>(geom)) {
+      for (const auto& child : geomlist->getChildren()) {
+        collect_pos_outlines(child.second);
+      }
+    } else if (const auto p2d = std::dynamic_pointer_cast<const Polygon2d>(geom)) {
+      for (const auto& outline : p2d->outlines()) {
+        if (outline.positive) {
+          const auto outline_poly = std::make_shared<Polygon2d>(outline);
+          outline_poly->setColor(p2d->getColor());
+          newchildren.push_back(outline_poly);
+        }
+      }
     }
-  }
+  };
+  collect_pos_outlines(std::move(geometry_in));
 
   // Re-merge geometry in case of nested outlines
   return ClipperUtils::apply(newchildren, ClipperLib::ctUnion);
@@ -272,6 +283,21 @@ std::unique_ptr<Polygon2d> GeometryEvaluator::applyMinkowski2D(const AbstractNod
     return ClipperUtils::applyMinkowski(children);
   }
   return nullptr;
+}
+
+std::vector<std::shared_ptr<const Polygon2d>> GeometryEvaluator::collectPolygon2d(const std::shared_ptr<const Geometry>& geom)
+{
+  std::vector<std::shared_ptr<const Polygon2d>> children;
+  std::function<void(const std::shared_ptr<const Geometry>& geom)> visit = [&](const std::shared_ptr<const Geometry>& geom) {
+    if (const auto geomlist = std::dynamic_pointer_cast<const GeometryList>(geom)) {
+      for (const auto& child : geomlist->getChildren()) {
+        visit(child.second);
+      }
+    } else if (const auto p2d = std::dynamic_pointer_cast<const Polygon2d>(geom)) {
+      children.emplace_back(p2d);
+    }
+  };
+  return children;
 }
 
 /*!
@@ -394,7 +420,7 @@ Geometry::Geometries GeometryEvaluator::collectChildren3D(const AbstractNode& no
 /*!
 
  */
-std::unique_ptr<Polygon2d> GeometryEvaluator::applyToChildren2D(const AbstractNode& node, OpenSCADOperator op)
+std::unique_ptr<Geometry> GeometryEvaluator::applyToChildren2D(const AbstractNode& node, OpenSCADOperator op)
 {
   node.progress_report();
   if (op == OpenSCADOperator::MINKOWSKI) {
@@ -952,16 +978,31 @@ Response GeometryEvaluator::visit(State& state, const RotateExtrudeNode& node)
   if (state.isPostfix()) {
     std::shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      std::shared_ptr<const Polygon2d> geometry;
-      if (!node.filename.empty()) {
-        DxfData dxf(node.fn, node.fs, node.fa, node.filename, node.layername, node.origin_x, node.origin_y, node.scale);
-        auto p2d = dxf.toPolygon2d();
-        if (p2d) geometry = ClipperUtils::sanitize(*p2d);
+      if (Feature::ExperimentalRenderColors2D.is_enabled()) {
+        // Our 2D / Clipper operations don't preserve colors yet, so we
+        // extrude children *then* union them in 3D space.
+        auto children = collectChildren2D(node);
+        Geometry::Geometries extruded;
+        for (const auto& child : children) {
+          if (!child) {
+            LOG(message_group::Warning, "Ignoring empty child object for rotate_extrude()");
+            continue;
+          }
+          extruded.emplace_back(nullptr, rotatePolygon(node, *child));
+        }
+        geom = applyToChildren3D(extruded, OpenSCADOperator::UNION).constptr();
       } else {
-        geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
-      }
-      if (geometry) {
-        geom = rotatePolygon(node, *geometry);
+        std::shared_ptr<const Polygon2d> geometry;
+        if (!node.filename.empty()) {
+          DxfData dxf(node.fn, node.fs, node.fa, node.filename, node.layername, node.origin_x, node.origin_y, node.scale);
+          auto p2d = dxf.toPolygon2d();
+          if (p2d) geometry = ClipperUtils::sanitize(*p2d);
+        } else {
+          geometry = applyToChildren2D(node, OpenSCADOperator::UNION);
+        }
+        if (geometry) {
+          geom = rotatePolygon(node, *geometry);
+        }
       }
     } else {
       geom = smartCacheGet(node, false);

@@ -212,32 +212,7 @@ std::unique_ptr<Geometry> import_svg(double fn, double fs, double fa,
     }
     libsvg_free(shapes);
 
-    if (Feature::ExperimentalRenderColors2D.is_enabled()) {
-      Geometry::Geometries geoms;
-      // Implement a crude painter's algorithm: make sure the last polygons are drawn on top by masking the others.
-      std::shared_ptr<const Polygon2d> mask;
-      for (int i = polygons.size() - 1; i >= 0; --i) {
-        auto& poly = polygons[i];
-        if (!poly) continue;
-        std::shared_ptr<const Polygon2d> full_poly(std::move(ClipperUtils::sanitize(*poly)));
-        std::shared_ptr<const Polygon2d> result_poly;
-        if (!mask) {
-          result_poly = full_poly;
-          mask = result_poly;
-        } else {
-          result_poly = std::move(ClipperUtils::apply({full_poly, mask}, ClipperLib::ctDifference));
-          mask = std::move(ClipperUtils::apply({full_poly, result_poly}, ClipperLib::ctUnion));
-        }
-        if (result_poly->area() > 0) {
-          geoms.emplace_back(nullptr, result_poly);
-        } else {
-          LOG(message_group::Warning, loc, "", "import_svg ignoring empty polygon");
-        }
-      }
-      return std::make_unique<GeometryList>(geoms);
-    } else {
-      return ClipperUtils::apply(polygons, ClipperLib::ctUnion);
-    }
+    return ClipperUtils::apply(polygons, ClipperLib::ctUnion);
   } catch (const std::exception& e) {
     LOG(message_group::Error, "%1$s, import() at line %2$d", e.what(), loc.firstLine());
     return std::make_unique<Polygon2d>();
