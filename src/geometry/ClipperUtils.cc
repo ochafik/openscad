@@ -188,7 +188,7 @@ std::unique_ptr<Polygon2d> apply(const std::vector<std::shared_ptr<const Polygon
     }
   }
   auto res = apply(pathsvector, clipType, pow2);
-  if (Feature::ExperimentalRenderColors.is_enabled() && 
+  if (Feature::ExperimentalRenderColors2D.is_enabled() && 
       (clipType == ClipperLib::ctDifference || clipType == ClipperLib::ctIntersection)) {
     Color4f color;
     for (const auto& polygon : polygons) {

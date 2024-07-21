@@ -778,7 +778,7 @@ Response GeometryEvaluator::visit(State& state, const LinearExtrudeNode& node)
   if (state.isPostfix()) {
     std::shared_ptr<const Geometry> geom;
     if (!isSmartCached(node)) {
-      if (Feature::ExperimentalRenderColors.is_enabled()) {
+      if (Feature::ExperimentalRenderColors2D.is_enabled()) {
         // Our 2D / Clipper operations don't preserve colors yet, so we
         // extrude children *then* union them in 3D space.
         auto children = collectChildren2D(node);
