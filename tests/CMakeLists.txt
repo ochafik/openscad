@@ -271,8 +271,16 @@ endfunction(set_test_config)
 function(remove_test_config CONFIG)
   cmake_parse_arguments(TESTCFG "" "" "FILES" ${ARGN})
   list(APPEND FULLNAMES ${TESTCFG_FILES})
-  # Remove config from fullnames
-  list(REMOVE_ITEM ${CONFIG}_TEST_CONFIG ${FULLNAMES})
+
+  # Note: list(REMOVE_ITEM ${CONFIG}_TEST_CONFIG ${FULLNAMES}) would be faster
+  # but with this quadratic search we can detect wrong args.
+  foreach(FULLNAME ${FULLNAMES})
+    list(FIND ${CONFIG}_TEST_CONFIG ${FULLNAME} IDX)
+    if (IDX EQUAL -1)
+      message(FATAL_ERROR "Failed to find test ${FULLNAME} in config ${CONFIG}. Tests found in that config: ${${CONFIG}_TEST_CONFIG}")
+    endif()
+    list(REMOVE_AT ${CONFIG}_TEST_CONFIG ${IDX})
+  endforeach()
   # Export to parent scope
   set(${CONFIG}_TEST_CONFIG ${${CONFIG}_TEST_CONFIG} CACHE INTERNAL "")
 endfunction(remove_test_config)
@@ -928,13 +936,13 @@ set_test_config(Heavy FILES
 
 # Bugs
 set_test_config(Bugs FILES ${BUGS_FILES} ${BUGS_2D_FILES} PREFIXES
- rendertest rendermanifoldtest csgrendertest previewtest previewmanifoldtest throwntogethertest)
+  rendertest renderlegacytest csgrendertest previewtest previewlegacytest throwntogethertest)
 set_test_config(Bugs FILES ${BUGS_FILES} PREFIXES
   offpreviewtest monotonerendertest 
-  stlpreviewtest stlpreviewmanifoldtest 
-  stlrendertest stlrendermanifoldtest
-  stlrenderforcetest stlrendermanifoldforcetest
-  binstlrenderforcetest binstlrendermanifoldforcetest
+  stlpreviewlegacytest stlpreviewtest 
+  stlrenderlegacytest stlrendertest
+  stlrenderlegacyforcetest stlrenderforcetest
+  binstlrenderlegacyforcetest binstlrenderforcetest
   offrendertest)
 
 # Re-enable "fixed by manifold" bugs for Manifold
@@ -945,26 +953,10 @@ set_test_config(Bugs FILES
 
 )
 
-# Remove bugs fixed by manifold from the Bugs tag, to guard against regressions
-remove_test_config(Bugs FILES
-  stlrendermanifoldforcetest_issue584
-  rendermanifoldtest_issue591
-  rendermanifoldtest_issue791 
-  # FIXME: #802
-  stlrendermanifoldforcetest_issue945
-  stlrendermanifoldforcetest_issue945b
-  stlrendermanifoldforcetest_issue945c
-  stlrendermanifoldforcetest_issue945d
-  stlrendermanifoldforcetest_issue945e
-  stlrendermanifoldforcetest_issue945f
-  rendertest_issue1455
-  previewtest_issue1455
-)
-
 # Examples
 set_test_config(Examples FILES ${EXAMPLE_FILES} PREFIXES
-  rendertest rendermanifoldtest rendermanifoldtest-different 
-  previewtest previewmanifoldtest previewmanifoldtest-different previewtestthrowntogethertest 
+  rendertest rendermanifoldtest rendertest-different 
+  previewtest previewmanifoldtest previewtest-different previewtestthrowntogethertest 
   csgrendertest monotonerendertest 
   offpreviewtest offrendertest dumptest-examples)
 set_test_config(Examples FILES ${EXAMPLE_2D_FILES} PREFIXES dxfrendertest)
@@ -1171,12 +1163,12 @@ add_cmdline_test(offpreviewtest      SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX p
 add_cmdline_test(amfpreviewtest      SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${EXPORT_IMPORT_3D_PREVIEW_FILES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=AMF)
 add_cmdline_test(objpreviewtest      SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${EXPORT_IMPORT_3D_PREVIEW_FILES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=OBJ)
 
-add_cmdline_test(stlrenderlegacytest SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${EXPORT_IMPORT_3D_RENDER_FILES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=STL --render=force)
+add_cmdline_test(stlrenderlegacytest SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${EXPORT_IMPORT_3D_RENDER_FILES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=STL --render=force --legacycgal)
 add_cmdline_test(stlrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${EXPORT_IMPORT_3D_RENDERMANIFOLD_FILES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=STL --render=force)
-add_cmdline_test(stlrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${FILES_MANIFOLD_CORNER_CASES} EXPECTEDDIR offrendermanifoldtest ARGS ${OPENSCAD_EXE_ARG} --format=STL --render=force)
+add_cmdline_test(stlrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${FILES_MANIFOLD_CORNER_CASES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=STL --render=force)
 add_cmdline_test(offrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${OFFRENDERMANIFOLDTEST_FILES} EXPECTEDDIR rendertest ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render=force)
 add_cmdline_test(offrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${TEST_SCAD_DIR}/misc/cube10.scad EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render=force)
-add_cmdline_test(offrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad EXPECTEDDIR rendermanifoldtest-different ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render=force)
+add_cmdline_test(offrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${TEST_SCAD_DIR}/3D/features/polyhedron-tests.scad EXPECTEDDIR rendertest-different ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render=force)
 add_cmdline_test(offrendertest       SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${FILES_MANIFOLD_CORNER_CASES} ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render=force)
 add_cmdline_test(offrenderlegacytest SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${EXPORT_IMPORT_3D_RENDER_FILES} EXPECTEDDIR monotonerendertest ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render=force --legacycgal)
 
@@ -1207,7 +1199,7 @@ add_cmdline_test(svgrendertest  SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FI
 add_cmdline_test(stlexportsanitytest  SCRIPT ${STLEXPORTSANITYTEST_PY} SUFFIX txt FILES ${TEST_SCAD_DIR}/misc/normal-nan.scad ARGS ${OPENSCAD_EXE_ARG})
 
 # Export/import color support
-add_cmdline_test(offcolorpngtest EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${COLOR_3D_TEST_FILES} EXPECTEDDIR rendermanifoldtest-different ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render)
+add_cmdline_test(offcolorpngtest EXPERIMENTAL SCRIPT ${EXPORT_IMPORT_PNGTEST_PY} SUFFIX png FILES ${COLOR_3D_TEST_FILES} EXPECTEDDIR rendertest-different ARGS ${OPENSCAD_EXE_ARG} --format=OFF --render)
 
 # PDF Export
 add_cmdline_test(pdfexporttest SCRIPT ${EXPORT_PNGTEST_PY} SUFFIX png FILES ${SCAD_PDF_FILES} ARGS ${OPENSCAD_EXE_ARG} --format=PDF KERNEL Square:2)
@@ -1651,6 +1643,22 @@ endif()
 ####################
 # Extra Debug Info #
 ####################
+
+# Remove bugs fixed by manifold from the Bugs tag, to guard against regressions
+remove_test_config(Bugs FILES
+  stlrenderforcetest_issue584
+  rendertest_issue591
+  rendertest_issue791 
+  # FIXME: #802
+  stlrenderlegacyforcetest_issue945
+  stlrenderlegacyforcetest_issue945b
+  stlrenderlegacyforcetest_issue945c
+  stlrenderlegacyforcetest_issue945d
+  stlrenderlegacyforcetest_issue945e
+  stlrenderlegacyforcetest_issue945f
+  renderlegacytest_issue1455
+  previewlegacytest_issue1455
+)
 
 # Use cmake option "--log-level DEBUG" during top level config to see this
 message(DEBUG "Available test configurations: ${TEST_CONFIGS}")
