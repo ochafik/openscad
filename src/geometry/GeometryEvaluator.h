@@ -93,6 +93,7 @@ private:
   void applyResize3D(CGAL_Nef_polyhedron& N, const Vector3d& newsize, const Eigen::Matrix<bool, 3, 1>& autosize);
   std::unique_ptr<Polygon2d> applyToChildren2D(const AbstractNode& node, OpenSCADOperator op);
   ResultObject applyToChildren3D(const AbstractNode& node, OpenSCADOperator op);
+  ResultObject applyToChildren3D(const Geometry::Geometries& children, OpenSCADOperator op);
   ResultObject applyToChildren(const AbstractNode& node, OpenSCADOperator op);
   std::shared_ptr<const Geometry> projectionCut(const ProjectionNode& node);
   std::shared_ptr<const Geometry> projectionNoCut(const ProjectionNode& node);

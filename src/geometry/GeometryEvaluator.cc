@@ -121,6 +121,11 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren(const Abstrac
 GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const AbstractNode& node, OpenSCADOperator op)
 {
   Geometry::Geometries children = collectChildren3D(node);
+  return applyToChildren3D(children, op);
+}
+
+GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Geometry::Geometries& children, OpenSCADOperator op)
+{
   if (children.empty()) return {};
 
   if (op == OpenSCADOperator::HULL) {
@@ -792,7 +797,7 @@ Response GeometryEvaluator::visit(State& state, const LinearExtrudeNode& node)
         }
         // TODO: Could preserve the solids by treating a GeometryList as a partitioned solid
         // geom = std::make_shared<GeometryList>(extruded);
-        geom = ManifoldUtils::applyOperator3DManifold(extruded, OpenSCADOperator::UNION);
+        geom = applyToChildren3D(extruded, OpenSCADOperator::UNION).constptr();
       } else {
         std::shared_ptr<const Geometry> geometry;
         if (!node.filename.empty()) {
