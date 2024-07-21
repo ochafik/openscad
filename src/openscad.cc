@@ -978,6 +978,7 @@ int main(int argc, char **argv)
     ("camera", po::value<string>(), "camera parameters when exporting png: =translate_x,y,z,rot_x,y,z,dist or =eye_x,y,z,center_x,y,z")
     ("autocenter", "adjust camera to look at object's center")
     ("viewall", "adjust camera to fit object")
+    ("legacycgal", "render everything with CGAL (disables Manifold) for legacy, slower behaviour")
     ("imgsize", po::value<string>(), "=width,height of exported png")
     ("render", po::value<string>()->implicit_value(""), "for full geometry evaluation when exporting png")
     ("preview", po::value<string>()->implicit_value(""), "[=throwntogether] -for ThrownTogether preview png")
@@ -1071,12 +1072,17 @@ int main(int argc, char **argv)
   if (vm.count("help")) help(argv[0], desc);
   if (vm.count("version")) version();
   if (vm.count("info")) arg_info = true;
+  if (vm.count("legacycgal")) {
+    RenderSettings::inst()->manifoldEnabled = false;
+  }
 
   if (vm.count("preview")) {
     if (vm["preview"].as<string>() == "throwntogether") viewOptions.renderer = RenderType::THROWNTOGETHER;
   } else if (vm.count("render")) {
     // Note: "cgal" is here for backwards compatibility, can probably be removed soon
-    if (vm["render"].as<string>() == "cgal" || vm["render"].as<string>() == "force") {
+    if (vm["render"].as<string>() == "cgal" ||
+        vm["render"].as<string>() == "manifold" ||
+        vm["render"].as<string>() == "force") {
       viewOptions.renderer = RenderType::BACKEND_SPECIFIC;
     } else {
       viewOptions.renderer = RenderType::GEOMETRY;

@@ -7,6 +7,7 @@ class RenderSettings
 public:
   static RenderSettings *inst(bool erase = false);
 
+  bool manifoldEnabled;
   unsigned int openCSGTermLimit;
   unsigned int img_width;
   unsigned int img_height;

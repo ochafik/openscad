@@ -1642,7 +1642,7 @@
             <item>
              <widget class="QGroupBox" name="groupBox_CSG">
               <property name="title">
-               <string>OpenCSG</string>
+               <string>3D Preview (OpenCSG)</string>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_6">
                <item>
@@ -1707,11 +1707,18 @@
              </widget>
             </item>
             <item>
-             <widget class="QGroupBox" name="groupBox_CGAL">
+             <widget class="QGroupBox" name="groupBox_rendering3D">
               <property name="title">
-               <string>CGAL</string>
+               <string>3D Rendering</string>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_14">
+               <item>
+                <widget class="QCheckBox" name="manifoldEnabledCheckBox">
+                 <property name="text">
+                  <string>Enable Manifold (faster rendering)</string>
+                 </property>
+                </widget>
+               </item>
                <item>
                 <layout class="QHBoxLayout" name="horizontalLayout_cgalCacheSizeMB">
                  <item>

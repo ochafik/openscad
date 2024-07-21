@@ -38,6 +38,7 @@ public slots:
   void on_opencsgLimitEdit_textChanged(const QString&);
   void on_forceGoldfeatherBox_toggled(bool);
   void on_mouseWheelZoomBox_toggled(bool);
+  void on_manifoldEnabledCheckBox_toggled(bool);
   void on_localizationCheckBox_toggled(bool);
   void on_autoReloadRaiseCheckBox_toggled(bool);
   void on_updateCheckBox_toggled(bool);
