@@ -112,6 +112,7 @@ void Preferences::init() {
   this->defaultmap["advanced/forceGoldfeather"] = false;
   this->defaultmap["advanced/undockableWindows"] = false;
   this->defaultmap["advanced/reorderWindows"] = true;
+  this->defaultmap["advanced/manifoldEnabled"] = RenderSettings::inst()->manifoldEnabled;
   this->defaultmap["launcher/showOnStartup"] = true;
   this->defaultmap["advanced/localization"] = true;
   this->defaultmap["advanced/autoReloadRaise"] = false;
@@ -426,6 +427,14 @@ Preferences::on_openCSGWarningBox_toggled(bool state)
 {
   QSettingsCached settings;
   settings.setValue("advanced/opencsg_show_warning", state);
+}
+
+void
+Preferences::on_manifoldEnabledCheckBox_toggled(bool state)
+{
+  QSettingsCached settings;
+  settings.setValue("advanced/manifoldEnabled", state);
+  RenderSettings::inst()->manifoldEnabled = state;
 }
 
 void Preferences::on_cgalCacheSizeMBEdit_textChanged(const QString& text)
@@ -949,6 +958,7 @@ void Preferences::updateGUI()
   }
 
   BlockSignals<QCheckBox *>(this->openCSGWarningBox)->setChecked(getValue("advanced/opencsg_show_warning").toBool());
+  BlockSignals<QCheckBox *>(this->manifoldEnabledCheckBox)->setChecked(getValue("advanced/manifoldEnabled").toBool());
   BlockSignals<QLineEdit *>(this->cgalCacheSizeMBEdit)->setText(getValue("advanced/cgalCacheSizeMB").toString());
   BlockSignals<QLineEdit *>(this->polysetCacheSizeMBEdit)->setText(getValue("advanced/polysetCacheSizeMB").toString());
   BlockSignals<QLineEdit *>(this->opencsgLimitEdit)->setText(getValue("advanced/openCSGLimit").toString());
