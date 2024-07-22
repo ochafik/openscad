@@ -38,7 +38,6 @@ public slots:
   void on_opencsgLimitEdit_textChanged(const QString&);
   void on_forceGoldfeatherBox_toggled(bool);
   void on_mouseWheelZoomBox_toggled(bool);
-  void on_manifoldEnabledCheckBox_toggled(bool);
   void on_localizationCheckBox_toggled(bool);
   void on_autoReloadRaiseCheckBox_toggled(bool);
   void on_updateCheckBox_toggled(bool);
@@ -54,6 +53,7 @@ public slots:
   void on_enableParameterCheckBox_toggled(bool);
   void on_enableRangeCheckBox_toggled(bool);
   void on_useAsciiSTLCheckBox_toggled(bool);
+  void on_comboBoxRenderBackend3D_activated(int);
   void on_comboBoxToolbarExport3D_activated(int);
   void on_comboBoxToolbarExport2D_activated(int);
   void on_checkBoxSummaryCamera_toggled(bool);

@@ -518,7 +518,7 @@ Transform3d GeometryUtils::getResizeTransform(const BoundingBox &bbox, const Vec
 std::shared_ptr<const Geometry> GeometryUtils::getBackendSpecificGeometry(const std::shared_ptr<const Geometry>& geom)
 {
 #if ENABLE_MANIFOLD
-  if (RenderSettings::inst()->manifoldEnabled) {
+  if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
     if (const auto ps = std::dynamic_pointer_cast<const PolySet>(geom)) {
       return ManifoldUtils::createManifoldFromPolySet(*ps);
     } else if (auto mani = std::dynamic_pointer_cast<const ManifoldGeometry>(geom)) {

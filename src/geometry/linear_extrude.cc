@@ -506,7 +506,7 @@ std::unique_ptr<Geometry> extrudePolygon(const LinearExtrudeNode& node, const Po
   // the polyset from vertices using PolySetBuilder
 
 #ifdef ENABLE_MANIFOLD
-  if (RenderSettings::inst()->manifoldEnabled) {
+  if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
     return assemblePolySetForManifold(polyref, vertices, indices,
                                       node.convexity, isConvex, slice_stride * num_slices);
   }

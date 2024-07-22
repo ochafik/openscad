@@ -107,7 +107,7 @@ std::unique_ptr<PolySet> applyHull(const Geometry::Geometries& children)
 std::shared_ptr<const Geometry> applyMinkowski(const Geometry::Geometries& children)
 {
 #if ENABLE_MANIFOLD
-  if (RenderSettings::inst()->manifoldEnabled) {
+  if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
     return ManifoldUtils::applyMinkowskiManifold(children);
   }
 #endif  // ENABLE_MANIFOLD

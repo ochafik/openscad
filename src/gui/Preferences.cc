@@ -112,7 +112,7 @@ void Preferences::init() {
   this->defaultmap["advanced/forceGoldfeather"] = false;
   this->defaultmap["advanced/undockableWindows"] = false;
   this->defaultmap["advanced/reorderWindows"] = true;
-  this->defaultmap["advanced/manifoldEnabled"] = RenderSettings::inst()->manifoldEnabled;
+  this->defaultmap["advanced/renderBackend3D"] = QString::fromStdString(renderBackend3DToString(RenderSettings::inst()->backend3D));
   this->defaultmap["launcher/showOnStartup"] = true;
   this->defaultmap["advanced/localization"] = true;
   this->defaultmap["advanced/autoReloadRaise"] = false;
@@ -193,6 +193,7 @@ void Preferences::init() {
 
   initComboBox(this->comboBoxOctoPrintFileFormat, Settings::Settings::octoPrintFileFormat);
   initComboBox(this->comboBoxOctoPrintAction, Settings::Settings::octoPrintAction);
+  initComboBox(this->comboBoxRenderBackend3D, Settings::Settings::renderBackend3D);
   initComboBox(this->comboBoxToolbarExport3D, Settings::Settings::toolbarExport3D);
   initComboBox(this->comboBoxToolbarExport2D, Settings::Settings::toolbarExport2D);
 
@@ -427,14 +428,6 @@ Preferences::on_openCSGWarningBox_toggled(bool state)
 {
   QSettingsCached settings;
   settings.setValue("advanced/opencsg_show_warning", state);
-}
-
-void
-Preferences::on_manifoldEnabledCheckBox_toggled(bool state)
-{
-  QSettingsCached settings;
-  settings.setValue("advanced/manifoldEnabled", state);
-  RenderSettings::inst()->manifoldEnabled = state;
 }
 
 void Preferences::on_cgalCacheSizeMBEdit_textChanged(const QString& text)
@@ -729,6 +722,14 @@ void Preferences::on_useAsciiSTLCheckBox_toggled(bool checked)
   writeSettings();
 }
 
+void
+Preferences::on_comboBoxRenderBackend3D_activated(int val)
+{
+  applyComboBox(this->comboBoxRenderBackend3D, val, Settings::Settings::renderBackend3D);
+  RenderSettings::inst()->backend3D =
+    renderBackend3DFromString(Settings::Settings::renderBackend3D.value());
+}
+
 void Preferences::on_comboBoxToolbarExport3D_activated(int val)
 {
   applyComboBox(this->comboBoxToolbarExport3D, val, Settings::Settings::toolbarExport3D);
@@ -958,7 +959,6 @@ void Preferences::updateGUI()
   }
 
   BlockSignals<QCheckBox *>(this->openCSGWarningBox)->setChecked(getValue("advanced/opencsg_show_warning").toBool());
-  BlockSignals<QCheckBox *>(this->manifoldEnabledCheckBox)->setChecked(getValue("advanced/manifoldEnabled").toBool());
   BlockSignals<QLineEdit *>(this->cgalCacheSizeMBEdit)->setText(getValue("advanced/cgalCacheSizeMB").toString());
   BlockSignals<QLineEdit *>(this->polysetCacheSizeMBEdit)->setText(getValue("advanced/polysetCacheSizeMB").toString());
   BlockSignals<QLineEdit *>(this->opencsgLimitEdit)->setText(getValue("advanced/openCSGLimit").toString());
@@ -1005,6 +1005,7 @@ void Preferences::updateGUI()
   this->lineEditCharacterThreshold->setEnabled(getValue("editor/enableAutocomplete").toBool());
   this->lineEditStepSize->setEnabled(getValue("editor/stepSize").toBool());
 
+  updateComboBox(this->comboBoxRenderBackend3D, Settings::Settings::renderBackend3D);
   updateComboBox(this->comboBoxLineWrap, Settings::Settings::lineWrap);
   updateComboBox(this->comboBoxLineWrapIndentationStyle, Settings::Settings::lineWrapIndentationStyle);
   updateComboBox(this->comboBoxLineWrapVisualizationStart, Settings::Settings::lineWrapVisualizationBegin);
