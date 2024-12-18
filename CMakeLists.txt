@@ -143,27 +143,49 @@ if (CMAKE_SYSTEM_NAME STREQUAL Emscripten)
   set(Boost_USE_STATIC_RUNTIME ON CACHE BOOL "" FORCE)
   set(ENABLE_CAIRO OFF CACHE BOOL "" FORCE)
   set(ENABLE_TBB OFF CACHE BOOL "" FORCE)
-  set(NULLGL ON CACHE BOOL "" FORCE)
+  # set(NULLGL ON CACHE BOOL "" FORCE)
+  set(NULLGL OFF CACHE BOOL "" FORCE)
+  set(ENABLE_EGL ON CACHE BOOL "" FORCE)
+  set(USE_GLEW ON CACHE BOOL "" FORCE)
+  # set(USE_GLEW OFF CACHE BOOL "" FORCE)
+  set(HEADLESS ON CACHE BOOL "" FORCE)
+  set(USE_BUILTIN_OPENCSG ON CACHE BOOL "" FORCE)
   set(USE_MIMALLOC OFF CACHE BOOL "" FORCE)
   set(ENV{PKG_CONFIG_PATH} "/emsdk/upstream/emscripten/cache/sysroot/lib/pkgconfig")
+  # set(OPENGL_egl_LIBRARY "/emsdk/upstream/emscripten/cache/sysroot/lib/pkgconfig/egl.pc")
+  # set(OPENGL_gles2_LIBRARY "/emsdk/upstream/emscripten/cache/sysroot/lib/pkgconfig/glesv2.pc")
+
   target_compile_definitions(OpenSCAD PRIVATE CGAL_DISABLE_ROUNDING_MATH_CHECK)
   target_link_libraries(OpenSCAD PRIVATE /emsdk/upstream/emscripten/cache/sysroot/lib/libz.a)
   
   # https://emscripten.org/docs/tools_reference/emcc.html
   # https://emscripten.org/docs/tools_reference/settings_reference.html
-  target_compile_options(OpenSCAD PRIVATE -fexceptions)
-  target_link_options(OpenSCAD PUBLIC
+  target_compile_options(OpenSCAD PRIVATE
     -fexceptions
-    -sABORT_ON_WASM_EXCEPTIONS
+    # https://www.amigans.net/modules/newbb/viewtopic.php?post_id=109568
+    -sUSE_REGAL
+  )
+  target_link_options(OpenSCAD PUBLIC
+    # -Wl,--fatal-warnings
+    -Wl,--error-limit=0
+
+    -fexceptions
+    # -sABORT_ON_WASM_EXCEPTIONS
     -sALLOW_MEMORY_GROWTH=1
     -sDISABLE_EXCEPTION_CATCHING=0
     -sEXPORTED_RUNTIME_METHODS=['ENV','ERRNO_CODES','FS','PATH','callMain']
     -sMAXIMUM_MEMORY=4GB
+    -sUSE_REGAL
     
-    # -g produces DWARF debug info, which is quite large and may need debugger extensions.
-    # Alternatively, can pass -gsource-map -sLOAD_SOURCE_MAP but then variable debugging isn't possible
-    $<$<CONFIG:Debug>:-g -O0>
+    $<$<CONFIG:Debug>:
+      # -g produces DWARF debug info, which is quite large and may need debugger extensions.
+      # Alternatively, can pass -gsource-map -sLOAD_SOURCE_MAP but then variable debugging isn't possible
+      -g
+      -O0
+      -sASSERTIONS=2
+    >
   )
+  list(APPEND OFFSCREEN_SOURCES src/glview/gl-sham-shim.cc)
   if (WASM_BUILD_TYPE STREQUAL "web")
     target_link_options(OpenSCAD PUBLIC
       -sENVIRONMENT=web,worker
@@ -174,8 +196,9 @@ if (CMAKE_SYSTEM_NAME STREQUAL Emscripten)
     )
   elseif (WASM_BUILD_TYPE STREQUAL "node")
     target_link_options(OpenSCAD PUBLIC
-      -sENVIRONMENT=node,worker
-      -sNODEJS_CATCH_EXIT
+      -sENVIRONMENT=node
+      # -sENVIRONMENT=node,worker
+      # -sNODEJS_CATCH_EXIT # Found some possibly dodgy behavior during debugging with this enabled
       -sNODERAWFS
 
       # Single .js (more elegant for CLI release) is larger than separate .js & .wasm (preferred for web)
@@ -300,22 +323,48 @@ macro(find_graphics)
         set(USE_GLEW ON)
         set(WRANGLER "glew")
       else()
-	set(USE_GLAD ON)
+        set(USE_GLAD ON)
         set(WRANGLER "GLAD")
       endif()
       message(STATUS "USE_GLAD/USE_GLEW not specified: Defaulting to ${WRANGLER}")
     endif()
 
     if (USE_GLEW OR OPENCSG_GLEW)
-      find_package(GLEW REQUIRED QUIET)
-      message(STATUS "GLEW: ${GLEW_VERSION}")
-      target_link_libraries(OpenSCAD PRIVATE GLEW::glew)
+      # find_package(GLEW REQUIRED QUIET)
+      # message(STATUS "GLEW: ${GLEW_VERSION}")
+      # target_link_libraries(OpenSCAD PRIVATE GLEW::glew)
       set(GLEW_SOURCES src/glview/glew-utils.cc)
     endif()
 
-    find_package(OpenGL REQUIRED QUIET)
-    target_link_libraries(OpenSCAD PRIVATE ${OPENGL_LIBRARIES})
-    message(STATUS "OpenGL: ${OPENGL_LIBRARIES}")
+    # find_library(OPENGL_egl_LIBRARY NAMES libEGL)
+    # target_link_libraries(OpenSCAD PRIVATE ${OPENGL_egl_LIBRARIES})
+    # set(OpenGL_EGL_FOUND ON)
+    # message(STATUS "OPENGL_egl: ${OPENGL_egl_LIBRARIES}")
+
+    # find_library(OPENGL_gles2_LIBRARY NAMES libGL)
+    # target_link_libraries(OpenSCAD PRIVATE ${OPENGL_gles2_LIBRARIES})
+    # message(STATUS "OPENGL_gles2: ${OPENGL_gles2_LIBRARIES}")
+
+    # target_link_libraries(OpenSCAD PRIVATE 
+    #   # /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libGL.a
+    #   /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libGL-ofb-full_es3.a
+    #   # /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libGL-ofb-full_es3.a
+    #   # /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libGL-webgl2-ofb-full_es3.a
+    #   # /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libGL-emu-webgl2-ofb-full_es3.a
+    # )
+
+    # find_package(OpenGL REQUIRED QUIET)
+    # find_package(OpenGL REQUIRED QUIET COMPONENTS OpenGL EGL GLU)
+    # target_link_libraries(OpenSCAD PRIVATE ${OPENGL_LIBRARIES})
+    # message(STATUS "OpenGL: ${OPENGL_LIBRARIES}")
+
+    # find_package(Regal REQUIRED)
+    # target_link_libraries(OpenSCAD PRIVATE ${Regal_LIBRARIES})
+    # target_include_directories(OpenSCAD SYSTEM PRIVATE ${Regal_INCLUDE_DIRS})
+    # message(STATUS "Regal: ${Regal_LIBRARIES} ${Regal_INCLUDE_DIRS}")
+    # target_include_directories(OpenSCAD SYSTEM PRIVATE /emsdk/upstream/emscripten/cache/ports/regal/regal-version_7/include)
+    # target_link_libraries(OpenSCAD PRIVATE /emsdk/upstream/emscripten/cache/sysroot/lib/wasm32-emscripten/libregal.a)
+
   endif()
 endmacro(find_graphics)
 
@@ -1018,7 +1067,7 @@ endif()
 #
 if(NULLGL)
   message(STATUS "NULLGL is set. Overriding OpenGL(TM) settings")
-  set(OFFSCREEN_SOURCES
+  list(APPEND OFFSCREEN_SOURCES
     src/glview/Renderer.cc
     src/glview/NULLGL.cc # contains several 'nullified' versions of above .cc files
     src/glview/OffscreenView.cc
@@ -1034,7 +1083,7 @@ else()
       src/glview/LegacyRendererUtils.cc
     )
   endif()
-  set(OFFSCREEN_SOURCES
+  list(APPEND OFFSCREEN_SOURCES
     src/glview/OpenGLContext.cc
     src/glview/fbo.cc
     src/glview/Renderer.cc

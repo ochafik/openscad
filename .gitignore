@@ -69,7 +69,7 @@ src/*.old
 src/*.debug
 /Testing
 .DS_Store
-/build
+/build*
 /build_xcode
 /release
 tests/DartConfiguration.tcl
