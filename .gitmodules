@@ -13,3 +13,6 @@
 [submodule "OpenCSG"]
 	path = submodules/OpenCSG
 	url = https://github.com/openscad/OpenCSG.git
+[submodule "submodules/openscad-wasm"]
+	path = submodules/openscad-wasm
+	url = https://github.com/openscad/openscad-wasm
