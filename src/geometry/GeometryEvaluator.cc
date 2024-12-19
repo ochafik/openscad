@@ -1,46 +1,55 @@
-#include "GeometryEvaluator.h"
-#include "Tree.h"
-#include "GeometryCache.h"
-#include "Polygon2d.h"
-#include "ModuleInstantiation.h"
-#include "State.h"
-#include "ColorNode.h"
-#include "OffsetNode.h"
-#include "TransformNode.h"
-#include "LinearExtrudeNode.h"
-#include "RoofNode.h"
-#include "roof_ss.h"
-#include "roof_vd.h"
-#include "RotateExtrudeNode.h"
-#include "CgalAdvNode.h"
-#include "ProjectionNode.h"
-#include "CsgOpNode.h"
-#include "TextNode.h"
-#include "RenderNode.h"
-#include "ClipperUtils.h"
-#include "PolySetUtils.h"
-#include "PolySet.h"
-#include "PolySetBuilder.h"
-#include "calc.h"
-#include "printutils.h"
-#include "calc.h"
-#include "DxfData.h"
-#include "degree_trig.h"
-#include <ciso646> // C alternative tokens (xor)
+#include "geometry/GeometryEvaluator.h"
+#include "core/Tree.h"
+#include "geometry/GeometryCache.h"
+#include "geometry/Polygon2d.h"
+#include "core/ModuleInstantiation.h"
+#include "core/State.h"
+#include "core/ColorNode.h"
+#include "core/OffsetNode.h"
+#include "core/TransformNode.h"
+#include "core/LinearExtrudeNode.h"
+#include "core/RoofNode.h"
+#include "geometry/roof_ss.h"
+#include "geometry/roof_vd.h"
+#include "core/RotateExtrudeNode.h"
+#include "core/CgalAdvNode.h"
+#include "core/ProjectionNode.h"
+#include "core/CsgOpNode.h"
+#include "core/TextNode.h"
+#include "core/RenderNode.h"
+#include "geometry/ClipperUtils.h"
+#include "geometry/PolySetUtils.h"
+#include "geometry/PolySet.h"
+#include "geometry/PolySetBuilder.h"
+#include "utils/calc.h"
+#include "utils/printutils.h"
+#include "utils/calc.h"
+#include "io/DxfData.h"
+#include "glview/RenderSettings.h"
+#include "utils/degree_trig.h"
+#include <cmath>
+#include <iterator>
+#include <cassert>
+#include <list>
+#include <utility>
+#include <memory>
 #include <algorithm>
-#include "boost-utils.h"
-#include "boolean_utils.h"
+#include "utils/boost-utils.h"
+#include "geometry/boolean_utils.h"
 #ifdef ENABLE_CGAL
-#include "CGALCache.h"
-#include "CGALHybridPolyhedron.h"
-#include "cgalutils.h"
+#include "geometry/cgal/CGALCache.h"
+#include "geometry/cgal/CGALHybridPolyhedron.h"
+#include "geometry/cgal/cgalutils.h"
 #include <CGAL/convex_hull_2.h>
 #include <CGAL/Point_2.h>
 #endif
 #ifdef ENABLE_MANIFOLD
-#include "manifoldutils.h"
+#include "geometry/manifold/manifoldutils.h"
 #endif
-#include "linear_extrude.h"
+#include "geometry/linear_extrude.h"
+
+#include <cstddef>
+#include <vector>
 
 class Geometry;
 class Polygon2d;
@@ -155,7 +164,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
     if (actualchildren.empty()) return {};
     if (actualchildren.size() == 1) return ResultObject::constResult(actualchildren.front().second);
 #ifdef ENABLE_MANIFOLD
-    if (Feature::ExperimentalManifold.is_enabled()) {
+    if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
       return ResultObject::mutableResult(ManifoldUtils::applyOperator3DManifold(actualchildren, op));
     }
 #endif
@@ -172,7 +181,7 @@ GeometryEvaluator::ResultObject GeometryEvaluator::applyToChildren3D(const Abstr
   default:
   {
 #ifdef ENABLE_MANIFOLD
-    if (Feature::ExperimentalManifold.is_enabled()) {
+    if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
       return ResultObject::mutableResult(ManifoldUtils::applyOperator3DManifold(children, op));
     }
 #endif
@@ -847,7 +856,7 @@ static std::unique_ptr<Geometry> rotatePolygon(const RotateExtrudeNode& node, co
     }
   }
 
-  if ((max_x - min_x) > max_x && (max_x - min_x) > fabs(min_x)) {
+  if (max_x > 0 && min_x < 0) {
     LOG(message_group::Error, "all points for rotate_extrude() must have the same X coordinate sign (range is %1$.2f -> %2$.2f)", min_x, max_x);
     return nullptr;
   }
@@ -896,7 +905,7 @@ static std::unique_ptr<Geometry> rotatePolygon(const RotateExtrudeNode& node, co
                 rings[j % 2][(i + 1) % o.vertices.size()],
                 rings[(j + 1) % 2][(i + 1) % o.vertices.size()],
                 rings[j % 2][i]
-        });                
+        });
 
         builder.appendPolygon({
                 rings[(j + 1) % 2][(i + 1) % o.vertices.size()],
@@ -958,7 +967,7 @@ std::shared_ptr<const Geometry> GeometryEvaluator::projectionCut(const Projectio
   std::shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
   if (newgeom) {
 #ifdef ENABLE_MANIFOLD
-    if (Feature::ExperimentalManifold.is_enabled()) {
+    if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
       auto manifold = ManifoldUtils::createManifoldFromGeometry(newgeom);
       auto poly2d = manifold->slice();
       return std::shared_ptr<const Polygon2d>(ClipperUtils::sanitize(poly2d));
@@ -981,8 +990,8 @@ std::shared_ptr<const Geometry> GeometryEvaluator::projectionCut(const Projectio
 std::shared_ptr<const Geometry> GeometryEvaluator::projectionNoCut(const ProjectionNode& node)
 {
 #ifdef ENABLE_MANIFOLD
-  if (Feature::ExperimentalManifold.is_enabled()) {
-    std::shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
+  if (RenderSettings::inst()->backend3D == RenderBackend3D::ManifoldBackend) {
+    const std::shared_ptr<const Geometry> newgeom = applyToChildren3D(node, OpenSCADOperator::UNION).constptr();
     if (newgeom) {
         auto manifold = ManifoldUtils::createManifoldFromGeometry(newgeom);
         auto poly2d = manifold->project();
@@ -993,9 +1002,7 @@ std::shared_ptr<const Geometry> GeometryEvaluator::projectionNoCut(const Project
   }
 #endif
 
-  std::shared_ptr<const Geometry> geom;
-  std::vector<std::unique_ptr<Polygon2d>> tmp_geom;
-  BoundingBox bounds;
+  std::vector<std::shared_ptr<const Polygon2d>> tmp_geom;
   for (const auto& [chnode, chgeom] : this->visitedchildren[node.index()]) {
     if (chnode->modinst->isBackground()) continue;
 
@@ -1005,32 +1012,12 @@ std::shared_ptr<const Geometry> GeometryEvaluator::projectionNoCut(const Project
     // project chgeom -> polygon2d
     if (auto chPS = PolySetUtils::getGeometryAsPolySet(chgeom)) {
       if (auto poly = PolySetUtils::project(*chPS)) {
-        bounds.extend(poly->getBoundingBox());
         tmp_geom.push_back(std::move(poly));
       }
     }
   }
-  int pow2 = ClipperUtils::getScalePow2(bounds);
-
-  ClipperLib::Clipper sumclipper;
-  for (auto &poly : tmp_geom) {
-    ClipperLib::Paths result = ClipperUtils::fromPolygon2d(*poly, pow2);
-    // Using NonZero ensures that we don't create holes from polygons sharing
-    // edges since we're unioning a mesh
-    result = ClipperUtils::process(result, ClipperLib::ctUnion, ClipperLib::pftNonZero);
-    // Add correctly winded polygons to the main clipper
-    sumclipper.AddPaths(result, ClipperLib::ptSubject, true);
-  }
-
-  ClipperLib::PolyTree sumresult;
-  // This is key - without StrictlySimple, we tend to get self-intersecting results
-  sumclipper.StrictlySimple(true);
-  sumclipper.Execute(ClipperLib::ctUnion, sumresult, ClipperLib::pftNonZero, ClipperLib::pftNonZero);
-  if (sumresult.Total() > 0) {
-    geom = ClipperUtils::toPolygon2d(sumresult, pow2);
-  }
-
-  return geom;
+  auto projected = ClipperUtils::applyProjection(tmp_geom);
+  return std::shared_ptr(std::move(projected));
 }
 
 
