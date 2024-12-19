@@ -30,7 +30,7 @@ if [[ "$USE_CCACHE" == "1" ]]; then
   
   CCACHE_BUILD_IMAGE=openscad-wasm-ccache:local
   echo "
-    FROM --platform=linux/amd64 $BUILD_IMAGE
+    FROM $BUILD_IMAGE
     RUN apt update && \
         apt install -y ccache && \
         apt clean
@@ -48,4 +48,4 @@ docker_run() {
 }
 
 docker_run emcmake cmake -B "$BUILD_DIR" "$@"
-docker_run cmake --build "$BUILD_DIR" -j
+docker_run cmake --build "$BUILD_DIR"
