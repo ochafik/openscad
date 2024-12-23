@@ -752,6 +752,7 @@ int main(int argc, char **argv)
     ("autocenter", "adjust camera to look at object's center")
     ("viewall", "adjust camera to fit object")
     ("backend", po::value<std::string>(), "3D rendering backend to use: 'CGAL' (old/slow) [default] or 'Manifold' (new/fast)")
+    ("render-modifiers", "render modifiers as they appear in preview")
     ("imgsize", po::value<std::string>(), "=width,height of exported png")
     ("render", po::value<std::string>()->implicit_value(""), "for full geometry evaluation when exporting png")
     ("preview", po::value<std::string>()->implicit_value(""), "[=throwntogether] -for ThrownTogether preview png")
@@ -848,6 +849,9 @@ int main(int argc, char **argv)
   if (vm.count("info")) arg_info = true;
   if (vm.count("backend")) {
     RenderSettings::inst()->backend3D = renderBackend3DFromString(vm["backend"].as<std::string>());
+  }
+  if (vm.count("render-modifiers")) {
+    RenderSettings::inst()->renderModifiers = true;
   }
 
   if (vm.count("preview")) {

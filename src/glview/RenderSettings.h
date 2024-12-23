@@ -19,6 +19,7 @@ public:
   static RenderSettings *inst(bool erase = false);
 
   RenderBackend3D backend3D;
+  bool renderModifiers;
   unsigned int openCSGTermLimit;
   unsigned int img_width;
   unsigned int img_height;
