@@ -50,11 +50,11 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
         std::list<Hull_Points> part_points;
 
         std::shared_ptr<Polyhedron> poly_to_decompose;
-        bool test_convexity_before_decomposition = true;
+        boost::tribool convex = boost::indeterminate;
         
         if (auto ps = dynamic_cast<const PolySet *>(operand.get())) {
           if (!ps->isEmpty()) {
-            if (ps->isConvex()) {
+            if (ps->convexValue()) {
               Hull_Points points;
               points.reserve(ps->vertices.size());
               for (const auto &p : ps->vertices) {
@@ -64,32 +64,29 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
             } else {
               poly_to_decompose = std::make_shared<Polyhedron>();
               CGALUtils::createPolyhedronFromPolySet(*ps, *poly_to_decompose);
-              test_convexity_before_decomposition = false;
             }
           }
-        } else if (auto maniGeom = dynamic_cast<const ManifoldGeometry *>(operand.get())) {
-          poly_to_decompose = maniGeom->toPolyhedron<Polyhedron>();
-          // const auto & mani = maniGeom->getManifold();
-          // auto hulled = mani.Hull();
-          // // Test convexity w/ Volume. Bit of a hack, but works.
-          // if (mani.Volume() == hulled.Volume()) {
-          //   const auto mesh = hulled.GetMeshGL64();
-          //   const auto numVert = mesh.NumVert();
+        } else if (auto mani = dynamic_cast<const ManifoldGeometry *>(operand.get())) {
+          if (mani->convexValue()) {
+            const auto mesh = mani->getManifold().GetMeshGL64();
+            const auto numVert = mesh.NumVert();
 
-          //   Hull_Points points;
-          //   points.reserve(numVert);
-          //   for (size_t v = 0; v < numVert; ++v) {
-          //     points.emplace_back(mesh.GetVertPos(v));
-          //   }
-          //   part_points.emplace_back(std::move(points));
-          // } else {
-          //   test_convexity_before_decomposition = false;
-          //   poly_to_decompose = maniGeom->toPolyhedron<Polyhedron>();
-          // }
+            Hull_Points points;
+            points.reserve(numVert);
+            for (size_t v = 0; v < numVert; ++v) {
+              points.emplace_back(mesh.GetVertPos(v));
+            }
+            part_points.emplace_back(std::move(points));
+          } else {
+            poly_to_decompose = mani->toPolyhedron<Polyhedron>();
+          }
+        } else {
+          throw 0;
         }
 
         if (poly_to_decompose) {
-          if (test_convexity_before_decomposition && CGALUtils::is_weakly_convex(*poly_to_decompose)) {
+          if (!poly_to_decompose->is_valid()) throw 0;
+          if (CGALUtils::is_weakly_convex(*poly_to_decompose)) {
             Hull_Points points;
             points.reserve(poly_to_decompose->size_of_vertices());
             for (auto pi = poly_to_decompose->vertices_begin(); pi != poly_to_decompose->vertices_end(); ++pi) {
@@ -97,7 +94,6 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
             }
             part_points.emplace_back(std::move(points));
           } else {
-            if (!poly_to_decompose->is_valid()) throw 0;
 
             CGAL::Timer t;
             t.start();
@@ -146,7 +142,7 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
           }
         }
         
-        return std::move(part_points);
+        return part_points;
       });
       
       auto combineParts = [&](const Hull_Points &points0, const Hull_Points &points1) -> std::shared_ptr<const ManifoldGeometry> {
@@ -182,7 +178,7 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
         PRINTDB("Minkowski: Computing convex hull took %f s", t.time());
         t.reset();
 
-        return std::make_shared<ManifoldGeometry>(hull);
+        return std::make_shared<ManifoldGeometry>(hull, /* convex= */ true);
       };
 
       std::vector<std::shared_ptr<const ManifoldGeometry>> result_parts(part_points[0].size() * part_points[1].size());
