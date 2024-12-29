@@ -29,36 +29,13 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
   using Hull_Point = linalg::vec<double, 3>;
   using Hull_Points = std::vector<Hull_Point>;
   using Polyhedron = CGAL_Polyhedron;
+  using Nef = CGAL_Nef_polyhedron3;
 
-  auto polyhedronFromGeometry = [](const std::shared_ptr<const Geometry>& geom, bool *pIsConvexOut) -> std::shared_ptr<Polyhedron> 
-  {
-    if (auto ps = dynamic_cast<const PolySet *>(geom.get())) {
-      auto poly = std::make_shared<Polyhedron>();
-      CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
-      if (pIsConvexOut) *pIsConvexOut = ps->isConvex();
-      return poly;
-    } else if (auto mani = dynamic_cast<const ManifoldGeometry *>(geom.get())) {
-      auto poly = mani->toPolyhedron<Polyhedron>();
-      if (pIsConvexOut) *pIsConvexOut = CGALUtils::is_weakly_convex(*poly);
-      return poly;
-    } else {
-      throw 0;
-    }
-  };
   assert(children.size() >= 2);
   auto it = children.begin();
   CGAL::Timer t_tot;
   t_tot.start();
   std::vector<std::shared_ptr<const Geometry>> operands = {it->second, std::shared_ptr<const Geometry>()};
-
-  auto getHullPoints = [&](const Polyhedron &poly) {
-    std::vector<Hull_Point> out;
-    out.reserve(poly.size_of_vertices());
-    for (auto pi = poly.vertices_begin(); pi != poly.vertices_end(); ++pi) {
-      out.emplace_back(CGALUtils::vector_convert<Hull_Point>(pi->point()));
-    }
-    return out;
-  };
 
   try {
     // Note: we could parallelize more, e.g. compute all decompositions ahead of time instead of doing them 2 by 2,
@@ -69,39 +46,106 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
       std::vector<std::list<Hull_Points>> part_points(2);
 
       parallelizable_transform(operands.begin(), operands.begin() + 2, part_points.begin(), [&](const auto &operand) {
+        // List of points of each convex part of the operand.
         std::list<Hull_Points> part_points;
 
-        bool is_convex;
-        auto poly = polyhedronFromGeometry(operand, &is_convex);
-        if (!poly) throw 0;
-        if (poly->empty()) {
-          throw 0;
-        }
-
-        if (is_convex) {
-          part_points.emplace_back(getHullPoints(*poly));
-        } else {
-          // The CGAL_Nef_polyhedron3 constructor can crash on bad polyhedron, so don't try
-          if (!poly->is_valid()) throw 0;
-          CGAL_Nef_polyhedron3 decomposed_nef(*poly);
-          CGAL::Timer t;
-          t.start();
-          CGAL::convex_decomposition_3(decomposed_nef);
-
-          // the first volume is the outer volume, which ignored in the decomposition
-          CGAL_Nef_polyhedron3::Volume_const_iterator ci = ++decomposed_nef.volumes_begin();
-          for (; ci != decomposed_nef.volumes_end(); ++ci) {
-            if (ci->mark()) {
-              Polyhedron poly;
-              decomposed_nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), poly);
-              part_points.emplace_back(getHullPoints(poly));
+        std::shared_ptr<Polyhedron> poly_to_decompose;
+        bool test_convexity_before_decomposition = true;
+        
+        if (auto ps = dynamic_cast<const PolySet *>(operand.get())) {
+          if (!ps->isEmpty()) {
+            if (ps->isConvex()) {
+              Hull_Points points;
+              points.reserve(ps->vertices.size());
+              for (const auto &p : ps->vertices) {
+                points.emplace_back(CGALUtils::vector_convert<Hull_Point>(p));
+              }
+              part_points.emplace_back(std::move(points));
+            } else {
+              poly_to_decompose = std::make_shared<Polyhedron>();
+              CGALUtils::createPolyhedronFromPolySet(*ps, *poly_to_decompose);
+              test_convexity_before_decomposition = false;
             }
           }
+        } else if (auto maniGeom = dynamic_cast<const ManifoldGeometry *>(operand.get())) {
+          poly_to_decompose = maniGeom->toPolyhedron<Polyhedron>();
+          // const auto & mani = maniGeom->getManifold();
+          // auto hulled = mani.Hull();
+          // // Test convexity w/ Volume. Bit of a hack, but works.
+          // if (mani.Volume() == hulled.Volume()) {
+          //   const auto mesh = hulled.GetMeshGL64();
+          //   const auto numVert = mesh.NumVert();
 
-          PRINTDB("Minkowski: decomposed into %d convex parts", part_points.size());
-          t.stop();
-          PRINTDB("Minkowski: decomposition took %f s", t.time());
+          //   Hull_Points points;
+          //   points.reserve(numVert);
+          //   for (size_t v = 0; v < numVert; ++v) {
+          //     points.emplace_back(mesh.GetVertPos(v));
+          //   }
+          //   part_points.emplace_back(std::move(points));
+          // } else {
+          //   test_convexity_before_decomposition = false;
+          //   poly_to_decompose = maniGeom->toPolyhedron<Polyhedron>();
+          // }
         }
+
+        if (poly_to_decompose) {
+          if (test_convexity_before_decomposition && CGALUtils::is_weakly_convex(*poly_to_decompose)) {
+            Hull_Points points;
+            points.reserve(poly_to_decompose->size_of_vertices());
+            for (auto pi = poly_to_decompose->vertices_begin(); pi != poly_to_decompose->vertices_end(); ++pi) {
+              points.emplace_back(CGALUtils::vector_convert<Hull_Point>(pi->point()));
+            }
+            part_points.emplace_back(std::move(points));
+          } else {
+            if (!poly_to_decompose->is_valid()) throw 0;
+
+            CGAL::Timer t;
+            t.start();
+            Nef decomposed_nef(*poly_to_decompose);
+            CGAL::convex_decomposition_3(decomposed_nef);
+
+            struct VertexCollector {
+              Hull_Points points;
+              std::unordered_set<Nef::Vertex_const_handle> vertices_seen;
+
+              void clear() {
+                points.clear();
+                vertices_seen.clear();
+              }
+              
+              void visit(Nef::Vertex_const_handle v) {
+                if (vertices_seen.insert(v).second) {
+                  points.push_back(CGALUtils::vector_convert<Hull_Point>(v->point()));
+                } else {
+                  fprintf(stderr, "Duplicate vertex in convex decomposition\n");
+                }
+              }
+
+              void visit(Nef::Halffacet_const_handle) {}
+              void visit(Nef::SFace_const_handle) {}
+              void visit(Nef::Halfedge_const_handle) {}
+              void visit(Nef::SHalfedge_const_handle) {}
+              void visit(Nef::SHalfloop_const_handle) {}
+            };
+            VertexCollector collector;
+            collector.points.reserve(decomposed_nef.number_of_vertices());
+            collector.vertices_seen.reserve(decomposed_nef.number_of_vertices());
+
+            // the first volume is the outer volume, which ignored in the decomposition
+            Nef::Volume_const_iterator ci = ++decomposed_nef.volumes_begin();
+            for (; ci != decomposed_nef.volumes_end(); ++ci) {
+              if (ci->mark()) {
+                collector.clear();
+                Nef::SNC_const_decorator(decomposed_nef).visit_shell_objects(ci->shells_begin(), collector);
+                part_points.push_back(collector.points);
+              }
+            }
+            PRINTDB("Minkowski: decomposed into %d convex parts", part_points.size());
+            t.stop();
+            PRINTDB("Minkowski: decomposition took %f s", t.time());
+          }
+        }
+        
         return std::move(part_points);
       });
       
