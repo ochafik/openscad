@@ -46,7 +46,7 @@ const char* statusToString(Error status) {
 }
 
 template <class TriangleMesh>
-std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const TriangleMesh& tm)
+std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const TriangleMesh& tm, boost::tribool convex)
 {
   using vertex_descriptor = typename TriangleMesh::Vertex_index;
 
@@ -88,12 +88,12 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const TriangleMe
   if (id >= 0) {
     originalIDs.insert(id);
   }
-  return std::make_shared<ManifoldGeometry>(mani, originalIDs);
+  return std::make_shared<ManifoldGeometry>(mani, convex, originalIDs);
 }
 
 #ifdef ENABLE_CGAL
-template std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>> &tm);
-template std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const CGAL_DoubleMesh &tm);
+template std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const CGAL::Surface_mesh<CGAL::Point_3<CGAL::Epick>> &tm, boost::tribool convex);
+template std::shared_ptr<ManifoldGeometry> createManifoldFromSurfaceMesh(const CGAL_DoubleMesh &tm, boost::tribool convex);
 #endif
 
 std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const PolySet& ps)
@@ -147,7 +147,7 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromTriangularPolySet(const Poly
   mesh.runIndex.push_back(mesh.triVerts.size());
 
   auto mani = manifold::Manifold(mesh);
-  return std::make_shared<ManifoldGeometry>(mani, originalIDs, originalIDToColor);
+  return std::make_shared<ManifoldGeometry>(mani, ps.convexValue(), originalIDs, originalIDToColor);
 }
 
 std::shared_ptr<ManifoldGeometry> createManifoldFromPolySet(const PolySet& ps)
@@ -224,7 +224,7 @@ std::shared_ptr<ManifoldGeometry> createManifoldFromPolySet(const PolySet& ps)
       }
     }
 
-    auto geom = createManifoldFromSurfaceMesh(m);
+    auto geom = createManifoldFromSurfaceMesh(m, ps_tri->convexValue());
     // TODO: preserve color if polyset is fully monochrome, or maybe pass colors around in surface mesh?
     return geom;
   } catch (const std::exception& e) {

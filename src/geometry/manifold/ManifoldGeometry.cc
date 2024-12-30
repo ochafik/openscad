@@ -32,14 +32,16 @@ Result vector_convert(V const& v) {
 
 }
 
-ManifoldGeometry::ManifoldGeometry() : manifold_(manifold::Manifold()) {}
+ManifoldGeometry::ManifoldGeometry() : manifold_(manifold::Manifold()), convex_(true) {}
 
 ManifoldGeometry::ManifoldGeometry(
   manifold::Manifold mani,
+  boost::tribool convex,
   const std::set<uint32_t> & originalIDs,
   const std::map<uint32_t, Color4f> & originalIDToColor,
   const std::set<uint32_t> & subtractedIDs)
     : manifold_(std::move(mani)),
+      convex_(convex),
       originalIDs_(originalIDs),
       originalIDToColor_(originalIDToColor),
       subtractedIDs_(subtractedIDs)
@@ -108,7 +110,7 @@ std::string ManifoldGeometry::dump() const {
 
 std::shared_ptr<PolySet> ManifoldGeometry::toPolySet() const {
   manifold::MeshGL64 mesh = getManifold().GetMeshGL64();
-  auto ps = std::make_shared<PolySet>(3);
+  auto ps = std::make_shared<PolySet>(3, convexValue());
   ps->setTriangular(true);
   ps->vertices.reserve(mesh.NumVert());
   ps->indices.reserve(mesh.NumTri());
@@ -239,7 +241,7 @@ std::shared_ptr<Polyhedron> ManifoldGeometry::toPolyhedron() const
 template std::shared_ptr<CGAL::Polyhedron_3<CGAL_Kernel3>> ManifoldGeometry::toPolyhedron() const;
 #endif
 
-ManifoldGeometry ManifoldGeometry::binOp(const ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::OpType opType) const {
+ManifoldGeometry ManifoldGeometry::binOp(const ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::OpType opType, boost::tribool convex) const {
   auto mani = lhs.manifold_.Boolean(rhs.manifold_, opType);
   auto originalIDToColor = lhs.originalIDToColor_;
   auto subtractedIDs = lhs.subtractedIDs_;
@@ -262,7 +264,7 @@ ManifoldGeometry ManifoldGeometry::binOp(const ManifoldGeometry& lhs, const Mani
     originalIDToColor.insert(rhs.originalIDToColor_.begin(), rhs.originalIDToColor_.end());
     subtractedIDs.insert(rhs.subtractedIDs_.begin(), rhs.subtractedIDs_.end());
   }
-  return {mani, originalIDs, originalIDToColor, subtractedIDs};
+  return {mani, convex, originalIDs, originalIDToColor, subtractedIDs};
 }
 
 std::shared_ptr<ManifoldGeometry> minkowskiOp(const ManifoldGeometry& lhs, const ManifoldGeometry& rhs) {
@@ -292,15 +294,15 @@ std::shared_ptr<ManifoldGeometry> minkowskiOp(const ManifoldGeometry& lhs, const
 }
 
 ManifoldGeometry ManifoldGeometry::operator+(const ManifoldGeometry& other) const {
-  return binOp(*this, other, manifold::OpType::Add);
+  return binOp(*this, other, manifold::OpType::Add, (isEmpty() && other.convexValue()) || (convexValue() && other.isEmpty()) ? (boost::tribool) true : unknown);
 }
 
 ManifoldGeometry ManifoldGeometry::operator*(const ManifoldGeometry& other) const {
-  return binOp(*this, other, manifold::OpType::Intersect);
+  return binOp(*this, other, manifold::OpType::Intersect, convexValue() && other.convexValue() ? (boost::tribool) true : unknown);
 }
 
 ManifoldGeometry ManifoldGeometry::operator-(const ManifoldGeometry& other) const {
-  return binOp(*this, other, manifold::OpType::Subtract);
+  return binOp(*this, other, manifold::OpType::Subtract, other.isEmpty() && convexValue() ? (boost::tribool) true : unknown);
 }
 
 ManifoldGeometry ManifoldGeometry::minkowski(const ManifoldGeometry& other) const {

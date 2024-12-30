@@ -24,32 +24,41 @@ namespace ManifoldUtils {
 /*!
    children cannot contain nullptr objects
  */
-std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& children)
+std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometries& geomChildren)
 {
   using Hull_Point = linalg::vec<double, 3>;
   using Hull_Points = std::vector<Hull_Point>;
   using Polyhedron = CGAL_Polyhedron;
 
-  auto polyhedronFromGeometry = [](const std::shared_ptr<const Geometry>& geom, bool *pIsConvexOut) -> std::shared_ptr<Polyhedron> 
-  {
-    if (auto ps = dynamic_cast<const PolySet *>(geom.get())) {
-      auto poly = std::make_shared<Polyhedron>();
-      CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
-      if (pIsConvexOut) *pIsConvexOut = ps->isConvex();
-      return poly;
-    } else if (auto mani = dynamic_cast<const ManifoldGeometry *>(geom.get())) {
-      auto poly = mani->toPolyhedron<Polyhedron>();
-      if (pIsConvexOut) *pIsConvexOut = CGALUtils::is_weakly_convex(*poly);
-      return poly;
-    } else {
-      throw 0;
-    }
-  };
+  // auto polyhedronFromGeometry = [](const manifold::Manifold, bool *pIsConvexOut) -> std::shared_ptr<Polyhedron> 
+  // {
+  //   if (auto ps = dynamic_cast<const PolySet *>(geom.get())) {
+  //     auto poly = std::make_shared<Polyhedron>();
+  //     CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
+  //     if (pIsConvexOut) *pIsConvexOut = ps->isConvex();
+  //     return poly;
+  //   } else if (auto mani = dynamic_cast<const ManifoldGeometry *>(geom.get())) {
+  //     auto poly = mani->toPolyhedron<Polyhedron>();
+  //     if (pIsConvexOut) *pIsConvexOut = CGALUtils::is_weakly_convex(*poly);
+  //     return poly;
+  //   } else {
+  //     throw 0;
+  //   }
+  // };
+
+  std::vector<std::shared_ptr<const ManifoldGeometry>> children;
+  for (const auto& item : geomChildren) {
+    auto chN = item.second ? createManifoldFromGeometry(item.second) : nullptr;
+    if (chN) children.push_back(chN);
+  }
+
   assert(children.size() >= 2);
   auto it = children.begin();
   CGAL::Timer t_tot;
   t_tot.start();
-  std::vector<std::shared_ptr<const Geometry>> operands = {it->second, std::shared_ptr<const Geometry>()};
+  std::vector<std::shared_ptr<const ManifoldGeometry>> operands { *it, nullptr };
+  // operands.emplace_back(*it);
+  // operands.emplace_back(nullptr);
 
   auto getHullPoints = [&](const Polyhedron &poly) {
     std::vector<Hull_Point> out;
@@ -59,27 +68,38 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
     }
     return out;
   };
-
+  
   try {
     // Note: we could parallelize more, e.g. compute all decompositions ahead of time instead of doing them 2 by 2,
     // but this could use substantially more memory.
-    while (++it != children.end()) {
-      operands[1] = it->second;
 
-      std::vector<std::list<Hull_Points>> part_points(2);
+    std::vector<std::vector<Hull_Points>> part_points(2);
+
+    while (++it != children.end()) {
+      operands[1] = *it;
+
+      part_points[0].clear();
+      part_points[1].clear();
 
       parallelizable_transform(operands.begin(), operands.begin() + 2, part_points.begin(), [&](const auto &operand) {
-        std::list<Hull_Points> part_points;
+        std::vector<Hull_Points> part_points;
 
-        bool is_convex;
-        auto poly = polyhedronFromGeometry(operand, &is_convex);
-        if (!poly) throw 0;
-        if (poly->empty()) {
-          throw 0;
-        }
+        // if (boost::logic::true_value(operand->convexValue())) {
+        //   const auto mesh = mani->getManifold().GetMeshGL64();
+        //   const auto numVert = mesh.NumVert();
 
+        //   Hull_Points points;
+        //   points.reserve(numVert);
+        //   for (size_t v = 0; v < numVert; ++v) {
+        //     points.emplace_back(mesh.GetVertPos(v));
+        //   }
+        //   part_points.emplace_back(std::move(points));
+        // }
+        auto poly = operand->template toPolyhedron<Polyhedron>();
+        bool is_convex = boost::logic::indeterminate(operand->convexValue()) ? CGALUtils::is_weakly_convex(*poly) : (bool) operand->convexValue();
+        
         if (is_convex) {
-          part_points.emplace_back(getHullPoints(*poly));
+          part_points.emplace_back(std::move(getHullPoints(*poly)));
         } else {
           // The CGAL_Nef_polyhedron3 constructor can crash on bad polyhedron, so don't try
           if (!poly->is_valid()) throw 0;
@@ -94,7 +114,8 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
             if (ci->mark()) {
               Polyhedron poly;
               decomposed_nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), poly);
-              part_points.emplace_back(getHullPoints(poly));
+
+              part_points.emplace_back(std::move(getHullPoints(poly)));
             }
           }
 
@@ -109,11 +130,13 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
         CGAL::Timer t;
 
         t.start();
-        std::vector<Hull_Point> minkowski_points;
+        // thread_local
+        std::vector<Hull_Point> minkowski_points_vec;
 
         auto np0 = points0.size();
         auto np1 = points1.size();
-        minkowski_points.resize(np0 * np1);
+        minkowski_points_vec.resize(np0 * np1);
+        auto * minkowski_points = minkowski_points_vec.data();
         for (size_t i = 0; i < points0.size(); ++i) {
           auto &p0i = points0[i];
           auto offset = np1 * i;
@@ -122,23 +145,23 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
           }
         }
 
-        if (minkowski_points.size() <= 3) {
+        if (minkowski_points_vec.size() <= 3) {
           t.stop();
           return std::make_shared<const ManifoldGeometry>();
         }
 
         t.stop();
-        PRINTDB("Minkowski: Point cloud creation (%d ⨉ %d -> %d) took %f ms", points0.size() % points1.size() % minkowski_points.size() % (t.time() * 1000));
+        PRINTDB("Minkowski: Point cloud creation (%d ⨉ %d -> %d) took %f ms", points0.size() % points1.size() % minkowski_points_vec.size() % (t.time() * 1000));
         t.reset();
 
         t.start();
 
-        auto hull = manifold::Manifold::Hull(minkowski_points);
+        auto hull = manifold::Manifold::Hull(minkowski_points_vec);
         t.stop();
         PRINTDB("Minkowski: Computing convex hull took %f s", t.time());
         t.reset();
 
-        return std::make_shared<ManifoldGeometry>(hull);
+        return std::make_shared<ManifoldGeometry>(hull, /* convex= */ true);
       };
 
       std::vector<std::shared_ptr<const ManifoldGeometry>> result_parts(part_points[0].size() * part_points[1].size());
@@ -152,22 +175,17 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
       CGAL::Timer t;
       t.start();
       PRINTDB("Minkowski: Computing union of %d parts", result_parts.size());
-      Geometry::Geometries fake_children;
+      std::vector<manifold::Manifold> result_parts_manifolds;
       for (const auto& part : result_parts) {
-        fake_children.push_back(std::make_pair(std::shared_ptr<const AbstractNode>(),
-                                                part));
+        result_parts_manifolds.push_back(part->getManifold());
       }
-      auto N = ManifoldUtils::applyOperator3DManifold(fake_children, OpenSCADOperator::UNION);
+      auto N = manifold::Manifold::BatchBoolean(result_parts_manifolds, manifold::OpType::Add);
 
-      // FIXME: This should really never throw.
-      // Assert once we figured out what went wrong with issue #1069?
-      if (!N) throw 0;
       t.stop();
       PRINTDB("Minkowski: Union done: %f s", t.time());
       t.reset();
 
-      N->toOriginal();
-      operands[0] = N;
+      operands[0] = std::make_shared<ManifoldGeometry>(N);
     }
 
     t_tot.stop();
@@ -181,7 +199,7 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
     LOG(message_group::Warning,
         "[manifold] Minkowski hard-crashed, falling back to Nef operation.");
   }
-  return ManifoldUtils::applyOperator3DManifold(children, OpenSCADOperator::MINKOWSKI);
+  return ManifoldUtils::applyOperator3DManifold(geomChildren, OpenSCADOperator::MINKOWSKI);
 }
 
 }  // namespace ManifoldUtils

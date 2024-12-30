@@ -11,6 +11,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include "utils/boost-utils.h"
 
 namespace manifold {
   class Manifold;
@@ -26,6 +27,7 @@ public:
   ManifoldGeometry();
   ManifoldGeometry(
     manifold::Manifold object,
+    boost::tribool convex = unknown,
     const std::set<uint32_t> & originalIDs = {},
     const std::map<uint32_t, Color4f> & originalIDToColor = {},
     const std::set<uint32_t> & subtractedIDs = {});
@@ -71,11 +73,13 @@ public:
   void foreachVertexUntilTrue(const std::function<bool(const manifold::vec3& pt)>& f) const;
 
   const manifold::Manifold& getManifold() const;
+  boost::tribool convexValue() const { return convex_; }
 
 private:
-  ManifoldGeometry binOp(const ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::OpType opType) const;
+  ManifoldGeometry binOp(const ManifoldGeometry& lhs, const ManifoldGeometry& rhs, manifold::OpType opType, boost::tribool convex = unknown) const;
 
   manifold::Manifold manifold_;
+  boost::tribool convex_;
   std::set<uint32_t> originalIDs_;
   std::map<uint32_t, Color4f> originalIDToColor_;
   std::set<uint32_t> subtractedIDs_;
