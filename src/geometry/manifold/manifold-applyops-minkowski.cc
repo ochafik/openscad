@@ -49,10 +49,14 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
         // List of points of each convex part of the operand.
         std::list<Hull_Points> part_points;
 
-        std::shared_ptr<Polyhedron> poly_to_decompose;
+        // bool is_convex = false;
+        std::shared_ptr<Polyhedron> poly;
         boost::tribool convex = boost::indeterminate;
         
         if (auto ps = dynamic_cast<const PolySet *>(operand.get())) {
+          // poly = std::make_shared<Polyhedron>();
+          // CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
+          // is_convex = ps->isConvex();
           if (!ps->isEmpty()) {
             if (ps->convexValue()) {
               Hull_Points points;
@@ -62,12 +66,26 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
               }
               part_points.emplace_back(std::move(points));
             } else {
-              poly_to_decompose = std::make_shared<Polyhedron>();
-              CGALUtils::createPolyhedronFromPolySet(*ps, *poly_to_decompose);
+              poly = std::make_shared<Polyhedron>();
+              CGALUtils::createPolyhedronFromPolySet(*ps, *poly);
             }
           }
         } else if (auto mani = dynamic_cast<const ManifoldGeometry *>(operand.get())) {
-          if (mani->convexValue()) {
+          // poly = mani->toPolyhedron<Polyhedron>();
+          // if (mani->convexValue() == boost::indeterminate) {
+          //   is_convex = CGALUtils::is_weakly_convex(*poly);
+          // } else {
+          //   is_convex = (bool) mani->convexValue();
+          // }
+          // is_convex = (mani->convexValue() == boost::tribool::true_value) || CGALUtils::is_weakly_convex(*poly);
+          auto convex = mani->convexValue();
+          // if (convex == boost::indeterminate) {
+          //   poly = mani->toPolyhedron<Polyhedron>();
+          //   convex = CGALUtils::is_weakly_convex(*poly);
+          // }
+          
+          if (convex == boost::tribool::true_value) {
+            poly.reset();
             const auto mesh = mani->getManifold().GetMeshGL64();
             const auto numVert = mesh.NumVert();
 
@@ -78,18 +96,19 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
             }
             part_points.emplace_back(std::move(points));
           } else {
-            poly_to_decompose = mani->toPolyhedron<Polyhedron>();
+            poly = mani->toPolyhedron<Polyhedron>();
           }
         } else {
           throw 0;
         }
 
-        if (poly_to_decompose) {
-          if (!poly_to_decompose->is_valid()) throw 0;
-          if (CGALUtils::is_weakly_convex(*poly_to_decompose)) {
+        if (poly) {
+          if (!poly->is_valid()) throw 0;
+          if (CGALUtils::is_weakly_convex(*poly)) {
+          // if (is_convex) {
             Hull_Points points;
-            points.reserve(poly_to_decompose->size_of_vertices());
-            for (auto pi = poly_to_decompose->vertices_begin(); pi != poly_to_decompose->vertices_end(); ++pi) {
+            points.reserve(poly->size_of_vertices());
+            for (auto pi = poly->vertices_begin(); pi != poly->vertices_end(); ++pi) {
               points.emplace_back(CGALUtils::vector_convert<Hull_Point>(pi->point()));
             }
             part_points.emplace_back(std::move(points));
@@ -97,7 +116,7 @@ std::shared_ptr<const Geometry> applyMinkowskiManifold(const Geometry::Geometrie
 
             CGAL::Timer t;
             t.start();
-            Nef decomposed_nef(*poly_to_decompose);
+            Nef decomposed_nef(*poly);
             CGAL::convex_decomposition_3(decomposed_nef);
 
             struct VertexCollector {
